@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0c10">
+    <title>Brain V1 — Mobile</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #07090e;
+            color: #f1f5f9;
+            font-size: 15px;
+            line-height: 1.5;
+            padding-bottom: 80px;
+            -webkit-font-smoothing: antialiased;
+            touch-action: manipulation;
+        }
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 12px 16px 80px 16px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0 16px 0;
+            border-bottom: 1px solid #242c42;
+            margin-bottom: 16px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header-left .logo {
+            font-size: 28px;
+            color: #3d8bff;
+        }
+        .header-left h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #f1f5f9 30%, #3d8bff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.65rem;
+            color: #4e5d78;
+            padding: 4px 10px;
+            border-radius: 12px;
+            border: 1px solid #242c42;
+            background: #0c0f16;
+        }
+        .connection-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+        .connection-status .dot.online {
+            background: #10b981;
+        }
+
+        /* Cards */
+        .card {
+            background: #121622;
+            border: 1px solid #242c42;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #242c42;
+        }
+        .card-title .material-symbols-outlined {
+            color: #3d8bff;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            height: 44px;
+            padding: 0 16px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: 0.15s;
+            touch-action: manipulation;
+            width: 100%;
+            min-height: 44px;
+        }
+        .btn:active {
+            transform: scale(0.96);
+        }
+        .btn-primary {
+            background: #3d8bff;
+            color: #fff;
+        }
+        .btn-primary:active {
+            background: #2563eb;
+        }
+        .btn-success {
+            background: #10b981;
+            color: #fff;
+        }
+        .btn-danger {
+            background: #ef4444;
+            color: #fff;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #242c42;
+            color: #f1f5f9;
+        }
+        .btn-sm {
+            height: 34px;
+            min-height: 34px;
+            font-size: 0.7rem;
+            padding: 0 12px;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Inputs */
+        .field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+        .field-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+        .field-input,
+        .field-textarea,
+        .field-select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #242c42;
+            background: #0c0f16;
+            color: #f1f5f9;
+            font-size: 0.9rem;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.15s;
+            touch-action: manipulation;
+        }
+        .field-input:focus,
+        .field-textarea:focus,
+        .field-select:focus {
+            border-color: #3d8bff;
+            outline: none;
+        }
+        .field-textarea {
+            min-height: 100px;
+            resize: vertical;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+        .field-select {
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .flex-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .flex-col {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .flex-1 {
+            flex: 1;
+            min-width: 0;
+        }
+        .text-muted {
+            color: #4e5d78;
+        }
+        .text-success {
+            color: #10b981;
+        }
+        .text-danger {
+            color: #ef4444;
+        }
+        .text-accent {
+            color: #3d8bff;
+        }
+        .text-xs {
+            font-size: 0.65rem;
+        }
+        .text-sm {
+            font-size: 0.75rem;
+        }
+        .monospace {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .w-full {
+            width: 100%;
+        }
+        .gap-2 {
+            gap: 4px;
+        }
+
+        /* Mission List */
+        .mission-item {
+            background: #0c0f16;
+            border: 1px solid #242c42;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: border-color 0.15s;
+            touch-action: manipulation;
+        }
+        .mission-item:active {
+            border-color: #3d8bff;
+        }
+        .mission-item .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .mission-item .title {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .mission-item .status-badge {
+            font-size: 0.55rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-badge.pending {
+            background: #f59e0b20;
+            color: #f59e0b;
+            border: 1px solid #f59e0b30;
+        }
+        .status-badge.running {
+            background: #3d8bff20;
+            color: #3d8bff;
+            border: 1px solid #3d8bff30;
+        }
+        .status-badge.completed {
+            background: #10b98120;
+            color: #10b981;
+            border: 1px solid #10b98130;
+        }
+        .status-badge.failed {
+            background: #ef444420;
+            color: #ef4444;
+            border: 1px solid #ef444430;
+        }
+        .status-badge.paused {
+            background: #f59e0b20;
+            color: #f59e0b;
+            border: 1px solid #f59e0b30;
+        }
+        .mission-item .meta {
+            font-size: 0.6rem;
+            color: #4e5d78;
+            margin-top: 4px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #242c42;
+            padding-bottom: 4px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .tab {
+            padding: 6px 14px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #4e5d78;
+            cursor: pointer;
+            border-radius: 6px;
+            white-space: nowrap;
+            transition: 0.15s;
+            touch-action: manipulation;
+            border: none;
+            background: transparent;
+        }
+        .tab:active {
+            background: #3d8bff20;
+        }
+        .tab.active {
+            color: #f1f5f9;
+            background: #242c42;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadein 0.2s ease;
+        }
+
+        /* Approval Items */
+        .approval-item {
+            background: #0c0f16;
+            border: 1px solid #242c42;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+        }
+        .approval-item .action {
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        .approval-item .reason {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            margin: 2px 0;
+        }
+        .approval-item .actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .approval-item .actions .btn {
+            flex: 1;
+            height: 32px;
+            min-height: 32px;
+            font-size: 0.65rem;
+        }
+
+        /* File Explorer */
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: 0.12s;
+            touch-action: manipulation;
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+        }
+        .file-item:active {
+            background: #3d8bff20;
+        }
+        .file-item .icon {
+            font-size: 18px;
+        }
+        .file-item.folder .icon {
+            color: #f59e0b;
+        }
+        .file-item.file .icon {
+            color: #3d8bff;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 80px;
+            left: 16px;
+            right: 16px;
+            background: #121622;
+            border: 1px solid #242c42;
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+            animation: slideup 0.25s ease;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+        }
+        .toast .icon {
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        .toast.success .icon { color: #10b981; }
+        .toast.error .icon { color: #ef4444; }
+        .toast.info .icon { color: #3d8bff; }
+        .toast .msg { flex: 1; font-size: 0.8rem; }
+        .toast .close {
+            background: none;
+            border: none;
+            color: #4e5d78;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px;
+        }
+
+        /* Auth Gate */
+        .auth-gate {
+            position: fixed;
+            inset: 0;
+            background: #07090e;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .auth-gate .auth-card {
+            background: #121622;
+            border: 1px solid #242c42;
+            border-radius: 16px;
+            padding: 24px 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .auth-gate .auth-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .auth-gate .auth-logo .material-symbols-outlined {
+            font-size: 32px;
+            color: #3d8bff;
+        }
+        .auth-gate .auth-logo span {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #f1f5f9 30%, #3d8bff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .auth-gate .auth-desc {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 16px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 24px 12px;
+            color: #4e5d78;
+        }
+        .empty-state .material-symbols-outlined {
+            font-size: 36px;
+            color: #242c42;
+        }
+        .empty-state p {
+            font-size: 0.75rem;
+            margin-top: 4px;
+        }
+
+        /* Loading */
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #242c42;
+            border-top-color: #3d8bff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes fadein {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: none; }
+        }
+        @keyframes slideup {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: none; }
+        }
+
+        ::-webkit-scrollbar {
+            width: 3px;
+            height: 3px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #242c42;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- AUTH GATE -->
+    <div class="auth-gate" id="auth-gate">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <span class="material-symbols-outlined">psychology</span>
+                <span>BRAIN V1</span>
+            </div>
+            <div class="auth-desc">Mobile interface for Brain — connect to GitHub to get started.</div>
+            <div class="field-group">
+                <label class="field-label">GitHub PAT</label>
+                <input type="password" class="field-input" id="auth-pat" placeholder="ghp_xxxxxxxxxxxx">
+            </div>
+            <div class="field-group">
+                <label class="field-label">Repository</label>
+                <input type="text" class="field-input" id="auth-repo" value="madnessgate44-debug/brain" placeholder="owner/repo">
+            </div>
+            <button class="btn btn-primary" id="btn-connect">Connect</button>
+            <div id="auth-error" style="color:#ef4444;font-size:0.75rem;margin-top:6px;display:none;"></div>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div class="container" id="app" style="display:none;">
+
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-left">
+                <span class="material-symbols-outlined logo">psychology</span>
+                <h1>BRAIN V1</h1>
+            </div>
+            <div class="connection-status">
+                <span class="dot" id="status-dot"></span>
+                <span id="status-label">Connected</span>
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <div class="tabs" id="tabs">
+            <button class="tab active" data-tab="missions">Missions</button>
+            <button class="tab" data-tab="files">Files</button>
+            <button class="tab" data-tab="approvals">Approvals</button>
+            <button class="tab" data-tab="settings">Settings</button>
+        </div>
+
+        <!-- MISSIONS TAB -->
+        <div class="tab-content active" id="tab-missions">
+            <div class="card">
+                <div class="card-title">
+                    <span class="material-symbols-outlined">add_circle</span>
+                    New Mission
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Title</label>
+                    <input type="text" class="field-input" id="mission-title" placeholder="Mission title">
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Objective</label>
+                    <textarea class="field-textarea" id="mission-objective" placeholder="What needs to be done?" rows="3"></textarea>
+                </div>
+                <button class="btn btn-primary" id="btn-create-mission">Create Mission</button>
+            </div>
+            <div class="card">
+                <div class="card-title">
+                    <span class="material-symbols-outlined">list</span>
+                    Missions
+                    <span style="margin-left:auto;font-size:0.65rem;color:#4e5d78;" id="mission-count">0</span>
+                </div>
+                <div id="mission-list">
+                    <div class="empty-state">
+                        <span class="material-symbols-outlined">inbox</span>
+                        <p>No missions yet. Create one above.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FILES TAB -->
+        <div class="tab-content" id="tab-files">
+            <div class="card">
+                <div class="card-title">
+                    <span class="material-symbols-outlined">folder_open</span>
+                    Explorer
+                    <button class="btn btn-outline btn-sm" id="btn-refresh-files" style="width:auto;margin-left:auto;">
+                        <span class="material-symbols-outlined" style="font-size:16px;">refresh</span>
+                    </button>
+                </div>
+                <div id="file-explorer">
+                    <div class="empty-state">
+                        <div class="loading-spinner"></div>
+                        <p>Loading...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card hidden" id="file-editor-card">
+                <div class="card-title">
+                    <span class="material-symbols-outlined">edit</span>
+                    <span id="file-editor-path">file.py</span>
+                </div>
+                <textarea class="field-textarea" id="file-editor-content" rows="6"></textarea>
+                <div class="flex-row">
+                    <input type="text" class="field-input flex-1" id="file-commit-msg" placeholder="Commit message" value="Update via Brain UI">
+                    <button class="btn btn-success" id="btn-save-file" style="flex:0 0 auto;width:auto;padding:0 16px;">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- APPROVALS TAB -->
+        <div class="tab-content" id="tab-approvals">
+            <div class="card">
+                <div class="card-title">
+                    <span class="material-symbols-outlined">gavel</span>
+                    Pending Approvals
+                    <span style="margin-left:auto;font-size:0.65rem;color:#4e5d78;" id="approval-count">0</span>
+                </div>
+                <div id="approval-list">
+                    <div class="empty-state">
+                        <span class="material-symbols-outlined">check_circle</span>
+                        <p>No pending approvals.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SETTINGS TAB -->
+        <div class="tab-content" id="tab-settings">
+            <div class="card">
+                <div class="card-title">
+                    <span class="material-symbols-outlined">settings</span>
+                    Settings
+                </div>
+                <div class="field-group">
+                    <label class="field-label">GitHub PAT</label>
+                    <input type="password" class="field-input" id="settings-pat" placeholder="ghp_...">
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Repository</label>
+                    <input type="text" class="field-input" id="settings-repo" placeholder="owner/repo">
+                </div>
+                <button class="btn btn-primary" id="btn-update-settings">Update</button>
+                <hr style="border-color:#242c42;margin:12px 0;">
+                <button class="btn btn-danger" id="btn-disconnect">Disconnect</button>
+            </div>
+            <div class="card">
+                <div class="card-title">
+                    <span class="material-symbols-outlined">info</span>
+                    About
+                </div>
+                <div class="text-muted text-sm" style="line-height:1.7;">
+                    <strong>Brain V1 Mobile UI</strong><br>
+                    Version: 1.0<br>
+                    Runs entirely in your browser.<br>
+                    Data stored in localStorage.
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast-container"></div>
+
+    <script>
+        // ============================================================
+        // STORE
+        // ============================================================
+        const Store = {
+            get(k, def = null) { try { const v = localStorage.getItem('brain_' + k); return v ? JSON.parse(v) :
+                    def; } catch (e) { return def; } },
+            set(k, v) { localStorage.setItem('brain_' + k, JSON.stringify(v)); },
+            del(k) { localStorage.removeItem('brain_' + k); }
+        };
+
+        // ============================================================
+        // STATE
+        // ============================================================
+        const State = {
+            token: Store.get('pat', ''),
+            repo: Store.get('repo', 'madnessgate44-debug/brain'),
+            connected: false,
+            user: null,
+            missions: [],
+            approvals: [],
+            files: [],
+            currentFile: null,
+            currentPath: '',
+        };
+
+        // ============================================================
+        // TOAST
+        // ============================================================
+        function toast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const el = document.createElement('div');
+            el.className = `toast ${type}`;
+            const icons = { success: 'check_circle', error: 'error', info: 'info' };
+            el.innerHTML = `
+                <span class="material-symbols-outlined icon">${icons[type] || 'info'}</span>
+                <span class="msg">${msg}</span>
+                <button class="close" onclick="this.parentElement.remove()">✕</button>
+            `;
+            container.appendChild(el);
+            setTimeout(() => { if (el.parentElement) el.remove(); }, 5000);
+        }
+
+        // ============================================================
+        // GITHUB CLIENT
+        // ============================================================
+        const GH = {
+            _token: '',
+            _repo: '',
+            setToken(t) { this._token = t; },
+            setRepo(r) { this._repo = r; },
+            async _req(path, opts = {}) {
+                const url = path.startsWith('http') ? path : `https://api.github.com${path}`;
+                const res = await fetch(url, {
+                    headers: {
+                        'Authorization': `token ${this._token}`,
+                        'Accept': 'application/vnd.github+json',
+                        'X-GitHub-Api-Version': '2022-11-28',
+                        ...(opts.headers || {})
+                    },
+                    method: opts.method || 'GET',
+                    body: opts.body ? JSON.stringify(opts.body) : undefined
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+                return data;
+            },
+            async getUser() { return this._req('/user'); },
+            async getFile(path) {
+                const [owner, repo] = this._repo.split('/');
+                return this._req(`/repos/${owner}/${repo}/contents/${path}?ref=main`);
+            },
+            async putFile(path, content, message, sha = null) {
+                const [owner, repo] = this._repo.split('/');
+                const body = {
+                    message: message || 'Update via Brain UI',
+                    content: btoa(unescape(encodeURIComponent(content))),
+                    branch: 'main'
+                };
+                if (sha) body.sha = sha;
+                return this._req(`/repos/${owner}/${repo}/contents/${path}`, { method: 'PUT', body });
+            },
+            async getTree(path = '') {
+                const [owner, repo] = this._repo.split('/');
+                return this._req(`/repos/${owner}/${repo}/contents/${path}?ref=main`);
+            },
+            async listMissions() {
+                try {
+                    const file = await this.getFile('brain/missions.json');
+                    const decoded = decodeURIComponent(escape(atob(file.content.replace(/\n/g, ''))));
+                    return JSON.parse(decoded);
+                } catch (e) { return []; }
+            },
+            async saveMissions(missions) {
+                const content = JSON.stringify(missions, null, 2);
+                try {
+                    const existing = await this.getFile('brain/missions.json');
+                    await this.putFile('brain/missions.json', content, 'Update missions', existing.sha);
+                } catch (e) {
+                    await this.putFile('brain/missions.json', content, 'Create missions file');
+                }
+            }
+        };
+
+        // ============================================================
+        // AUTH
+        // ============================================================
+        async function connect() {
+            const pat = document.getElementById('auth-pat').value.trim();
+            const repo = document.getElementById('auth-repo').value.trim();
+            if (!pat) { document.getElementById('auth-error').textContent = 'PAT required.';
+                document.getElementById('auth-error').style.display = 'block'; return; }
+            if (!repo) { document.getElementById('auth-error').textContent = 'Repository required.';
+                document.getElementById('auth-error').style.display = 'block'; return; }
+
+            GH.setToken(pat);
+            GH.setRepo(repo);
+
+            try {
+                const user = await GH.getUser();
+                State.token = pat;
+                State.repo = repo;
+                State.user = user;
+                State.connected = true;
+                Store.set('pat', pat);
+                Store.set('repo', repo);
+
+                document.getElementById('auth-gate').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+                document.getElementById('status-dot').className = 'dot online';
+                document.getElementById('status-label').textContent = `@${user.login}`;
+
+                await loadMissions();
+                await loadFiles();
+                await loadApprovals();
+
+                toast(`Connected as @${user.login}`, 'success');
+            } catch (e) {
+                document.getElementById('auth-error').textContent = e.message;
+                document.getElementById('auth-error').style.display = 'block';
+            }
+        }
+
+        function disconnect() {
+            State.token = '';
+            State.repo = '';
+            State.connected = false;
+            Store.del('pat');
+            Store.del('repo');
+            document.getElementById('app').style.display = 'none';
+            document.getElementById('auth-gate').style.display = 'flex';
+            toast('Disconnected', 'info');
+        }
+
+        // ============================================================
+        // MISSIONS
+        // ============================================================
+        async function loadMissions() {
+            try {
+                const data = await GH.listMissions();
+                State.missions = data;
+                renderMissions();
+            } catch (e) {
+                State.missions = [];
+                renderMissions();
+            }
+        }
+
+        function renderMissions() {
+            const list = document.getElementById('mission-list');
+            const count = document.getElementById('mission-count');
+            if (!list) return;
+            if (count) count.textContent = State.missions.length;
+
+            if (!State.missions.length) {
+                list.innerHTML =
+                    `<div class="empty-state"><span class="material-symbols-outlined">inbox</span><p>No missions yet.</p></div>`;
+                return;
+            }
+
+            list.innerHTML = State.missions.map((m, i) => `
+                <div class="mission-item" data-index="${i}">
+                    <div class="top">
+                        <span class="title">${m.title || 'Untitled'}</span>
+                        <span class="status-badge ${(m.status || 'pending').toLowerCase()}">${m.status || 'PENDING'}</span>
+                    </div>
+                    <div class="meta">
+                        <span>${m.phase || 'INTAKE'}</span>
+                        <span>${m.created_at ? new Date(m.created_at).toLocaleDateString() : ''}</span>
+                        <span>Iteration: ${m.current_loop_iteration || 0}/${m.max_loop_iterations || 10}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            list.querySelectorAll('.mission-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    const idx = parseInt(el.dataset.index);
+                    const m = State.missions[idx];
+                    toast(`Mission: ${m.title}\nStatus: ${m.status}\nPhase: ${m.phase}`, 'info');
+                });
+            });
+        }
+
+        async function createMission() {
+            const title = document.getElementById('mission-title').value.trim();
+            const objective = document.getElementById('mission-objective').value.trim();
+            if (!title || !objective) { toast('Title and objective required.', 'error'); return; }
+
+            const mission = {
+                id: 'mis_' + Date.now().toString(36),
+                title,
+                objective,
+                phase: 'INTAKE',
+                status: 'PENDING',
+                priority: 'MEDIUM',
+                risk_level: 'LOW',
+                current_loop_iteration: 0,
+                max_loop_iterations: 10,
+                approval_state: 'NOT_REQUIRED',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            };
+
+            State.missions.unshift(mission);
+            await GH.saveMissions(State.missions);
+            renderMissions();
+            document.getElementById('mission-title').value = '';
+            document.getElementById('mission-objective').value = '';
+            toast('Mission created!', 'success');
+        }
+
+        // ============================================================
+        // FILES
+        // ============================================================
+        async function loadFiles(path = '') {
+            State.currentPath = path;
+            const explorer = document.getElementById('file-explorer');
+            if (!explorer) return;
+            explorer.innerHTML =
+                '<div class="empty-state"><div class="loading-spinner"></div><p>Loading...</p></div>';
+
+            try {
+                const data = await GH.getTree(path);
+                const items = Array.isArray(data) ? data : [data];
+                items.sort((a, b) => { if (a.type === b.type) return a.name.localeCompare(b.name); return a.type ===
+                        'dir' ? -1 : 1; });
+
+                State.files = items;
+
+                let html = '';
+                if (path) {
+                    const parent = path.split('/').slice(0, -1).join('/');
+                    html +=
+                        `<button class="file-item folder" data-path="${parent}"><span class="icon">📁</span> ..</button>`;
+                }
+                items.forEach(item => {
+                    const icon = item.type === 'dir' ? '📁' : '📄';
+                    const cls = item.type === 'dir' ? 'folder' : 'file';
+                    html +=
+                        `<button class="file-item ${cls}" data-path="${item.path}" data-type="${item.type}"><span class="icon">${icon}</span> ${item.name}</button>`;
+                });
+
+                if (!html) html =
+                    `<div class="empty-state"><span class="material-symbols-outlined">folder_open</span><p>Empty folder</p></div>`;
+
+                explorer.innerHTML = html;
+
+                explorer.querySelectorAll('.file-item').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const path = el.dataset.path;
+                        const type = el.dataset.type;
+                        if (type === 'dir') {
+                            loadFiles(path);
+                        } else {
+                            loadFileContent(path);
+                        }
+                    });
+                });
+
+            } catch (e) {
+                explorer.innerHTML =
+                    `<div class="empty-state"><span class="material-symbols-outlined">error</span><p>${e.message}</p></div>`;
+            }
+        }
+
+        async function loadFileContent(path) {
+            const card = document.getElementById('file-editor-card');
+            const pathEl = document.getElementById('file-editor-path');
+            const contentEl = document.getElementById('file-editor-content');
+            if (!card || !pathEl || !contentEl) return;
+
+            card.classList.remove('hidden');
+            pathEl.textContent = path;
+            contentEl.value = 'Loading...';
+
+            try {
+                const file = await GH.getFile(path);
+                const decoded = decodeURIComponent(escape(atob(file.content.replace(/\n/g, ''))));
+                contentEl.value = decoded;
+                State.currentFile = { path, sha: file.sha };
+                toast(`Loaded: ${path}`, 'info');
+            } catch (e) {
+                contentEl.value = 'Error loading file: ' + e.message;
+            }
+        }
+
+        async function saveFile() {
+            if (!State.currentFile) { toast('No file loaded.', 'error'); return; }
+            const content = document.getElementById('file-editor-content').value;
+            const msg = document.getElementById('file-commit-msg').value.trim() || 'Update via Brain UI';
+
+            try {
+                await GH.putFile(State.currentFile.path, content, msg, State.currentFile.sha);
+                toast(`Saved: ${State.currentFile.path}`, 'success');
+                // Refresh file to get new SHA
+                const file = await GH.getFile(State.currentFile.path);
+                State.currentFile.sha = file.sha;
+            } catch (e) {
+                toast('Save failed: ' + e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // APPROVALS
+        // ============================================================
+        async function loadApprovals() {
+            try {
+                const file = await GH.getFile('brain/approvals.json');
+                const decoded = decodeURIComponent(escape(atob(file.content.replace(/\n/g, ''))));
+                State.approvals = JSON.parse(decoded);
+                renderApprovals();
+            } catch (e) {
+                State.approvals = [];
+                renderApprovals();
+            }
+        }
+
+        function renderApprovals() {
+            const list = document.getElementById('approval-list');
+            const count = document.getElementById('approval-count');
+            if (!list) return;
+            if (count) count.textContent = State.approvals.filter(a => a.status === 'PENDING').length;
+
+            const pending = State.approvals.filter(a => a.status === 'PENDING');
+            if (!pending.length) {
+                list.innerHTML =
+                    `<div class="empty-state"><span class="material-symbols-outlined">check_circle</span><p>No pending approvals.</p></div>`;
+                return;
+            }
+
+            list.innerHTML = pending.map((a, i) => `
+                <div class="approval-item" data-index="${i}">
+                    <div class="action">${a.action || 'Action required'}</div>
+                    <div class="reason">${a.reason || 'No reason provided'}</div>
+                    <div class="actions">
+                        <button class="btn btn-success btn-sm approve-btn" data-id="${a.id || i}">Approve</button>
+                        <button class="btn btn-danger btn-sm reject-btn" data-id="${a.id || i}">Reject</button>
+                    </div>
+                </div>
+            `).join('');
+
+            list.querySelectorAll('.approve-btn').forEach(el => {
+                el.addEventListener('click', () => resolveApproval(el.dataset.id, true));
+            });
+            list.querySelectorAll('.reject-btn').forEach(el => {
+                el.addEventListener('click', () => resolveApproval(el.dataset.id, false));
+            });
+        }
+
+        async function resolveApproval(id, approved) {
+            const idx = State.approvals.findIndex(a => a.id === id || String(a.id) === id);
+            if (idx === -1) return;
+            State.approvals[idx].status = approved ? 'APPROVED' : 'REJECTED';
+            State.approvals[idx].responded_at = new Date().toISOString();
+
+            try {
+                const content = JSON.stringify(State.approvals, null, 2);
+                const existing = await GH.getFile('brain/approvals.json');
+                await GH.putFile('brain/approvals.json', content, `Approval ${approved ? 'approved' : 'rejected'}`, existing
+                    .sha);
+                renderApprovals();
+                toast(`Approval ${approved ? 'approved' : 'rejected'}`, 'success');
+            } catch (e) {
+                toast('Failed to update approval: ' + e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // UI EVENTS
+        // ============================================================
+
+        // Auth
+        document.getElementById('btn-connect').addEventListener('click', connect);
+        document.getElementById('auth-pat').addEventListener('keydown', (e) => { if (e.key === 'Enter') connect(); });
+
+        // Tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Missions
+        document.getElementById('btn-create-mission').addEventListener('click', createMission);
+
+        // Files
+        document.getElementById('btn-refresh-files').addEventListener('click', () => loadFiles(State.currentPath));
+        document.getElementById('btn-save-file').addEventListener('click', saveFile);
+
+        // Settings
+        document.getElementById('btn-update-settings').addEventListener('click', () => {
+            const pat = document.getElementById('settings-pat').value.trim();
+            const repo = document.getElementById('settings-repo').value.trim();
+            if (pat) { State.token = pat;
+                GH.setToken(pat);
+                Store.set('pat', pat); }
+            if (repo) { State.repo = repo;
+                GH.setRepo(repo);
+                Store.set('repo', repo); }
+            toast('Settings updated', 'success');
+        });
+        document.getElementById('btn-disconnect').addEventListener('click', disconnect);
+
+        // Auto-connect on load
+        if (State.token && State.repo) {
+            document.getElementById('auth-pat').value = State.token;
+            document.getElementById('auth-repo').value = State.repo;
+            connect();
+        }
+
+        console.log('🧠 Brain V1 Mobile UI loaded');
+    </script>
+</body>
+</html>
