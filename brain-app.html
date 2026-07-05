@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0c10">
+    <title>Brain V1</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #07090e;
+            color: #f1f5f9;
+            font-size: 15px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            touch-action: manipulation;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: #0c0f16;
+            border-bottom: 1px solid #242c42;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .header-left .logo { font-size: 24px; }
+        .header-left h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #f1f5f9, #3d8bff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            flex-shrink: 0;
+        }
+        .status-dot.online { background: #10b981; }
+        .status-dot.thinking { background: #f59e0b; animation: pulse 0.8s infinite; }
+        @keyframes pulse { 0%,100%{opacity:0.4;}50%{opacity:1;} }
+        .header-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 20px;
+            touch-action: manipulation;
+        }
+        .header-btn:active { background: #3d8bff20; }
+
+        .tabs {
+            display: flex;
+            gap: 2px;
+            padding: 4px 8px;
+            background: #0c0f16;
+            border-bottom: 1px solid #242c42;
+            flex-shrink: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .tab {
+            padding: 6px 12px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #4e5d78;
+            cursor: pointer;
+            border-radius: 6px;
+            white-space: nowrap;
+            transition: 0.15s;
+            border: none;
+            background: transparent;
+            touch-action: manipulation;
+            font-family: 'Inter', sans-serif;
+        }
+        .tab:active { background: #3d8bff20; }
+        .tab.active { color: #f1f5f9; background: #242c42; }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 14px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .tab-content.active { display: block; }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-bottom: 8px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .msg { max-width: 88%; animation: fadein 0.2s ease; }
+        .msg.user { align-self: flex-end; }
+        .msg.assistant { align-self: flex-start; }
+        .msg .bubble {
+            padding: 10px 14px;
+            border-radius: 14px;
+            line-height: 1.6;
+            word-wrap: break-word;
+            font-size: 0.85rem;
+            background: #121622;
+            border: 1px solid #242c42;
+        }
+        .msg.user .bubble { background: #3d8bff; border-color: #3d8bff; color: #fff; }
+        .msg.assistant .bubble { background: #0c0f16; border-color: #242c42; }
+        .msg .time { font-size: 0.5rem; color: #4e5d78; margin-top: 2px; }
+        .msg.user .time { color: rgba(255,255,255,0.4); }
+        .msg.assistant .bubble pre {
+            background: #07090e;
+            border: 1px solid #242c42;
+            border-radius: 6px;
+            padding: 6px;
+            overflow-x: auto;
+            font-size: 0.65rem;
+            margin: 4px 0;
+        }
+        .msg.assistant .bubble code {
+            font-family: 'JetBrains Mono', monospace;
+            background: #07090e;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 8px;
+            padding: 6px 0 4px 0;
+            border-top: 1px solid #242c42;
+            flex-shrink: 0;
+            background: #07090e;
+        }
+        .chat-input-area textarea {
+            flex: 1;
+            min-height: 38px;
+            max-height: 100px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid #242c42;
+            background: #0c0f16;
+            color: #f1f5f9;
+            font-size: 0.85rem;
+            resize: none;
+            font-family: 'Inter', sans-serif;
+            line-height: 1.4;
+            transition: border-color 0.15s;
+        }
+        .chat-input-area textarea:focus { border-color: #3d8bff; outline: none; }
+        .chat-input-area .send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            border: none;
+            background: #3d8bff;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: 0.15s;
+            touch-action: manipulation;
+        }
+        .chat-input-area .send-btn:active { transform: scale(0.92); }
+        .chat-input-area .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .mission-item {
+            background: #0c0f16;
+            border: 1px solid #242c42;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+        }
+        .mission-item .top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .mission-item .title { font-weight: 600; font-size: 0.85rem; }
+        .badge {
+            font-size: 0.5rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge.pending { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b30; }
+        .badge.running { background: #3d8bff20; color: #3d8bff; border: 1px solid #3d8bff30; }
+        .badge.completed { background: #10b98120; color: #10b981; border: 1px solid #10b98130; }
+        .badge.failed { background: #ef444420; color: #ef4444; border: 1px solid #ef444430; }
+        .mission-item .meta {
+            font-size: 0.6rem;
+            color: #4e5d78;
+            margin-top: 4px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .settings-group {
+            background: #0c0f16;
+            border: 1px solid #242c42;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+        }
+        .settings-group label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #94a3b8;
+            display: block;
+            margin-bottom: 3px;
+        }
+        .settings-group input, .settings-group select {
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid #242c42;
+            background: #07090e;
+            color: #f1f5f9;
+            font-size: 0.8rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .settings-group input:focus, .settings-group select:focus { border-color: #3d8bff; outline: none; }
+        .settings-group select { appearance: none; cursor: pointer; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 0 16px;
+            height: 40px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: 0.15s;
+            touch-action: manipulation;
+            width: 100%;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary { background: #3d8bff; color: #fff; }
+        .btn-primary:active { background: #2563eb; }
+        .btn-success { background: #10b981; color: #fff; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-outline { background: transparent; border: 1px solid #242c42; color: #f1f5f9; }
+        .btn-sm { height: 32px; font-size: 0.7rem; padding: 0 12px; }
+
+        .flex-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .flex-1 { flex: 1; min-width: 0; }
+        .text-muted { color: #4e5d78; }
+        .text-xs { font-size: 0.6rem; }
+        .text-sm { font-size: 0.7rem; }
+        .hidden { display: none !important; }
+        .mt-2 { margin-top: 4px; }
+
+        .empty-state { text-align: center; padding: 24px 12px; color: #4e5d78; }
+        .empty-state .material-symbols-outlined { font-size: 32px; color: #242c42; }
+        .empty-state p { font-size: 0.75rem; margin-top: 4px; }
+
+        .settings-bar {
+            background: #0c0f16;
+            border-bottom: 1px solid #242c42;
+            padding: 8px 14px;
+            flex-shrink: 0;
+            display: none;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .settings-bar.open { display: flex; }
+        .settings-bar input {
+            flex: 1;
+            min-width: 100px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #242c42;
+            background: #121622;
+            color: #f1f5f9;
+            font-size: 0.65rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .settings-bar input::placeholder { color: #4e5d78; }
+        .settings-bar .btn-sm {
+            height: 30px;
+            min-height: 30px;
+            padding: 0 12px;
+            font-size: 0.6rem;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            width: auto;
+        }
+        .settings-bar .btn-sm:active { transform: scale(0.95); }
+        .settings-bar .btn-sm.green { background: #10b981; color: #fff; }
+        .settings-bar .btn-sm.gray { background: #242c42; color: #94a3b8; }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 16px;
+            right: 16px;
+            background: #121622;
+            border: 1px solid #242c42;
+            border-radius: 10px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 999;
+            animation: slideup 0.2s ease;
+            max-width: 480px;
+            margin: 0 auto;
+            pointer-events: auto;
+        }
+        .toast .msg { flex: 1; font-size: 0.75rem; }
+        .toast .close { background: none; border: none; color: #4e5d78; font-size: 16px; cursor: pointer; padding: 4px; }
+        @keyframes slideup { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+        @keyframes fadein { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+        ::-webkit-scrollbar { width: 3px; height: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #242c42; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+    <div class="header">
+        <div class="header-left">
+            <span class="material-symbols-outlined logo">psychology</span>
+            <h1>BRAIN</h1>
+        </div>
+        <div class="header-right">
+            <span class="status-dot" id="statusDot"></span>
+            <button class="header-btn" id="settingsToggle"><span class="material-symbols-outlined">settings</span></button>
+        </div>
+    </div>
+
+    <div class="settings-bar" id="settingsBar">
+        <input type="password" id="apiKeyInput" placeholder="Gemini API Key">
+        <input type="text" id="modelInput" placeholder="Model" value="gemini-2.0-flash-exp">
+        <button class="btn-sm green" id="saveSettings">Save</button>
+        <button class="btn-sm gray" id="testConnection">Test</button>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" data-tab="chat">💬 Chat</button>
+        <button class="tab" data-tab="missions">📋 Missions</button>
+        <button class="tab" data-tab="settings">⚙️ Settings</button>
+    </div>
+
+    <div class="tab-content active" id="tab-chat">
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="msg assistant">
+                    <div class="bubble">
+                        👋 I'm Brain. Tell me what you want to do.<br>
+                        <span class="text-muted text-xs">I'll turn your requests into missions.</span>
+                    </div>
+                    <div class="time">Just now</div>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <textarea id="chatInput" rows="1" placeholder="Type a mission..."></textarea>
+                <button class="send-btn" id="sendBtn">
+                    <span class="material-symbols-outlined" style="font-size:22px;">send</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content" id="tab-missions">
+        <div style="margin-bottom:8px;">
+            <button class="btn btn-primary btn-sm" id="refreshMissions" style="width:auto;padding:0 16px;">
+                <span class="material-symbols-outlined" style="font-size:16px;">refresh</span> Refresh
+            </button>
+        </div>
+        <div id="missionList">
+            <div class="empty-state">
+                <span class="material-symbols-outlined">inbox</span>
+                <p>No missions yet. Chat with Brain to create one.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content" id="tab-settings">
+        <div class="settings-group">
+            <label>🤖 AI Provider</label>
+            <select id="providerSelect">
+                <option value="gemini">Google Gemini</option>
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic Claude</option>
+            </select>
+        </div>
+        <div class="settings-group">
+            <label>🔑 API Key</label>
+            <input type="password" id="settingsApiKey" placeholder="Enter your API key">
+        </div>
+        <div class="settings-group">
+            <label>📦 Model</label>
+            <input type="text" id="settingsModel" placeholder="Model name" value="gemini-2.0-flash-exp">
+        </div>
+        <div class="settings-group">
+            <label>📁 Repository</label>
+            <input type="text" id="settingsRepo" value="madnessgate44-debug/brain">
+        </div>
+        <button class="btn btn-primary" id="saveAllSettings">Save All Settings</button>
+        <div class="flex-row mt-2">
+            <button class="btn btn-outline btn-sm flex-1" id="testConnection2">Test Connection</button>
+            <button class="btn btn-danger btn-sm flex-1" id="clearChat">Clear Chat</button>
+        </div>
+        <div class="text-muted text-xs mt-2" id="statusText">Not connected</div>
+    </div>
+
+</div>
+
+<div id="toastContainer" style="position:fixed;bottom:20px;left:16px;right:16px;z-index:999;max-width:480px;margin:0 auto;pointer-events:none;"></div>
+
+<script>
+    // ============================================================
+    // STATE — PERSISTED IN localStorage
+    // ============================================================
+    const State = {
+        apiKey: localStorage.getItem('brain_api_key') || '',
+        model: localStorage.getItem('brain_model') || 'gemini-2.0-flash-exp',
+        provider: localStorage.getItem('brain_provider') || 'gemini',
+        repo: localStorage.getItem('brain_repo') || 'madnessgate44-debug/brain',
+        missions: [],
+        messages: [],
+        isThinking: false,
+        repoUser: '',
+        repoName: '',
+    };
+
+    function saveSettings() {
+        localStorage.setItem('brain_api_key', State.apiKey);
+        localStorage.setItem('brain_model', State.model);
+        localStorage.setItem('brain_provider', State.provider);
+        localStorage.setItem('brain_repo', State.repo);
+        const parts = State.repo.split('/');
+        State.repoUser = parts[0] || '';
+        State.repoName = parts[1] || '';
+    }
+
+    // ============================================================
+    // TOAST
+    // ============================================================
+    function toast(msg, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const el = document.createElement('div');
+        el.style.cssText =
+            'background:#121622;border:1px solid #242c42;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:6px;pointer-events:auto;';
+        if (type === 'success') el.style.borderLeftColor = '#10b981';
+        else if (type === 'error') el.style.borderLeftColor = '#ef4444';
+        el.innerHTML =
+            `<span style="color:${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3d8bff'}">●</span><span style="flex:1;font-size:0.75rem;">${msg}</span><button style="background:none;border:none;color:#4e5d78;cursor:pointer;font-size:16px;padding:4px;" onclick="this.parentElement.remove()">✕</button>`;
+        container.appendChild(el);
+        setTimeout(() => { if (el.parentElement) el.remove(); }, 5000);
+    }
+
+    // ============================================================
+    // GITHUB API — READ/WRITE MISSIONS
+    // ============================================================
+    async function loadMissionsFromGitHub() {
+        try {
+            const [owner, repo] = State.repo.split('/');
+            if (!owner || !repo) throw new Error('Invalid repository format');
+
+            const url = `https://api.github.com/repos/${owner}/${repo}/contents/brain-missions.json`;
+            const res = await fetch(url, {
+                headers: { 'Accept': 'application/vnd.github+json' }
+            });
+
+            if (!res.ok) {
+                if (res.status === 404) {
+                    State.missions = [];
+                    renderMissions();
+                    return;
+                }
+                throw new Error(`HTTP ${res.status}`);
+            }
+
+            const data = await res.json();
+            const decoded = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+            State.missions = JSON.parse(decoded);
+            renderMissions();
+        } catch (e) {
+            console.warn('Failed to load missions:', e);
+            State.missions = [];
+            renderMissions();
+        }
+    }
+
+    async function saveMissionsToGitHub() {
+        try {
+            const [owner, repo] = State.repo.split('/');
+            if (!owner || !repo) throw new Error('Invalid repository format');
+
+            const content = JSON.stringify(State.missions, null, 2);
+            const encoded = btoa(unescape(encodeURIComponent(content)));
+
+            // Check if file exists to get SHA
+            let sha = null;
+            try {
+                const checkRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/brain-missions.json`, {
+                    headers: { 'Accept': 'application/vnd.github+json' }
+                });
+                if (checkRes.ok) {
+                    const data = await checkRes.json();
+                    sha = data.sha;
+                }
+            } catch (e) {}
+
+            const body = {
+                message: 'Update missions via Brain App',
+                content: encoded,
+                branch: 'main'
+            };
+            if (sha) body.sha = sha;
+
+            const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/brain-missions.json`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${State.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.message || `HTTP ${res.status}`);
+            }
+        } catch (e) {
+            console.error('Failed to save missions:', e);
+            throw e;
+        }
+    }
+
+    // ============================================================
+    // GEMINI API
+    // ============================================================
+    async function callGemini(messages) {
+        const key = State.apiKey;
+        const model = State.model;
+        if (!key) throw new Error('API key is required. Go to Settings.');
+        if (!model) throw new Error('Model is required.');
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+
+        const contents = messages.map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+        }));
+
+        const systemInstruction = `You are Brain, a mission orchestration assistant. You help users create and manage missions.
+        When a user describes a task, create a mission with:
+        - A clear title
+        - A detailed objective
+        - Suggested priority (LOW, MEDIUM, HIGH)
+        - Suggested risk level (LOW, MEDIUM, HIGH)
+
+        Format mission creation like this:
+        ---MISSION---
+        Title: [title]
+        Objective: [objective]
+        Priority: [priority]
+        Risk Level: [risk]
+        ---END MISSION---
+
+        Be helpful, concise, and focused on getting things done.`;
+
+        const body = {
+            contents: contents,
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 2048,
+            }
+        };
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    }
+
+    // ============================================================
+    // RENDER MISSIONS
+    // ============================================================
+    function renderMissions() {
+        const list = document.getElementById('missionList');
+        if (!list) return;
+        if (!State.missions || !State.missions.length) {
+            list.innerHTML =
+                `<div class="empty-state"><span class="material-symbols-outlined">inbox</span><p>No missions yet. Chat with Brain to create one.</p></div>`;
+            return;
+        }
+        list.innerHTML = State.missions.map((m) => `
+            <div class="mission-item">
+                <div class="top">
+                    <span class="title">${m.title || 'Untitled'}</span>
+                    <span class="badge ${(m.status || 'pending').toLowerCase()}">${m.status || 'PENDING'}</span>
+                </div>
+                <div style="font-size:0.75rem;color:#94a3b8;margin:2px 0;">${m.objective || ''}</div>
+                <div class="meta">
+                    <span>Phase: ${m.phase || 'INTAKE'}</span>
+                    <span>Priority: ${m.priority || 'MEDIUM'}</span>
+                    <span>Risk: ${m.risk_level || 'LOW'}</span>
+                    <span>Loop: ${m.current_loop_iteration || 0}/${m.max_loop_iterations || 10}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // ============================================================
+    // CHAT
+    // ============================================================
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const statusDot = document.getElementById('statusDot');
+
+    function addMessage(role, content) {
+        const div = document.createElement('div');
+        div.className = `msg ${role}`;
+        const time = new Date().toLocaleTimeString();
+        div.innerHTML = `
+            <div class="bubble">${content.replace(/\n/g, '<br>')}</div>
+            <div class="time">${time}</div>
+        `;
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        State.messages.push({ role, content });
+    }
+
+    function setThinking(isThinking) {
+        State.isThinking = isThinking;
+        if (isThinking) {
+            statusDot.className = 'status-dot thinking';
+            sendBtn.disabled = true;
+        } else {
+            statusDot.className = State.apiKey ? 'status-dot online' : 'status-dot';
+            sendBtn.disabled = false;
+        }
+    }
+
+    async function sendMessage() {
+        const text = chatInput.value.trim();
+        if (!text || State.isThinking) return;
+        if (!State.apiKey) {
+            toast('Please set your API key in Settings first.', 'error');
+            return;
+        }
+
+        chatInput.value = '';
+        addMessage('user', text);
+        setThinking(true);
+
+        try {
+            const response = await callGemini(State.messages);
+            addMessage('assistant', response);
+
+            const missionMatch = response.match(/---MISSION---\s*([\s\S]*?)\s*---END MISSION---/);
+            if (missionMatch) {
+                const missionText = missionMatch[1];
+                const titleMatch = missionText.match(/Title:\s*(.*)/);
+                const objectiveMatch = missionText.match(/Objective:\s*([\s\S]*?)(?=\n\w+:|$)/);
+                const priorityMatch = missionText.match(/Priority:\s*(.*)/);
+                const riskMatch = missionText.match(/Risk Level:\s*(.*)/);
+
+                const mission = {
+                    id: 'mis_' + Date.now().toString(36),
+                    title: titleMatch ? titleMatch[1].trim() : 'Untitled Mission',
+                    objective: objectiveMatch ? objectiveMatch[1].trim() : text,
+                    priority: priorityMatch ? priorityMatch[1].trim() : 'MEDIUM',
+                    risk_level: riskMatch ? riskMatch[1].trim() : 'LOW',
+                    phase: 'INTAKE',
+                    status: 'PENDING',
+                    current_loop_iteration: 0,
+                    max_loop_iterations: 10,
+                    approval_state: 'NOT_REQUIRED',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                };
+
+                State.missions.unshift(mission);
+                await saveMissionsToGitHub();
+                renderMissions();
+                toast('✅ Mission created!', 'success');
+            }
+
+        } catch (e) {
+            toast('Error: ' + e.message, 'error');
+            addMessage('assistant', `❌ Error: ${e.message}`);
+        }
+
+        setThinking(false);
+    }
+
+    // ============================================================
+    // UI EVENTS
+    // ============================================================
+
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            if (tab.dataset.tab === 'missions') loadMissionsFromGitHub();
+        });
+    });
+
+    document.getElementById('settingsToggle').addEventListener('click', () => {
+        const bar = document.getElementById('settingsBar');
+        bar.classList.toggle('open');
+        if (bar.classList.contains('open')) {
+            document.getElementById('apiKeyInput').value = State.apiKey;
+            document.getElementById('modelInput').value = State.model;
+        }
+    });
+
+    document.getElementById('saveSettings').addEventListener('click', () => {
+        State.apiKey = document.getElementById('apiKeyInput').value.trim();
+        State.model = document.getElementById('modelInput').value.trim() || 'gemini-2.0-flash-exp';
+        saveSettings();
+        document.getElementById('settingsApiKey').value = State.apiKey;
+        document.getElementById('settingsModel').value = State.model;
+        toast('Settings saved!', 'success');
+        document.getElementById('settingsBar').classList.remove('open');
+        updateStatusText();
+    });
+
+    document.getElementById('saveAllSettings').addEventListener('click', () => {
+        State.apiKey = document.getElementById('settingsApiKey').value.trim();
+        State.model = document.getElementById('settingsModel').value.trim() || 'gemini-2.0-flash-exp';
+        State.provider = document.getElementById('providerSelect').value;
+        State.repo = document.getElementById('settingsRepo').value.trim() || 'madnessgate44-debug/brain';
+        saveSettings();
+        document.getElementById('apiKeyInput').value = State.apiKey;
+        document.getElementById('modelInput').value = State.model;
+        toast('All settings saved!', 'success');
+        updateStatusText();
+    });
+
+    document.getElementById('testConnection').addEventListener('click', async () => {
+        const key = document.getElementById('apiKeyInput').value.trim() || State.apiKey;
+        if (!key) { toast('Enter an API key first.', 'error'); return; }
+        toast('Testing connection...', 'info');
+        try {
+            const testMessages = [{ role: 'user', content: 'Reply with exactly: OK' }];
+            const result = await callGemini(testMessages);
+            if (result.includes('OK')) {
+                toast('✅ Connection successful!', 'success');
+            } else {
+                toast('⚠️ Connected but unexpected response.', 'error');
+            }
+        } catch (e) {
+            toast('❌ Connection failed: ' + e.message, 'error');
+        }
+    });
+
+    document.getElementById('testConnection2').addEventListener('click', () => {
+        document.getElementById('testConnection').click();
+    });
+
+    document.getElementById('clearChat').addEventListener('click', () => {
+        State.messages = [];
+        chatMessages.innerHTML = `
+            <div class="msg assistant">
+                <div class="bubble">👋 Chat cleared. Tell me what you want to do.</div>
+                <div class="time">Just now</div>
+            </div>
+        `;
+        toast('Chat cleared.', 'info');
+    });
+
+    document.getElementById('refreshMissions').addEventListener('click', loadMissionsFromGitHub);
+
+    sendBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    chatInput.addEventListener('input', () => {
+        chatInput.style.height = 'auto';
+        chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
+    });
+
+    function updateStatusText() {
+        const el = document.getElementById('statusText');
+        if (el) {
+            if (State.apiKey) {
+                el.textContent = `✅ Connected: ${State.provider} | ${State.model}`;
+                el.style.color = '#10b981';
+                statusDot.className = 'status-dot online';
+            } else {
+                el.textContent = '⚠️ No API key configured. Go to Settings.';
+                el.style.color = '#f59e0b';
+                statusDot.className = 'status-dot';
+            }
+        }
+    }
+
+    // ============================================================
+    // INIT
+    // ============================================================
+    document.getElementById('settingsApiKey').value = State.apiKey;
+    document.getElementById('settingsModel').value = State.model;
+    document.getElementById('providerSelect').value = State.provider;
+    document.getElementById('settingsRepo').value = State.repo;
+    document.getElementById('apiKeyInput').value = State.apiKey;
+    document.getElementById('modelInput').value = State.model;
+
+    if (State.apiKey) {
+        statusDot.className = 'status-dot online';
+        updateStatusText();
+        loadMissionsFromGitHub();
+    } else {
+        statusDot.className = 'status-dot';
+    }
+
+    console.log('🧠 Brain App loaded');
+</script>
+</body>
+</html>
