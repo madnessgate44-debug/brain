@@ -22,6 +22,11 @@ class CompanyWorkflowTools(Protocol):
     async def run_checks(self, repository: str, branch: str) -> dict[str, Any]:
         """Run real tests/build/lint and return execution evidence."""
 
+    async def open_pull_request(
+        self, repository: str, branch: str, workflow_result: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Open a reviewable pull request after all required gates pass."""
+
 
 class CompanyWorkflowBlocked(RuntimeError):
     """Raised when a workflow cannot safely advance to the next stage."""
@@ -179,8 +184,10 @@ class CompanyWorkflowEngine:
         if release_output["status"] != "PASS":
             raise CompanyWorkflowBlocked("Release manager blocked release.")
 
-        return {
-            "status": "READY_FOR_HUMAN_APPROVAL",
+        workflow_result = {
+            "summary": outputs["product_owner"]["deliverables"].get(
+                "product_brief", "Reviewed implementation"
+            ),
             "repository": repository,
             "branch": evidence["branch"],
             "changed_files": evidence.get("changed_files", []),
@@ -188,5 +195,17 @@ class CompanyWorkflowEngine:
             "timeline": timeline,
             "role_outputs": outputs,
             "release_gate": {"passed": gate.passed, "blockers": list(gate.blockers)},
-            "next_action": "Human review required; no automatic merge or deployment occurred.",
         }
+        pull_request = await self.tools.open_pull_request(
+            repository, evidence["branch"], workflow_result
+        )
+        if not pull_request.get("url") or pull_request.get("merged") is True:
+            raise CompanyWorkflowBlocked(
+                "Review pull request was not created safely; automatic merge is forbidden."
+            )
+        workflow_result.update({
+            "status": "READY_FOR_HUMAN_APPROVAL",
+            "pull_request": pull_request,
+            "next_action": "Human review required; no automatic merge or deployment occurred.",
+        })
+        return workflow_result
