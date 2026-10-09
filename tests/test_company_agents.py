@@ -76,3 +76,64 @@ async def test_specialist_rejects_non_structured_output():
     }
     with pytest.raises(AgentOutputError, match="valid JSON"):
         await runner.run("developer", "Build the feature", evidence)
+
+
+
+@pytest.mark.asyncio
+async def test_specialist_retries_malformed_json_once_then_accepts_valid_output():
+    class FakeProvider:
+        def __init__(self):
+            self.calls = 0
+
+        async def complete(self, system_prompt, user_prompt):
+            self.calls += 1
+            if self.calls == 1:
+                return '{"status": "PASS", broken}'
+            return json.dumps({
+                "status": "PASS",
+                "deliverables": {
+                    "change_set": {"files": [{"path": "brain/a.py", "content": "pass\\n"}]},
+                    "implementation_notes": "Implemented safely",
+                },
+                "findings": [],
+                "blockers": [],
+                "evidence_needed": [],
+            })
+
+    provider = FakeProvider()
+    runner = SpecialistAgentRunner(provider)
+    evidence = {
+        "product_brief": "brief",
+        "acceptance_criteria": ["AC-1"],
+        "screen_specification": "backend flow contract",
+        "architecture": "architecture",
+        "file_plan": ["brain/a.py"],
+    }
+    result = await runner.run("developer", "Build the feature", evidence)
+    assert result["status"] == "PASS"
+    assert result["role"] == "developer"
+    assert provider.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_specialist_stops_after_one_failed_json_repair():
+    class FakeProvider:
+        def __init__(self):
+            self.calls = 0
+
+        async def complete(self, system_prompt, user_prompt):
+            self.calls += 1
+            return "not JSON"
+
+    provider = FakeProvider()
+    runner = SpecialistAgentRunner(provider)
+    evidence = {
+        "product_brief": "brief",
+        "acceptance_criteria": ["AC-1"],
+        "screen_specification": "backend flow contract",
+        "architecture": "architecture",
+        "file_plan": ["brain/a.py"],
+    }
+    with pytest.raises(AgentOutputError, match="after one repair attempt"):
+        await runner.run("developer", "Build the feature", evidence)
+    assert provider.calls == 2
