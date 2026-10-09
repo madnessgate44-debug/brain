@@ -25,9 +25,9 @@ tested workers and any necessary integrations.
 - `tests/`: automated tests.
 
 Brain's existing database-backed mission model remains the source of truth. We are
-not replacing it with a second JSON queue. GitHub Actions and external ChatGPT
-integration should be added only after the mission execution path and permissions
-are verified.
+not replacing it with a second JSON queue. GitHub Actions provides a first remote
+execution path for a fixed, safe operation: run the repository's test suite and
+report the result on a GitHub issue.
 
 ## Local setup
 
@@ -46,6 +46,20 @@ uvicorn brain.api.app:create_app --factory --host 0.0.0.0 --port 8000
 Check `brain.api.app` and `.env.example` before deployment; configure secrets only
 through the runtime environment, never by committing them.
 
+## Phone-first remote test runner
+
+A task can be dispatched from a phone without a terminal:
+
+1. Open an issue in this repository (or ask ChatGPT to create one).
+2. Put the exact marker `/brain test` in the issue body.
+3. GitHub Actions installs the project dependencies and runs `pytest -q`.
+4. The workflow comments PASS/FAIL on the issue and attaches the full test report.
+5. Review the workflow run and report before deciding what to change next.
+
+The runner deliberately ignores shell commands and code supplied in the issue body.
+It only runs the fixed test command. This is a real remote execution bridge, but it
+is not yet a general-purpose remote terminal or autonomous code-editing agent.
+
 ## First milestone and acceptance criteria
 
 1. A mission can be created and started through the API.
@@ -57,8 +71,8 @@ through the runtime environment, never by committing them.
 
 ## Planned, not yet implemented
 
-- Authenticated ChatGPT-to-Brain control bridge.
-- Repository-dispatch execution and secure GitHub write operations.
+- Authenticated ChatGPT-to-Brain control bridge for mission creation, status, logs, and artifacts.
+- Controlled repository inspection and change proposals with reviewable diffs.
 - Research and AI-backed workers.
 - Durable distributed execution leases and cross-process duplicate-run protection.
 - Mobile operations guide and usage/cost monitoring.
