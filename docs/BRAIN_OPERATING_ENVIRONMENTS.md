@@ -40,6 +40,8 @@ External acceptance is tracked separately and is not a prerequisite for declarin
 
 ## Shared control rules
 
+The company-workflow write preflight verifies the actual Git blob creation permission with a fixed, content-addressed blob that is not referenced by any tree, commit, or branch. It does not change visible repository history; repeated probes deduplicate to the same Git object.
+
 - A task has a stable identifier, objective, constraints, and acceptance criteria.
 - A model's assertion is not execution evidence.
 - Every success claim must cite actual test/run evidence.
