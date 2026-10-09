@@ -31,4 +31,4 @@ async def test_live_chromium_navigates_and_inspects_public_page(tmp_path, monkey
     assert navigation["http_status"] == 200
     inspection = result["results"][1]["result"]
     assert inspection["title"] == "Example Domain"
-    assert "Example Domain" in inspection["text"]
+    assert "documentation examples" in inspection["text"].casefold()
