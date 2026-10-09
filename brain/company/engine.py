@@ -14,6 +14,9 @@ from brain.company.workflow import evaluate_release_gate
 class CompanyWorkflowTools(Protocol):
     """Capabilities required to turn specialist decisions into verified work."""
 
+    async def inspect_repository(self, repository: str) -> dict[str, Any]:
+        """Read bounded project context from the actual repository."""
+
     async def apply_change_set(
         self, change_set: dict[str, Any], repository: str
     ) -> dict[str, Any]:
@@ -54,10 +57,12 @@ class CompanyWorkflowEngine:
         if not repository or "/" not in repository:
             raise ValueError("repository must be in owner/repository format")
 
+        repository_snapshot = await self.tools.inspect_repository(repository)
         evidence: dict[str, Any] = {
             **(initial_evidence or {}),
             "user_request": user_request,
             "repository": repository,
+            "repository_snapshot": repository_snapshot,
         }
         outputs: dict[str, Any] = {}
         timeline: list[dict[str, Any]] = []
