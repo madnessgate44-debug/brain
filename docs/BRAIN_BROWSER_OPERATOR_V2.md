@@ -11,10 +11,7 @@
 
 ## General-purpose public browsing
 
-The browser worker's current domain allowlist remains an implementation limitation. Set
-`BRAIN_BROWSER_ALLOWED_DOMAINS` to the target public domains before execution. This V2
-planning endpoint does not silently bypass that runtime policy. A separate implementation
-change is still needed to make public-web browsing the default without per-domain configuration.
+The browser worker now defaults to `*` for public-web hostnames, so ordinary public sites do not require per-domain configuration. Deployments can still set `BRAIN_BROWSER_ALLOWED_DOMAINS` to narrow the scope. The worker continues to reject non-HTTP(S) URLs, embedded credentials, localhost, and non-public IP destinations; this is broad public-web browsing, not access to private networks or arbitrary local services. The GitHub issue runner accepts `allowed_domains: ["*"]` and uses that scope when the field is omitted.
 
 ## Persistent browser sessions
 
@@ -32,7 +29,7 @@ been proven; do not claim it is supported until a real device smoke test succeed
 
 ## Known completion gates
 
-- [ ] Public-web default policy without per-domain setup.
+- [x] Public-web default policy without per-domain setup.
 - [x] Natural-language objective to validated action plan.
 - [x] Persistent profile path configurable in the runtime.
 - [ ] Profile locking and session-expiry detection.
