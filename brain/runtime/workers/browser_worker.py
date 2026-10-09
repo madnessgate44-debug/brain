@@ -99,8 +99,10 @@ def verify_browser_dispatch(
 def domain_matches(hostname: str, rule: str) -> bool:
     host = hostname.lower().rstrip(".")
     allowed = rule.strip().lower().rstrip(".")
-    if not host or not allowed or allowed == "*":
+    if not host or not allowed:
         return False
+    if allowed == "*":
+        return True
     if allowed.startswith("*."):
         suffix = allowed[1:]
         return host.endswith(suffix) and host != allowed[2:]
@@ -193,7 +195,7 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
 
 
 class BrowserWorker:
-    """Execute explicit browser actions in a persistent, allowlisted profile."""
+    """Execute explicit browser actions in a persistent public-web profile."""
 
     def __init__(
         self,
@@ -205,6 +207,10 @@ class BrowserWorker:
     ) -> None:
         raw_domains = os.getenv("BRAIN_BROWSER_ALLOWED_DOMAINS", "") if allowed_domains is None else ",".join(allowed_domains)
         self.allowed_domains = [item.strip() for item in raw_domains.split(",") if item.strip()]
+        # General public-web browsing is the default. Explicit domain rules remain
+        # available for deployments that intentionally want a narrower scope.
+        if not self.allowed_domains:
+            self.allowed_domains = ["*"]
         self.profile_dir = Path(profile_dir or os.getenv("BRAIN_BROWSER_PROFILE_DIR", "./workspace/browser-profile"))
         raw_headless = os.getenv("BRAIN_BROWSER_HEADLESS", "true").lower()
         self.headless = (raw_headless not in {"0", "false", "no"}) if headless is None else headless
@@ -213,8 +219,6 @@ class BrowserWorker:
 
     async def execute(self, actions: Any, owner_approved: bool = False) -> dict[str, Any]:
         validated = validate_browser_actions(actions)
-        if not self.allowed_domains:
-            raise BrowserPolicyError("BRAIN_BROWSER_ALLOWED_DOMAINS must be configured; browser access is disabled.")
         if any(action["op"] in MUTATING_ACTIONS for action in validated) and not owner_approved:
             raise BrowserPolicyError("mutating browser actions require explicit owner approval")
         results: list[dict[str, Any]] = []
@@ -247,8 +251,6 @@ class BrowserWorker:
                 yield page
             return
 
-        if not self.allowed_domains:
-            raise BrowserPolicyError("browser domain allowlist is empty")
         try:
             from playwright.async_api import async_playwright
         except ImportError as exc:
