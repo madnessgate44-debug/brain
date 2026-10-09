@@ -56,3 +56,18 @@ async def test_planner_rejects_empty_objective_before_provider_call():
     with pytest.raises(BrowserPlanningError, match="empty"):
         await BrowserPlanner(provider=provider).plan("  ")
     assert provider.calls == []
+
+
+@pytest.mark.asyncio
+async def test_planner_marks_select_action_as_requiring_owner_approval():
+    provider = FakeProvider(json.dumps({
+        "title": "Choose country",
+        "objective": "Select Egypt in the country menu",
+        "actions": [
+            {"op": "navigate", "url": "https://example.com/"},
+            {"op": "select", "selector": "select#country", "value": "EG"},
+        ],
+    }))
+    plan = await BrowserPlanner(provider=provider).plan("Select Egypt in the country menu")
+    assert plan["requires_owner_approval"] is True
+    assert plan["execution_started"] is False
