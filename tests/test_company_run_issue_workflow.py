@@ -56,3 +56,17 @@ async def test_write_gateway_fails_before_model_calls_when_no_token_can_write(mo
             primary_token="no-write",
             actions_token="no-write",
         )
+
+
+
+@pytest.mark.asyncio
+async def test_write_gateway_fails_when_no_tokens_are_configured(monkeypatch):
+    monkeypatch.setattr(workflow, "GitHubRepositoryGateway", FakeGateway)
+
+    with pytest.raises(RuntimeError, match="No configured GitHub token has verified"):
+        await workflow.build_write_ready_gateway(
+            repository="owner/project",
+            owner="owner",
+            primary_token="",
+            actions_token="",
+        )
