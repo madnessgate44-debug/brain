@@ -1,7 +1,7 @@
 """Real Chromium smoke test for a compatible Linux browser host.
 
-The normal unit suite does not require the optional Playwright dependency. The manual
-browser-runtime-smoke workflow installs Chromium and executes this test for real.
+This test launches Playwright Chromium, navigates to a public test site, and inspects
+the resulting page. It does not test authenticated sessions or the ChatGPT mobile bridge.
 """
 
 import pytest
@@ -10,7 +10,7 @@ from brain.runtime.workers.browser_worker import BrowserWorker
 
 
 @pytest.mark.asyncio
-async def test_live_chromium_launches_and_inspects_blank_page(tmp_path, monkeypatch):
+async def test_live_chromium_navigates_and_inspects_public_page(tmp_path, monkeypatch):
     pytest.importorskip("playwright.async_api")
     monkeypatch.setenv("BRAIN_BROWSER_ALLOWED_DOMAINS", "example.com")
     worker = BrowserWorker(
@@ -19,8 +19,16 @@ async def test_live_chromium_launches_and_inspects_blank_page(tmp_path, monkeypa
         headless=True,
     )
 
-    result = await worker.execute([{"op": "inspect", "max_chars": 100}])
+    result = await worker.execute([
+        {"op": "navigate", "url": "https://example.com/"},
+        {"op": "inspect", "max_chars": 1000},
+    ])
 
     assert result["status"] == "succeeded", result
-    assert result["completed_actions"] == 1
-    assert result["results"][0]["result"]["url"] == "about:blank"
+    assert result["completed_actions"] == 2
+    navigation = result["results"][0]["result"]
+    assert navigation["url"].startswith("https://example.com/")
+    assert navigation["http_status"] == 200
+    inspection = result["results"][1]["result"]
+    assert inspection["title"] == "Example Domain"
+    assert "Example Domain" in inspection["text"]
