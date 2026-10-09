@@ -1,6 +1,6 @@
 """Health check endpoint."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Request
 
 from brain.schemas.common import HealthResponse
@@ -26,7 +26,7 @@ async def health_check(request: Request):
         instance_id=config.system.instance_id,
         started_at=boot_started_at.isoformat() if boot_started_at else None,
         uptime_seconds=(
-            (datetime.utcnow() - boot_started_at).total_seconds()
+            (datetime.now(timezone.utc) - boot_started_at).total_seconds()
             if boot_started_at
             else 0
         ),
