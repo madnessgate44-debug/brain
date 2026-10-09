@@ -48,10 +48,10 @@ def test_requires_exactly_one_json_block():
         parse_issue_payload(event_for("/brain browser\nNo JSON here"), "madnessgate44-debug")
 
 
-def test_rejects_unbounded_domain_wildcard():
+def test_accepts_public_web_wildcard_domain_scope():
     body = valid_body().replace('"example.com"', '"*"')
-    with pytest.raises(ValueError, match="non-wildcard"):
-        parse_issue_payload(event_for(body), "madnessgate44-debug")
+    payload = parse_issue_payload(event_for(body), "madnessgate44-debug")
+    assert payload["allowed_domains"] == ["*"]
 
 
 def test_requires_explicit_owner_approval():

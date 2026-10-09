@@ -12,22 +12,22 @@ from brain.runtime.workers.browser_worker import BrowserWorker
 @pytest.mark.asyncio
 async def test_live_chromium_navigates_and_inspects_public_page(tmp_path, monkeypatch):
     pytest.importorskip("playwright.async_api")
-    monkeypatch.setenv("BRAIN_BROWSER_ALLOWED_DOMAINS", "example.com")
+    monkeypatch.delenv("BRAIN_BROWSER_ALLOWED_DOMAINS", raising=False)
     worker = BrowserWorker(
-        allowed_domains=["example.com"],
+        allowed_domains=[],
         profile_dir=str(tmp_path / "browser-profile"),
         headless=True,
     )
 
     result = await worker.execute([
-        {"op": "navigate", "url": "https://example.com/"},
+        {"op": "navigate", "url": "https://example.org/"},
         {"op": "inspect", "max_chars": 1000},
     ])
 
     assert result["status"] == "succeeded", result
     assert result["completed_actions"] == 2
     navigation = result["results"][0]["result"]
-    assert navigation["url"].startswith("https://example.com/")
+    assert navigation["url"].startswith("https://example.org/")
     assert navigation["http_status"] == 200
     inspection = result["results"][1]["result"]
     assert inspection["title"] == "Example Domain"

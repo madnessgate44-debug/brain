@@ -70,6 +70,22 @@ def fake_session_factory(page):
     return session
 
 
+def test_expanded_browser_action_validation():
+    actions = [
+        {"op": "hover", "selector": "#menu"},
+        {"op": "select", "selector": "select#country", "value": "EG"},
+        {"op": "scroll", "direction": "down", "amount": 800},
+        {"op": "go_back"},
+        {"op": "go_forward"},
+        {"op": "reload"},
+    ]
+    assert len(validate_browser_actions(actions)) == 6
+    with pytest.raises(BrowserPolicyError, match="scroll"):
+        validate_browser_actions([{"op": "scroll", "direction": "diagonal"}])
+    with pytest.raises(BrowserPolicyError, match="select value"):
+        validate_browser_actions([{"op": "select", "selector": "#country", "value": 123}])
+
+
 def test_action_validation_rejects_unknown_and_oversized_sequences():
     with pytest.raises(BrowserPolicyError):
         validate_browser_actions([{"op": "shell", "command": "id"}])
@@ -79,12 +95,17 @@ def test_action_validation_rejects_unknown_and_oversized_sequences():
         validate_browser_actions([{"op": "type", "selector": "#prompt", "text": 3}])
 
 
+def test_browser_defaults_to_general_public_web_scope():
+    worker = BrowserWorker(allowed_domains=[])
+    assert worker.allowed_domains == ["*"]
+
+
 def test_domain_matching_requires_exact_or_subdomain_rule():
     assert domain_matches("chatgpt.com", "chatgpt.com")
     assert domain_matches("auth.openai.com", "*.openai.com")
     assert not domain_matches("openai.com", "*.openai.com")
     assert not domain_matches("evilchatgpt.com", "chatgpt.com")
-    assert not domain_matches("anything.example", "*")
+    assert domain_matches("anything.example", "*")
 
 
 def test_url_policy_rejects_non_http_credentials_and_unapproved_domains():

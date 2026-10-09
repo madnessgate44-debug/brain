@@ -25,9 +25,9 @@ class BrowserPolicyError(ValueError):
     """Raised when a browser task violates the execution policy."""
 
 
-MUTATING_ACTIONS = frozenset({"click", "type", "press"})
+MUTATING_ACTIONS = frozenset({"click", "type", "press", "select"})
 SUPPORTED_ACTIONS = frozenset(
-    {"navigate", "inspect", "click", "type", "press", "wait_for", "screenshot"}
+    {"navigate", "inspect", "click", "type", "press", "wait_for", "screenshot", "hover", "select", "scroll", "go_back", "go_forward", "reload"}
 )
 MAX_ACTIONS = 25
 MAX_TEXT_CHARS = 12_000
@@ -99,8 +99,10 @@ def verify_browser_dispatch(
 def domain_matches(hostname: str, rule: str) -> bool:
     host = hostname.lower().rstrip(".")
     allowed = rule.strip().lower().rstrip(".")
-    if not host or not allowed or allowed == "*":
+    if not host or not allowed:
         return False
+    if allowed == "*":
+        return True
     if allowed.startswith("*."):
         suffix = allowed[1:]
         return host.endswith(suffix) and host != allowed[2:]
@@ -168,7 +170,7 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
         if op == "navigate":
             if not isinstance(action.get("url"), str) or len(action["url"]) > 2048:
                 raise BrowserPolicyError(f"action {index} requires a valid url string")
-        elif op in {"click", "type", "press", "wait_for"}:
+        elif op in {"click", "type", "press", "wait_for", "hover", "select"}:
             if not isinstance(action.get("selector"), str) or not action["selector"].strip():
                 raise BrowserPolicyError(f"action {index} requires a selector")
             if len(action["selector"]) > 1000:
@@ -176,6 +178,16 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
         if op == "type":
             if not isinstance(action.get("text"), str) or len(action["text"]) > 20_000:
                 raise BrowserPolicyError(f"action {index} requires text no longer than 20000 characters")
+        if op == "select" and (
+            not isinstance(action.get("value"), str) or len(action["value"]) > 5000
+        ):
+            raise BrowserPolicyError(f"action {index} requires a select value no longer than 5000 characters")
+        if op == "scroll" and (
+            action.get("direction", "down") not in {"up", "down", "left", "right"}
+            or not isinstance(action.get("amount", 600), int)
+            or not 1 <= action.get("amount", 600) <= 5000
+        ):
+            raise BrowserPolicyError(f"action {index} has invalid scroll direction or amount")
         if op == "press" and (
             not isinstance(action.get("key"), str) or len(action["key"]) > 40
         ):
@@ -193,7 +205,7 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
 
 
 class BrowserWorker:
-    """Execute explicit browser actions in a persistent, allowlisted profile."""
+    """Execute explicit browser actions in a persistent public-web profile."""
 
     def __init__(
         self,
@@ -205,6 +217,10 @@ class BrowserWorker:
     ) -> None:
         raw_domains = os.getenv("BRAIN_BROWSER_ALLOWED_DOMAINS", "") if allowed_domains is None else ",".join(allowed_domains)
         self.allowed_domains = [item.strip() for item in raw_domains.split(",") if item.strip()]
+        # General public-web browsing is the default. Explicit domain rules remain
+        # available for deployments that intentionally want a narrower scope.
+        if not self.allowed_domains:
+            self.allowed_domains = ["*"]
         self.profile_dir = Path(profile_dir or os.getenv("BRAIN_BROWSER_PROFILE_DIR", "./workspace/browser-profile"))
         raw_headless = os.getenv("BRAIN_BROWSER_HEADLESS", "true").lower()
         self.headless = (raw_headless not in {"0", "false", "no"}) if headless is None else headless
@@ -213,8 +229,6 @@ class BrowserWorker:
 
     async def execute(self, actions: Any, owner_approved: bool = False) -> dict[str, Any]:
         validated = validate_browser_actions(actions)
-        if not self.allowed_domains:
-            raise BrowserPolicyError("BRAIN_BROWSER_ALLOWED_DOMAINS must be configured; browser access is disabled.")
         if any(action["op"] in MUTATING_ACTIONS for action in validated) and not owner_approved:
             raise BrowserPolicyError("mutating browser actions require explicit owner approval")
         results: list[dict[str, Any]] = []
@@ -247,8 +261,6 @@ class BrowserWorker:
                 yield page
             return
 
-        if not self.allowed_domains:
-            raise BrowserPolicyError("browser domain allowlist is empty")
         try:
             from playwright.async_api import async_playwright
         except ImportError as exc:
@@ -318,8 +330,32 @@ class BrowserWorker:
                 "title": await page.title(),
                 "text": (await page.locator("body").inner_text())[: action.get("max_chars", 5000)],
             }
-        if op in MUTATING_ACTIONS or op in {"wait_for", "screenshot"}:
+        if op in MUTATING_ACTIONS or op in {"wait_for", "screenshot", "hover", "scroll", "go_back", "go_forward", "reload"}:
             self._assert_current_page_allowed(page)
+        if op == "go_back":
+            response = await page.go_back(wait_until="domcontentloaded", timeout=20_000)
+            self._assert_current_page_allowed(page)
+            return {"url": page.url, "title": await page.title(), "http_status": getattr(response, "status", None)}
+        if op == "go_forward":
+            response = await page.go_forward(wait_until="domcontentloaded", timeout=20_000)
+            self._assert_current_page_allowed(page)
+            return {"url": page.url, "title": await page.title(), "http_status": getattr(response, "status", None)}
+        if op == "reload":
+            response = await page.reload(wait_until="domcontentloaded", timeout=20_000)
+            self._assert_current_page_allowed(page)
+            return {"url": page.url, "title": await page.title(), "http_status": getattr(response, "status", None)}
+        if op == "scroll":
+            amount = action.get("amount", 600)
+            delta_x = -amount if action.get("direction") == "left" else amount if action.get("direction") == "right" else 0
+            delta_y = -amount if action.get("direction") == "up" else amount if action.get("direction", "down") == "down" else 0
+            await page.mouse.wheel(delta_x, delta_y)
+            return {"scrolled": action.get("direction", "down"), "amount": amount}
+        if op == "hover":
+            await page.locator(action["selector"]).hover(timeout=action.get("timeout_ms", 5000))
+            return {"hovered": True}
+        if op == "select":
+            selected = await page.locator(action["selector"]).select_option(value=action["value"], timeout=action.get("timeout_ms", 5000))
+            return {"selected": selected}
         if op == "click":
             await page.locator(action["selector"]).click(timeout=action.get("timeout_ms", 5000))
             return {"clicked": True}

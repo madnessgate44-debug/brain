@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from brain.api.routes import health, missions, approvals, artifacts, events, company_workflows, browser
+from brain.api.routes import health, missions, approvals, artifacts, events, company_workflows, browser, browser_planning
 from brain.core.config import load_config
 from brain.core.logging import setup_logging
 from brain.db.session import DatabaseSessionManager
@@ -66,5 +66,6 @@ def create_app() -> FastAPI:
     app.include_router(events.router)
     app.include_router(company_workflows.router)
     app.include_router(browser.router)
+    app.include_router(browser_planning.router)
     
     return app
