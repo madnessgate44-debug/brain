@@ -75,16 +75,23 @@ class GitHubRepositoryGateway:
                 await client.aclose()
 
     async def verify_write_access(self, repository: str) -> dict[str, Any]:
-        """Fail before model calls when the configured token cannot write to the target."""
+        """Verify Git blobs write access without creating a commit or branch ref."""
         owner, name = self._validate_repository(repository)
         base = f"/repos/{quote(owner)}/{quote(name)}"
-        metadata = await self._request("GET", base)
-        permissions = metadata.get("permissions")
-        if not isinstance(permissions, dict) or permissions.get("push") is not True:
+        # This fixed content-addressed blob is deliberately not referenced by a tree,
+        # commit, or branch. Repeated probes deduplicate to the same Git object.
+        probe = await self._request(
+            "POST",
+            f"{base}/git/blobs",
+            json={
+                "content": "Brain write-access preflight probe; not referenced by a commit.",
+                "encoding": "utf-8",
+            },
+        )
+        if not isinstance(probe.get("sha"), str) or not re.fullmatch(r"[0-9a-f]{40}", probe["sha"]):
             raise GitHubGatewayError(
-                "GitHub write access preflight failed for the target repository. "
-                "The configured token must have Contents: write permission and the "
-                "workflow must grant contents: write. No model workflow was started."
+                "GitHub write access preflight returned an invalid blob response. "
+                "No model workflow was started."
             )
         return {"repository": repository, "write_access": True}
 
