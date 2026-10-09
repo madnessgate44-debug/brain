@@ -108,3 +108,95 @@ async def test_provider_falls_back_to_native_gemini_after_compatibility_429(monk
     assert result == "native Gemini result"
     assert compatibility_calls == 3
     assert native_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_native_gemini_retries_429_using_google_retry_delay(monkeypatch):
+    compatibility_calls = 0
+    native_calls = 0
+    delays = []
+
+    async def no_sleep(delay):
+        delays.append(delay)
+
+    def handler(request):
+        nonlocal compatibility_calls, native_calls
+        if request.url.path.endswith(":generateContent"):
+            native_calls += 1
+            if native_calls == 1:
+                return httpx.Response(
+                    429,
+                    json={
+                        "error": {
+                            "status": "RESOURCE_EXHAUSTED",
+                            "details": [{"retryDelay": "7s"}],
+                        }
+                    },
+                    request=request,
+                )
+            return httpx.Response(
+                200,
+                json={"candidates": [{
+                    "content": {"parts": [{"text": "recovered"}]}
+                }]},
+                request=request,
+            )
+        compatibility_calls += 1
+        return httpx.Response(
+            429,
+            headers={"Retry-After": "0"},
+            json={"error": {"status": "RESOURCE_EXHAUSTED"}},
+            request=request,
+        )
+
+    monkeypatch.setattr("brain.company.llm_provider.asyncio.sleep", no_sleep)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = OpenAICompatibleProvider(
+            api_key="test-key",
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            model="gemini-3.5-flash-lite",
+            client=client,
+        )
+        result = await provider.complete("system", "user")
+
+    assert result == "recovered"
+    assert compatibility_calls == 3
+    assert native_calls == 2
+    assert delays == [0.0, 0.0, 7.0]
+
+
+@pytest.mark.asyncio
+async def test_native_gemini_stops_after_three_rate_limited_attempts(monkeypatch):
+    native_calls = 0
+
+    async def no_sleep(_delay):
+        return None
+
+    def handler(request):
+        nonlocal native_calls
+        if request.url.path.endswith(":generateContent"):
+            native_calls += 1
+            return httpx.Response(
+                429,
+                json={"error": {"status": "RESOURCE_EXHAUSTED"}},
+                request=request,
+            )
+        return httpx.Response(
+            429,
+            headers={"Retry-After": "0"},
+            json={"error": {"status": "RESOURCE_EXHAUSTED"}},
+            request=request,
+        )
+
+    monkeypatch.setattr("brain.company.llm_provider.asyncio.sleep", no_sleep)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = OpenAICompatibleProvider(
+            api_key="test-key",
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            model="gemini-3.5-flash-lite",
+            client=client,
+        )
+        with pytest.raises(ModelProviderError, match="429"):
+            await provider.complete("system", "user")
+
+    assert native_calls == 3
