@@ -93,7 +93,7 @@ class OpenAICompatibleProvider:
             data = response.json()
             content = data["choices"][0]["message"]["content"]
             if not isinstance(content, str) or not content.strip():
-                raise ModelProviderError("Provider returned an empty completion.")
+                raise ModelProviderError()
             return content.strip()
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
             raise ModelProviderError() from exc
