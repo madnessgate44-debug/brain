@@ -17,6 +17,35 @@ def _payload(**overrides):
     return payload
 
 
+def test_natural_language_plan_endpoint_returns_plan_without_executing(monkeypatch):
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "x" * 32)
+
+    async def fake_plan(self, objective):
+        assert objective == "Open example.com and inspect it"
+        return {
+            "title": "Inspect example",
+            "objective": objective,
+            "actions": [
+                {"op": "navigate", "url": "https://example.com/"},
+                {"op": "inspect", "max_chars": 1000},
+            ],
+            "requires_owner_approval": False,
+            "execution_started": False,
+        }
+
+    monkeypatch.setattr("brain.api.routes.browser_planning.BrowserPlanner.plan", fake_plan)
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.post(
+            "/browser/plan",
+            headers={"X-Brain-API-Key": "x" * 32},
+            json={"objective": "Open example.com and inspect it"},
+        )
+    assert response.status_code == 200, response.text
+    assert response.json()["execution_started"] is False
+    assert [action["op"] for action in response.json()["actions"]] == ["navigate", "inspect"]
+
+
 def test_browser_endpoint_is_disabled_without_control_key(monkeypatch):
     monkeypatch.delenv("BRAIN_CONTROL_API_KEY", raising=False)
     app = create_app()
