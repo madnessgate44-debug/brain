@@ -3,6 +3,7 @@
 import pytest
 
 from brain.company.github_gateway import GitHubGatewayError, GitHubRepositoryGateway
+from brain.company.escalation import WorkflowEscalationRequired
 
 
 def test_gateway_requires_configured_owner_allowlist():
@@ -23,8 +24,9 @@ def test_gateway_rejects_unsafe_repository_paths(path):
 
 def test_gateway_rejects_missing_token():
     gateway = GitHubRepositoryGateway(token="", allowed_owner="example-owner")
-    with pytest.raises(GitHubGatewayError, match="BRAIN_GITHUB_TOKEN"):
+    with pytest.raises(WorkflowEscalationRequired) as caught:
         gateway._validate_repository("example-owner/project")
+    assert caught.value.to_request("mission-test")["missing_settings"] == ["BRAIN_GITHUB_TOKEN"]
 
 
 @pytest.mark.asyncio
