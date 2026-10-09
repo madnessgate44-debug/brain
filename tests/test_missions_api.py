@@ -8,9 +8,10 @@ from brain.api.app import create_app
 
 @pytest.fixture
 def client():
-    """Create test client."""
+    """Create a test client with application startup and shutdown enabled."""
     app = create_app()
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 def test_create_mission(client):
@@ -22,10 +23,10 @@ def test_create_mission(client):
         "risk_level": "MEDIUM",
         "max_loop_iterations": 5,
     }
-    
+
     response = client.post("/missions", json=data)
     assert response.status_code == 201
-    
+
     mission = response.json()
     assert mission["title"] == "Test Mission"
     assert mission["objective"] == "Test objective"
@@ -39,10 +40,10 @@ def test_list_missions(client):
     # Create a mission first
     data = {"title": "Test Mission 2", "objective": "Test objective 2"}
     client.post("/missions", json=data)
-    
+
     response = client.get("/missions")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "missions" in data
     assert "total" in data
@@ -55,11 +56,11 @@ def test_get_mission(client):
     create_data = {"title": "Test Mission 3", "objective": "Test objective 3"}
     create_response = client.post("/missions", json=create_data)
     mission_id = create_response.json()["id"]
-    
+
     # Get mission
     response = client.get(f"/missions/{mission_id}")
     assert response.status_code == 200
-    
+
     mission = response.json()
     assert mission["id"] == mission_id
     assert mission["title"] == "Test Mission 3"
@@ -71,11 +72,11 @@ def test_start_mission(client):
     create_data = {"title": "Test Mission 4", "objective": "Test objective 4"}
     create_response = client.post("/missions", json=create_data)
     mission_id = create_response.json()["id"]
-    
+
     # Start mission
     response = client.post(f"/missions/{mission_id}/start")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["mission_id"] == mission_id
     assert data["status"] in ["RUNNING", "COMPLETED"]
@@ -88,11 +89,11 @@ def test_mission_events(client):
     create_data = {"title": "Test Mission 5", "objective": "Test objective 5"}
     create_response = client.post("/missions", json=create_data)
     mission_id = create_response.json()["id"]
-    
+
     # Get events
     response = client.get(f"/missions/{mission_id}/events")
     assert response.status_code == 200
-    
+
     events = response.json()
     assert len(events) > 0
     assert events[0]["event_type"] == "mission_created"
