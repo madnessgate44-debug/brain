@@ -15,7 +15,7 @@ def test_gateway_requires_configured_owner_allowlist():
         gateway._validate_repository("someone-else/project")
 
 
-@pytest.mark.parametrize("path", ["", "/etc/passwd", "../secret", "src/../secret", ".git/config", r"src\file.py"])
+@pytest.mark.parametrize("path", ["", "/etc/passwd", "../secret", "src/../secret", ".git/config", "src/.git/config", r"src\file.py"])
 def test_gateway_rejects_unsafe_repository_paths(path):
     with pytest.raises(GitHubGatewayError, match="Unsafe repository path"):
         GitHubRepositoryGateway._validate_path(path)
