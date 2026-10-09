@@ -1,7 +1,6 @@
 """Concrete company workflow tools backed by GitHub and GitHub Actions."""
 
 import asyncio
-import os
 import re
 import uuid
 from typing import Any
