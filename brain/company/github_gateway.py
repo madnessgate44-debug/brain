@@ -123,9 +123,7 @@ class GitHubRepositoryGateway:
             not path
             or path.startswith("/")
             or "\\" in path
-            or any(part in {"", ".", ".."} for part in path.split("/"))
-            or path == ".git"
-            or path.startswith(".git/")
+            or any(part in {"", ".", "..", ".git"} for part in path.split("/"))
         ):
             raise GitHubGatewayError(f"Unsafe repository path: {path!r}")
 
@@ -243,7 +241,7 @@ class GitHubRepositoryGateway:
             "base_branch": default_branch,
             "base_sha": default_sha,
             "commit_sha": commit["sha"],
-            "changed_files": [item["path"] for item in files],
+            "changed_files": [item.get("filename", "unknown") for item in comparison.get("files", [])],
             "diff": actual_diff,
         }
 
