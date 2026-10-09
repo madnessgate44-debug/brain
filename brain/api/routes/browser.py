@@ -12,6 +12,7 @@ from brain.company.settings import get_setting
 from brain.runtime.runtime_registry import RuntimeRegistry
 from brain.runtime.workers.browser_worker import (
     BrowserPolicyError,
+    MUTATING_ACTIONS,
     browser_dispatch_payload,
     sign_browser_dispatch,
     validate_browser_actions,
@@ -63,7 +64,7 @@ async def create_browser_task(
     except BrowserPolicyError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
-    mutating = any(action["op"] in {"click", "type", "press"} for action in actions)
+    mutating = any(action["op"] in MUTATING_ACTIONS for action in actions)
     if mutating and not data.owner_approved:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
