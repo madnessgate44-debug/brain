@@ -26,6 +26,38 @@ class GitHubCompanyTools:
         self.poll_seconds = poll_seconds
         self.timeout_seconds = timeout_seconds
 
+    async def inspect_repository(self, repository: str) -> dict[str, Any]:
+        """Collect a bounded source snapshot so design and engineering use real files."""
+        snapshot = await self.gateway.inspect_repository(repository, max_files=100)
+        candidates = [
+            item["path"] for item in snapshot["files"]
+            if item["path"] in {
+                "README.md", "package.json", "pyproject.toml", "index.html",
+                "vite.config.ts", "tsconfig.json", "src/App.tsx", "src/App.jsx",
+                "src/main.tsx", "src/main.jsx", "brain/api/app.py",
+            }
+            or (
+                item["path"].startswith(("src/", "brain/"))
+                and item["path"].endswith((".tsx", ".ts", ".jsx", ".js", ".py", ".css"))
+                and not any(part in item["path"].lower() for part in ("test", "lock", "generated"))
+            )
+        ]
+        contents = {}
+        total_bytes = 0
+        for path in candidates[:30]:
+            try:
+                text = await self.gateway.read_file(repository, path, max_bytes=30_000)
+            except GitHubGatewayError:
+                continue
+            size = len(text.encode("utf-8"))
+            if total_bytes + size > 220_000:
+                break
+            contents[path] = text
+            total_bytes += size
+        snapshot["source_contents"] = contents
+        snapshot["source_files_read"] = len(contents)
+        return snapshot
+
     async def apply_change_set(
         self, change_set: dict[str, Any], repository: str
     ) -> dict[str, Any]:
