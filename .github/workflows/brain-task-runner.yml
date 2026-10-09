@@ -28,14 +28,14 @@ jobs:
           body = event["issue"].get("body") or ""
           current = os.environ["GITHUB_REPOSITORY"]
           owner = current.split("/", 1)[0]
-          match = re.search(r"(?im)^(?:repository|repo):\\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\\s*$", body)
+          match = re.search(r"(?im)^(?:repository|repo):\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
           target = match.group(1) if match else current
           if target.split("/", 1)[0].casefold() != owner.casefold():
               raise SystemExit("Only repositories owned by the Brain repository owner are allowed.")
           if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", target):
               raise SystemExit("Invalid repository format. Use owner/repository.")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-              handle.write(f"repository={target}\\n")
+              handle.write(f"repository={target}\n")
           print(f"Validated repository target: {target}")
           PY
 
@@ -181,7 +181,7 @@ jobs:
               'Workflow run: ' + context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId,
               '',
               'Security: this workflow accepts only repositories owned by the Brain repository owner, does not persist checkout credentials, and never executes commands taken from the issue body.'
-            ].join('\\n');
+            ].join('\n');
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
