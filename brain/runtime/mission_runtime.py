@@ -162,6 +162,102 @@ class MissionRuntime:
                     )
                     return
 
+                if metadata.get("workflow_type") == "browser":
+                    from brain.company.settings import get_setting
+                    from brain.runtime.workers.browser_worker import (
+                        BrowserPolicyError,
+                        BrowserWorker,
+                        browser_dispatch_payload,
+                        verify_browser_dispatch,
+                    )
+
+                    actions = metadata.get("browser_actions")
+                    owner_approved = metadata.get("browser_owner_approved") is True
+                    signature = metadata.get("browser_dispatch_signature", "")
+                    secret = get_setting("BRAIN_CONTROL_API_KEY")
+                    try:
+                        payload = browser_dispatch_payload(
+                            self.mission_id,
+                            mission.title,
+                            mission.objective,
+                            actions,
+                            owner_approved,
+                        )
+                        if not verify_browser_dispatch(secret, payload, signature):
+                            raise BrowserPolicyError("Browser dispatch signature is missing or invalid.")
+                        await event_repo.append_event(
+                            mission_id=self.mission_id,
+                            event_type="browser_worker_started",
+                            message="Authenticated browser worker started",
+                            phase=MissionPhase.EXECUTE.value,
+                            severity=EventSeverity.INFO,
+                            payload_json=json.dumps({
+                                "worker": "browser_worker",
+                                "requested_actions": len(actions) if isinstance(actions, list) else 0,
+                            }),
+                        )
+                        result = await BrowserWorker().execute(actions, owner_approved=owner_approved)
+                        report_name = "browser-execution-report.json"
+                        report_bytes = json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
+                        report_path = self.artifact_store.save_artifact(
+                            mission_id=self.mission_id,
+                            logical_name=report_name,
+                            content=report_bytes,
+                            metadata={
+                                "mission_id": self.mission_id,
+                                "runtime_id": self.runtime_id,
+                                "worker": "browser_worker",
+                                "workflow_type": "browser",
+                                "claims_external_work": True,
+                            },
+                        )
+                        await artifact_repo.create(
+                            mission_id=self.mission_id,
+                            artifact_type=ArtifactType.EXECUTION,
+                            logical_name=report_name,
+                            relative_path=str(report_path.relative_to(self.artifact_store.workspace_root)),
+                            mime_type="application/json",
+                            size_bytes=len(report_bytes),
+                            metadata_json=json.dumps({
+                                "worker": "browser_worker",
+                                "workflow_type": "browser",
+                                "status": result.get("status"),
+                            }),
+                        )
+                        await event_repo.append_event(
+                            mission_id=self.mission_id,
+                            event_type="browser_worker_completed",
+                            message="Browser execution report stored",
+                            phase=MissionPhase.VALIDATE.value,
+                            severity=EventSeverity.INFO if result.get("status") == "succeeded" else EventSeverity.ERROR,
+                            payload_json=json.dumps({
+                                "artifact": report_name,
+                                "status": result.get("status"),
+                                "completed_actions": result.get("completed_actions"),
+                                "requested_actions": result.get("requested_actions"),
+                            }),
+                        )
+                        if result.get("status") != "succeeded":
+                            raise RuntimeError(
+                                f"Browser worker did not complete all actions; report artifact: {report_name}"
+                            )
+                        await mission_repo.mark_completed(self.mission_id)
+                        await event_repo.append_event(
+                            mission_id=self.mission_id,
+                            event_type="mission_phase_changed",
+                            message="Browser mission completed with an execution report",
+                            phase=MissionPhase.COMPLETE.value,
+                            severity=EventSeverity.INFO,
+                            payload_json=json.dumps({"artifact": report_name}),
+                        )
+                        await session.commit()
+                        logger.info("Browser mission %s completed", self.mission_id)
+                        return
+                    except BrowserPolicyError:
+                        raise
+                    except Exception:
+                        raise
+
                 await event_repo.append_event(
                     mission_id=self.mission_id,
                     event_type="worker_started",

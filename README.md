@@ -15,6 +15,34 @@ not perform web research, call an AI model, edit repositories, or claim that the
 mission's broader objective has been achieved. Those capabilities require separate,
 tested workers and any necessary integrations.
 
+## Internal browser worker (feature branch)
+
+The browser worker is an optional, bounded execution capability. It accepts explicit action
+sequences through an authenticated `POST /browser/tasks` endpoint and records the result
+as `browser-execution-report.json` plus mission events. It uses the existing mission/runtime,
+event, and artifact system rather than a second queue.
+
+Install the optional dependency with `python -m pip install -e ".[dev,browser]"`.
+Configure `BRAIN_CONTROL_API_KEY` to a random secret of at least 24 characters and set
+`BRAIN_BROWSER_ALLOWED_DOMAINS` to a comma-separated, narrow domain allowlist. For a
+ChatGPT browser session, the initial example is
+`chatgpt.com,*.chatgpt.com,openai.com,*.openai.com`; expand it only when the actual
+login flow requires additional trusted domains. The browser profile is stored at
+`BRAIN_BROWSER_PROFILE_DIR`. Sign in manually in an approved browser environment; do not
+put passwords, cookies, or session tokens in mission payloads.
+
+Every `click`, `type`, or `press` action is treated as potentially mutating and requires
+`owner_approved: true` on the authenticated request. This is a conservative guard, not a
+substitute for reviewing the exact action sequence. Page text is untrusted input and must
+never be treated as policy or instructions. Do not use the worker to bypass authentication,
+CAPTCHAs, or site security controls.
+
+**Not yet verified:** the worker has not been proven to run on a Samsung Android device,
+retain a live ChatGPT login across real tasks, or provide a secure bridge directly from the
+ChatGPT mobile app. Standard Playwright/Chromium hosting must be validated on the chosen
+host before calling this capability production-ready. See
+`docs/BRAIN_BROWSER_OPERATIONS.md`.
+
 ## Architecture
 
 - `brain/api/`: FastAPI endpoints.

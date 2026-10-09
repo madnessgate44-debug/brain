@@ -1,0 +1,68 @@
+name: Brain browser issue runner
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  browser-task:
+    if: github.event.issue.user.login == github.repository_owner && contains(github.event.issue.body, '/brain browser')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Brain and Playwright
+        run: python -m pip install -e ".[dev,browser]"
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Execute owner-approved browser task
+        id: browser
+        continue-on-error: true
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: python scripts/run_browser_issue.py
+
+      - name: Upload browser report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brain-browser-issue-${{ github.event.issue.number }}
+          path: browser-output/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Comment result on the initiating issue
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          BROWSER_EXIT: ${{ steps.browser.outcome }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'browser-output/browser-result.md';
+            const report = fs.existsSync(path)
+              ? fs.readFileSync(path, 'utf8')
+              : '## Brain browser task: FAILED\n\nThe worker did not produce a result report. Check the workflow logs.';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const outcome = process.env.BROWSER_EXIT || 'unknown';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: report + `\n\n**Workflow:** ${outcome}\n**Evidence:** ${runUrl}`
+            });
