@@ -65,7 +65,7 @@ async def test_provider_stops_after_three_transient_server_errors(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_provider_falls_back_to_native_gemini_after_compatibility_429(monkeypatch):
+async def test_provider_falls_back_to_native_gemini_immediately_after_compatibility_429(monkeypatch):
     compatibility_calls = 0
     native_calls = 0
 
@@ -106,7 +106,7 @@ async def test_provider_falls_back_to_native_gemini_after_compatibility_429(monk
         result = await provider.complete("system instructions", "write code")
 
     assert result == "native Gemini result"
-    assert compatibility_calls == 3
+    assert compatibility_calls == 1
     assert native_calls == 1
 
 
@@ -160,9 +160,9 @@ async def test_native_gemini_retries_429_using_google_retry_delay(monkeypatch):
         result = await provider.complete("system", "user")
 
     assert result == "recovered"
-    assert compatibility_calls == 3
+    assert compatibility_calls == 1
     assert native_calls == 2
-    assert delays == [0.0, 0.0, 7.0]
+    assert delays == [7.0]
 
 
 @pytest.mark.asyncio
@@ -199,4 +199,4 @@ async def test_native_gemini_stops_after_three_rate_limited_attempts(monkeypatch
         with pytest.raises(ModelProviderError, match="429"):
             await provider.complete("system", "user")
 
-    assert native_calls == 3
+    assert native_calls == 2
