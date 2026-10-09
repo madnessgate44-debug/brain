@@ -42,6 +42,28 @@ class OpenAICompatibleProvider:
         self.timeout_seconds = timeout_seconds
         self._client = client
 
+    @staticmethod
+    def _google_retry_delay(response: httpx.Response, fallback: float) -> float:
+        """Read Google's retry guidance without exposing raw provider error payloads."""
+        retry_after = response.headers.get("Retry-After", "").strip()
+        try:
+            if retry_after:
+                return min(60.0, max(0.0, float(retry_after)))
+        except ValueError:
+            pass
+        try:
+            payload = response.json()
+            details = payload.get("error", {}).get("details", [])
+            for detail in details if isinstance(details, list) else []:
+                if not isinstance(detail, dict):
+                    continue
+                value = detail.get("retryDelay", "")
+                if isinstance(value, str) and value.endswith("s"):
+                    return min(60.0, max(0.0, float(value[:-1])))
+        except (ValueError, TypeError, AttributeError):
+            pass
+        return min(60.0, max(0.0, fallback))
+
     async def _complete_google_native(
         self,
         system_prompt: str,
@@ -54,20 +76,37 @@ class OpenAICompatibleProvider:
             raise ModelProviderError("Native Gemini fallback is not available for this provider endpoint.")
         native_base = self.base_url[: -len("/openai")]
         url = f"{native_base}/models/{quote(self.model, safe='-._')}:generateContent"
-        response = await client.post(
-            url,
-            headers={
-                "x-goog-api-key": self.api_key,
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            json={
-                "systemInstruction": {"parts": [{"text": system_prompt}]},
-                "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-                "generationConfig": {"temperature": 0.1},
-            },
-        )
-        response.raise_for_status()
+        response = None
+        for attempt in range(3):
+            try:
+                response = await client.post(
+                    url,
+                    headers={
+                        "x-goog-api-key": self.api_key,
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    },
+                    json={
+                        "systemInstruction": {"parts": [{"text": system_prompt}]},
+                        "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+                        "generationConfig": {"temperature": 0.1},
+                    },
+                )
+            except httpx.TransportError:
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(float(2 ** attempt))
+                continue
+
+            if response.status_code in {429, 500, 502, 503, 504} and attempt < 2:
+                delay = self._google_retry_delay(response, fallback=float(2 ** (attempt + 1)))
+                await asyncio.sleep(delay)
+                continue
+            response.raise_for_status()
+            break
+
+        if response is None:
+            raise ModelProviderError("Native Gemini request failed without a response.")
         data = response.json()
         candidates = data.get("candidates", [])
         candidate = candidates[0] if isinstance(candidates, list) and candidates else {}
