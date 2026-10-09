@@ -30,6 +30,26 @@ def _parse_json_object(text: str) -> dict[str, Any]:
     return parsed
 
 
+def _validate_specialist_output(raw: str, role: Any) -> dict[str, Any]:
+    """Parse and validate the complete specialist contract without accepting partial output."""
+    result = _parse_json_object(raw)
+    if result.get("status") not in {"PASS", "NEEDS_WORK", "BLOCKED"}:
+        raise AgentOutputError("Specialist status must be PASS, NEEDS_WORK, or BLOCKED.")
+    if not isinstance(result.get("deliverables"), dict):
+        raise AgentOutputError("Specialist must return a deliverables object.")
+    missing_deliverables = [
+        key for key in role.deliverables if key not in result["deliverables"]
+    ]
+    if missing_deliverables:
+        raise AgentOutputError(
+            "Specialist omitted required deliverables: " + ", ".join(missing_deliverables)
+        )
+    for key in ("findings", "blockers", "evidence_needed"):
+        if not isinstance(result.get(key), list):
+            raise AgentOutputError(f"Specialist field '{key}' must be an array.")
+    return result
+
+
 class SpecialistAgentRunner:
     """Run one named specialist with explicit prerequisites and structured output."""
 
@@ -83,21 +103,42 @@ class SpecialistAgentRunner:
             default=str,
         )
         raw = await self.provider.complete(system_prompt, user_prompt)
-        result = _parse_json_object(raw)
-        if result.get("status") not in {"PASS", "NEEDS_WORK", "BLOCKED"}:
-            raise AgentOutputError("Specialist status must be PASS, NEEDS_WORK, or BLOCKED.")
-        if not isinstance(result.get("deliverables"), dict):
-            raise AgentOutputError("Specialist must return a deliverables object.")
-        missing_deliverables = [
-            key for key in role.deliverables if key not in result["deliverables"]
-        ]
-        if missing_deliverables:
-            raise AgentOutputError(
-                "Specialist omitted required deliverables: " + ", ".join(missing_deliverables)
+        try:
+            result = _validate_specialist_output(raw, role)
+        except AgentOutputError as first_error:
+            # One bounded repair attempt handles transient formatting/schema mistakes.
+            # Never silently extract JSON from prose or retry indefinitely.
+            repair_system_prompt = (
+                system_prompt
+                + "\\nYour previous response failed strict validation: "
+                + str(first_error)
+                + ". Return one corrected JSON object only. Preserve the required schema; "
+                + "do not add markdown fences or explanatory prose."
             )
-        for key in ("findings", "blockers", "evidence_needed"):
-            if not isinstance(result.get(key), list):
-                raise AgentOutputError(f"Specialist field '{key}' must be an array.")
+            repair_user_prompt = json.dumps(
+                {
+                    "role": role.key,
+                    "required_deliverables": list(role.deliverables),
+                    "required_top_level_keys": [
+                        "status", "deliverables", "findings", "blockers", "evidence_needed"
+                    ],
+                    "invalid_response_excerpt": raw[:12000],
+                    "validation_error": str(first_error),
+                    "original_request": user_prompt,
+                },
+                ensure_ascii=False,
+                default=str,
+            )
+            repaired_raw = await self.provider.complete(
+                repair_system_prompt, repair_user_prompt
+            )
+            try:
+                result = _validate_specialist_output(repaired_raw, role)
+            except AgentOutputError as second_error:
+                raise AgentOutputError(
+                    f"{role.key} output failed strict validation after one repair attempt: "
+                    f"{second_error}"
+                ) from second_error
         result["role"] = role.key
         result["role_title"] = role.title
         return result
