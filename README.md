@@ -92,6 +92,27 @@ uvicorn brain.api.app:create_app --factory --host 0.0.0.0 --port 8000
 Check `brain.api.app` and `.env.example` before deployment. Configure secrets
 only through the runtime environment, never by committing them.
 
+## Workflow escalation and specialist verification
+
+When the software-company workflow encounters missing provider/GitHub configuration or a
+provider/GitHub authentication failure, it raises a typed escalation rather than recording
+a credential value or raw provider response. The runtime writes
+`escalation-request.json`, appends an `escalation_requested` mission event, and pauses
+the mission in `WAITING_FOR_APPROVAL`. The request identifies the blocker code, missing
+setting names (never their values), and a safe next action. Inspect the mission's events
+and artifacts through the API to surface that request to the operator.
+
+Secrets must be configured in the runtime environment or deployment secret manager.
+ChatGPT cannot manufacture credentials or retrieve an application's secret values from
+a ChatGPT subscription. After configuration is corrected, resume/restart the paused
+mission. This is a durable escalation record, not an automatic secret-transfer channel
+or a claim that a live ChatGPT-to-Brain callback has been deployed.
+
+Automated specialist tests mock the model provider and exercise all nine role contracts,
+required structured outputs, and missing-credential/authentication escalation without
+spending live model credits. Those tests verify orchestration contracts; they do not
+replace a live end-to-end run against a configured provider and GitHub repository.
+
 ## Phone-first remote test runner
 
 The fixed remote test runner can be dispatched from a phone without a terminal:
