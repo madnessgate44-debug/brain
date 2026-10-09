@@ -7,6 +7,7 @@ import uuid
 from typing import Any
 
 from brain.company.github_gateway import GitHubGatewayError, GitHubRepositoryGateway
+from brain.company.settings import get_setting
 
 
 class GitHubCompanyTools:
@@ -21,7 +22,7 @@ class GitHubCompanyTools:
     ):
         self.gateway = gateway or GitHubRepositoryGateway()
         self.control_repository = (
-            control_repository or os.getenv("BRAIN_CONTROL_REPOSITORY", "")
+            control_repository or get_setting("BRAIN_CONTROL_REPOSITORY")
         )
         self.poll_seconds = poll_seconds
         self.timeout_seconds = timeout_seconds
