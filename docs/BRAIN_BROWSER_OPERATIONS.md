@@ -114,3 +114,10 @@ No OpenAI/Gemini API key should be required for this browser-based provider inte
 Brain control API may still require its own secret to protect Brain's endpoint; that is not an
 AI-provider API key. Keep these two credential roles separate.
 
+
+
+## Consumer AI chat sites: blocked automation
+
+Brain's generic browser worker intentionally refuses automated clicks, typing, inspection, waits, and screenshots on consumer ChatGPT/Gemini chat pages. Current provider terms restrict automated extraction or automated access under specified conditions. The worker does not submit prompts to these sites or capture their generated responses. This is an intentional compliance boundary, not a temporary selector bug.
+
+Use a provider-supported integration for automated AI requests. Do not work around this guard with alternate selectors, hidden endpoints, session-cookie reuse, or bot-detection evasion. The user's requirement to avoid provider API keys remains recorded, but the no-key consumer-website route is not considered available unless the provider expressly supports it.
