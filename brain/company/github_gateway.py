@@ -161,10 +161,14 @@ class GitHubRepositoryGateway:
         base_commit = await self._request("GET", f"{base}/git/commits/{base_sha}")
         base_tree_sha = base_commit["tree"]["sha"]
 
-        existing = await self._request(
-            "GET", f"{base}/git/ref/heads/{quote(branch_name, safe='')}"
-        ) if False else None
-        if existing:
+        try:
+            await self._request(
+                "GET", f"{base}/git/ref/heads/{quote(branch_name, safe='')}"
+            )
+        except GitHubGatewayError as exc:
+            if "returned 404" not in str(exc):
+                raise
+        else:
             raise GitHubGatewayError(f"Branch {branch_name} already exists.")
 
         tree_entries = []
@@ -199,6 +203,15 @@ class GitHubRepositoryGateway:
             "POST", f"{base}/git/refs",
             json={"ref": f"refs/heads/{branch_name}", "sha": commit["sha"]},
         )
+        comparison = await self._request(
+            "GET",
+            f"{base}/compare/{quote(base_sha, safe='')}...{quote(branch_name, safe='/')}",
+        )
+        diff_parts = []
+        for changed in comparison.get("files", []):
+            diff_parts.append(f"FILE: {changed.get('filename', 'unknown')}")
+            diff_parts.append(changed.get("patch") or "[Patch omitted by GitHub; inspect file content.]")
+        actual_diff = "\\n".join(diff_parts)
         return {
             "repository": repository,
             "branch": branch_name,
@@ -206,7 +219,7 @@ class GitHubRepositoryGateway:
             "base_sha": base_sha,
             "commit_sha": commit["sha"],
             "changed_files": [item["path"] for item in files],
-            "diff": None,
+            "diff": actual_diff,
         }
 
     async def create_pull_request(
