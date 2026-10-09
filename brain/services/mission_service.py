@@ -18,7 +18,7 @@ logger = logging.getLogger("brain.services.mission_service")
 
 class MissionService:
     """Service for mission operations."""
-    
+
     def __init__(
         self,
         mission_repo: MissionRepository,
@@ -28,14 +28,12 @@ class MissionService:
         self.mission_repo = mission_repo
         self.event_repo = event_repo
         self.artifact_store = artifact_store
-    
+
     async def create_mission(self, data: MissionCreate) -> MissionResponse:
         """Create a new mission."""
-        # Validate input
         if not data.title or not data.objective:
             raise ValueError("Title and objective are required")
-        
-        # Create mission
+
         mission = await self.mission_repo.create(
             title=data.title,
             objective=data.objective,
@@ -44,11 +42,7 @@ class MissionService:
             max_loop_iterations=data.max_loop_iterations or 10,
             metadata_json=str(data.metadata) if data.metadata else None,
         )
-        
-        # Ensure session is fresh
         await self.mission_repo.session.flush()
-        
-        # Emit mission_created event
         await self.event_repo.append_event(
             mission_id=mission.id,
             event_type="mission_created",
@@ -57,24 +51,22 @@ class MissionService:
             severity="INFO",
             payload_json=str({"title": data.title, "objective": data.objective}),
         )
-        
-        # Create mission artifact directory
         self.artifact_store.ensure_mission_dir(mission.id)
-        
+
         logger.info(
-            f"Mission {mission.id} created",
-            extra={"mission_id": mission.id, "title": data.title}
+            "Mission %s created",
+            mission.id,
+            extra={"mission_id": mission.id, "title": data.title},
         )
-        
         return MissionResponse(**mission.to_dict())
-    
+
     async def get_mission(self, mission_id: str) -> Optional[MissionResponse]:
         """Get mission by ID."""
         mission = await self.mission_repo.get_by_id(mission_id)
         if mission:
             return MissionResponse(**mission.to_dict())
         return None
-    
+
     async def list_missions(
         self,
         limit: int = 20,
@@ -87,8 +79,8 @@ class MissionService:
             offset=offset,
             status=status,
         )
-        return [MissionResponse(**m.to_dict()) for m in missions], total
-    
+        return [MissionResponse(**mission.to_dict()) for mission in missions], total
+
     async def start_mission(
         self,
         mission_id: str,
@@ -98,23 +90,15 @@ class MissionService:
         mission = await self.mission_repo.get_by_id(mission_id)
         if not mission:
             raise ValueError(f"Mission {mission_id} not found")
-        
-        # Check if mission can be started
         if mission.status in [MissionStatus.RUNNING.value, MissionStatus.COMPLETED.value]:
             raise RuntimeError(f"Mission {mission_id} is already {mission.status}")
-        
         if mission.status == MissionStatus.FAILED.value:
             raise RuntimeError(f"Mission {mission_id} has failed and cannot be started")
-        
-        # Generate runtime ID
+
         runtime_id = generate_runtime_id()
-        
-        # Update mission state
         await self.mission_repo.update_phase(mission_id, MissionPhase.EXECUTE)
         await self.mission_repo.update_status(mission_id, MissionStatus.RUNNING)
         await self.mission_repo.attach_runtime(mission_id, runtime_id, utc_now())
-        
-        # Emit mission_started event
         await self.event_repo.append_event(
             mission_id=mission_id,
             event_type="mission_started",
@@ -123,26 +107,22 @@ class MissionService:
             severity="INFO",
             payload_json=str({"runtime_id": runtime_id}),
         )
-        
-        # Create runtime task
+
         runtime = MissionRuntime(
             mission_id=mission_id,
             runtime_id=runtime_id,
             mission_repo=self.mission_repo,
             event_repo=self.event_repo,
+            artifact_store=self.artifact_store,
             max_iterations=mission.max_loop_iterations,
         )
-        
-        # Register and start runtime
         runtime_registry.register(runtime)
         await runtime_registry.start(mission_id)
-        
-        # Refresh mission
+
         updated_mission = await self.mission_repo.get_by_id(mission_id)
-        
         logger.info(
-            f"Mission {mission_id} started",
-            extra={"mission_id": mission_id, "runtime_id": runtime_id}
+            "Mission %s started",
+            mission_id,
+            extra={"mission_id": mission_id, "runtime_id": runtime_id},
         )
-        
         return MissionResponse(**updated_mission.to_dict())
