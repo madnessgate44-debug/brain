@@ -54,9 +54,11 @@ successful workflow pauses for human review; merge and deployment remain manual.
 Configure these secrets through the runtime environment or deployment secret
 manager, never by committing them to the repository:
 
-- `BRAIN_AI_BASE_URL`: OpenAI-compatible chat-completions endpoint.
-- `BRAIN_AI_MODEL`: model identifier.
-- `BRAIN_AI_API_KEY`: provider credential.
+- `BRAIN_AI_BASE_URL`: OpenAI-compatible chat-completions endpoint. For a Google AI Studio key, use `https://generativelanguage.googleapis.com/v1beta/openai`.
+- `BRAIN_AI_MODEL`: model identifier. For example, `gemini-2.5-flash` when available to the Google project.
+- `BRAIN_AI_API_KEY`: provider credential. A Google AI Studio key belongs only in the runtime secret manager under this name; never paste it into source files, issue bodies, logs, or PR comments.
+
+**Credential handling:** an API key pasted into a conversation should be treated as exposed. Revoke/rotate it in Google AI Studio before using a replacement in the deployed runtime. The repository connector used for this task does not provide a secret-writing operation, and this repository currently has no checked-in deployment target. Therefore this change documents the provider configuration but does not install the key or claim a live provider call succeeded.
 - `BRAIN_GITHUB_OWNER`: only permitted GitHub owner.
 - `BRAIN_GITHUB_TOKEN`: least-privilege token for the repository operations
   required by the workflow and test dispatch.
