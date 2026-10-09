@@ -5,7 +5,6 @@ The adapter intentionally exposes one narrow operation; workflow policy and tool
 remain separate so a model response cannot bypass approval gates.
 """
 
-import os
 from typing import Any
 
 import httpx
@@ -54,11 +53,14 @@ class OpenAICompatibleProvider:
         timeout_seconds: float = 90.0,
         client: httpx.AsyncClient | None = None,
     ):
+        # Google AI Studio's OpenAI-compatible endpoint is the default for Brain.
+        # The credential itself is always injected at runtime; never hardcode it here.
         self.api_key = api_key or get_setting("BRAIN_AI_API_KEY")
         self.base_url = (base_url or get_setting(
-            "BRAIN_AI_BASE_URL", "https://api.openai.com/v1"
+            "BRAIN_AI_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta/openai",
         )).rstrip("/")
-        self.model = model or get_setting("BRAIN_AI_MODEL")
+        self.model = model or get_setting("BRAIN_AI_MODEL", "gemini-2.5-flash")
         self.timeout_seconds = timeout_seconds
         self._client = client
 
