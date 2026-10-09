@@ -60,9 +60,12 @@ A task can be dispatched from a phone without a terminal:
 The runner deliberately ignores shell commands and code supplied in the issue body.
 It checks out the target without persisting Git credentials and runs in a job with
 read-only repository permissions. Only the reporting job can write an issue comment.
-Private repositories and arbitrary shell commands are not supported. This is a
-remote test/build runner, not yet a general-purpose remote terminal or autonomous
-code-editing agent.
+Public repositories work with the default token. To access private repositories,
+create a fine-grained GitHub token limited to the needed repositories with **Contents:
+Read-only**, then save it in Brain's repository Actions secrets as
+`BRAIN_GITHUB_TOKEN`. Never put tokens in issue bodies or commit them to files.
+Arbitrary shell commands are not supported. This is a remote test/build runner, not
+yet a general-purpose remote terminal or autonomous code-editing agent.
 
 ## First milestone and acceptance criteria
 
