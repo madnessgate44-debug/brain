@@ -43,11 +43,11 @@ def parse_issue_payload(event: dict[str, Any], repository_owner: str) -> dict[st
         raise ValueError("title is required.")
     if not isinstance(payload.get("objective"), str) or not payload["objective"].strip():
         raise ValueError("objective is required.")
-    domains = payload.get("allowed_domains")
+    domains = payload.get("allowed_domains", ["*"])
     if not isinstance(domains, list) or not domains or len(domains) > 30:
         raise ValueError("allowed_domains must contain 1 to 30 domain rules.")
-    if any(not isinstance(item, str) or not item.strip() or item.strip() == "*" for item in domains):
-        raise ValueError("Every allowed_domains entry must be a non-wildcard domain rule.")
+    if any(not isinstance(item, str) or not item.strip() for item in domains):
+        raise ValueError("Every allowed_domains entry must be a non-empty string.")
     actions = payload.get("actions")
     if not isinstance(actions, list) or not actions or len(actions) > 25:
         raise ValueError("actions must contain 1 to 25 explicit browser actions.")
