@@ -31,6 +31,7 @@ been proven; do not claim it is supported until a real device smoke test succeed
 
 - [x] Public-web default policy without per-domain setup.
 - [x] Natural-language objective to validated action plan.
+- [x] Click, type, press, hover, select, scroll, back/forward, reload, inspect, wait, and screenshot actions.
 - [x] Persistent profile path configurable in the runtime.
 - [ ] Profile locking and session-expiry detection.
 - [ ] Stable host with durable disk and manual sign-in UX.
