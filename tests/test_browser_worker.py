@@ -25,6 +25,8 @@ class FakeLocator:
         return "Example page content"
 
     async def click(self, **kwargs):
+        if self.selector == "button#missing":
+            raise RuntimeError("selector not found")
         self.page.actions.append(("click", self.selector))
 
     async def fill(self, text, **kwargs):
