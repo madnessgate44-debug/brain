@@ -12,6 +12,8 @@ from urllib.parse import quote
 
 import httpx
 
+from brain.company.settings import get_setting
+
 
 class GitHubGatewayError(RuntimeError):
     """Raised when a repository operation fails or violates safety policy."""
@@ -27,8 +29,8 @@ class GitHubRepositoryGateway:
         api_base_url: str = "https://api.github.com",
         client: httpx.AsyncClient | None = None,
     ):
-        self.token = token or os.getenv("BRAIN_GITHUB_TOKEN")
-        self.allowed_owner = (allowed_owner or os.getenv("BRAIN_GITHUB_OWNER", "")).casefold()
+        self.token = token or get_setting("BRAIN_GITHUB_TOKEN")
+        self.allowed_owner = (allowed_owner or get_setting("BRAIN_GITHUB_OWNER")).casefold()
         self.api_base_url = api_base_url.rstrip("/")
         self._client = client
 
