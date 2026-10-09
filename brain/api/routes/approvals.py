@@ -11,9 +11,11 @@ from brain.services.approval_service import ApprovalService
 from brain.api.deps import get_approval_service
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
+mission_router = APIRouter(prefix="/missions", tags=["approvals"])
 
 
 @router.post("/missions/{mission_id}/approvals", response_model=ApprovalRequestResponse)
+@mission_router.post("/{mission_id}/approvals", response_model=ApprovalRequestResponse)
 async def create_approval_request(
     mission_id: str,
     data: ApprovalRequestCreate,
