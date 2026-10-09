@@ -28,6 +28,10 @@ Supported actions and schemas:
 - {"op":"press","selector":"CSS selector","key":"Enter"}
 - {"op":"wait_for","selector":"CSS selector","state":"visible"}
 - {"op":"screenshot"}
+- {"op":"hover","selector":"CSS selector"}
+- {"op":"select","selector":"select CSS selector","value":"option value"}
+- {"op":"scroll","direction":"down","amount":600}
+- {"op":"go_back"}, {"op":"go_forward"}, or {"op":"reload"}
 Rules:
 - 1 to 25 actions only.
 - Start by navigating to a URL explicitly provided by the user. If no URL is given,
