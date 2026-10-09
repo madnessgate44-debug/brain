@@ -68,4 +68,3 @@ class BootService:
         for path in workspace_paths.all_paths():
             path.mkdir(parents=True, exist_ok=True)
             logger.debug("Ensured workspace directory: %s", path)
-"
