@@ -31,7 +31,7 @@ jobs:
           owner = current.split("/", 1)[0]
           match = re.search(r"(?im)^(?:repository|repo):\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
           target = match.group(1) if match else current
-          branch_match = re.search(r"(?im)^branch:\\s*(brain/[A-Za-z0-9._/-]+)\\s*$", body)
+          branch_match = re.search(r"(?im)^branch:\s*(brain/[A-Za-z0-9._/-]+)\s*$", body)
           branch = branch_match.group(1) if branch_match else ""
           if branch and (".." in branch.split("/") or not re.fullmatch(r"brain/[A-Za-z0-9._/-]+", branch)):
               raise SystemExit("Invalid branch name.")
@@ -41,7 +41,8 @@ jobs:
               raise SystemExit("Invalid repository format. Use owner/repository.")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
               handle.write(f"repository={target}\n")
-          print(f"Validated repository target: {target}")
+              handle.write(f"branch={branch}\n")
+          print(f"Validated repository target: {target}; branch: {branch or 'default'}")
           PY
 
   run-tests:
