@@ -10,6 +10,8 @@ from typing import Any
 
 import httpx
 
+from brain.company.settings import get_setting
+
 
 class ProviderConfigurationError(RuntimeError):
     """Raised when model-provider settings are missing or invalid."""
@@ -30,11 +32,11 @@ class OpenAICompatibleProvider:
         timeout_seconds: float = 90.0,
         client: httpx.AsyncClient | None = None,
     ):
-        self.api_key = api_key or os.getenv("BRAIN_AI_API_KEY")
-        self.base_url = (base_url or os.getenv(
+        self.api_key = api_key or get_setting("BRAIN_AI_API_KEY")
+        self.base_url = (base_url or get_setting(
             "BRAIN_AI_BASE_URL", "https://api.openai.com/v1"
         )).rstrip("/")
-        self.model = model or os.getenv("BRAIN_AI_MODEL")
+        self.model = model or get_setting("BRAIN_AI_MODEL")
         self.timeout_seconds = timeout_seconds
         self._client = client
 
