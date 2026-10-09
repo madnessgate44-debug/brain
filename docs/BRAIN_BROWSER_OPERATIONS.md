@@ -71,6 +71,16 @@ succeeded.
   modified browser metadata must not execute.
 - No TinyFish dependency is used.
 
+## Linux runtime smoke test
+
+A manually triggered GitHub Actions workflow is available at
+`.github/workflows/browser-runtime-smoke.yml`. From the repository's Actions tab, select
+**Browser runtime smoke test** and run it on the feature branch. It installs the optional
+Playwright dependency and Chromium, then launches a real headless browser and inspects an
+`about:blank` page. This proves only that the Linux runner can launch Chromium; it does not
+prove live ChatGPT sign-in, persistent account access, Samsung support, or a secure phone
+control bridge.
+
 ## Required verification gates
 
 1. GitHub Actions tests pass for the branch head.
