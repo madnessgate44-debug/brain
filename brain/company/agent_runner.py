@@ -78,6 +78,16 @@ class SpecialistAgentRunner:
                 "\\nUse the supplied test_results from the real check runner. Do not invent "
                 "test runs or mark unexecuted checks as passing.\n"
             )
+        if role_key in {"ux_designer", "customer_advocate"}:
+            role_contract += (
+                "\\nScope applicability rule: adapt deliverables to the explicit request. "
+                "For backend-only work or a request that explicitly excludes UI changes, do not "
+                "block because visual mockups, screen redesign, or a visual design system are "
+                "out of scope. Provide backend interaction journeys and API/response-state "
+                "specifications in the required fields; mark purely visual details as not "
+                "applicable with a short reason. Do not request user confirmation for a clear "
+                "scope boundary. Raise a blocker only for a real unresolved product requirement.\\n"
+            )
         system_prompt = (
             "You are the " + role.title + " in a software company.\\n"
             "Your responsibility: " + role.mission + "\n"
