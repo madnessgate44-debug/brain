@@ -29,6 +29,24 @@ not replacing it with a second JSON queue. GitHub Actions provides a first remot
 execution path for a fixed, safe operation: run the repository's test suite and
 report the result on a GitHub issue.
 
+## Software-company workflow foundation
+
+Brain now defines nine specialist roles: product owner, UX/UI designer, software
+architect, implementation engineer, independent code reviewer, QA engineer,
+security auditor, customer advocate, and release manager. Role prerequisites and
+mandatory release gates are explicit in `brain/company/`. The provider adapter can
+call an OpenAI-compatible chat-completions endpoint using `BRAIN_AI_BASE_URL`,
+`BRAIN_AI_MODEL`, and `BRAIN_AI_API_KEY`; credentials must be configured outside
+the repository.
+
+This is the first implementation layer, not a claim that the full company workflow
+is finished. The current code has role definitions, structured specialist execution,
+prerequisite checks, and release-gate policy tests. The end-to-end coordinator still
+needs to connect specialist outputs to isolated Git branches, real repository edits,
+executed CI/browser tests, repair loops, and human approval before merge/release.
+Do not treat an agent's assertion as test evidence: QA must attach a real run result,
+and release remains blocked when that evidence is missing.
+
 ## Local setup
 
 Requires Python 3.12 or later.
