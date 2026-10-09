@@ -49,6 +49,7 @@ jobs:
     outputs:
       summary: ${{ steps.tests.outputs.summary }}
       exit_code: ${{ steps.tests.outputs.exit_code }}
+      check_type: ${{ steps.tests.outputs.check_type }}
       target: ${{ needs.prepare.outputs.repository }}
     steps:
       - name: Check out target repository without persisted credentials
@@ -99,18 +100,19 @@ jobs:
         shell: bash
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
-      - name: Run tests and capture report
+      - name: Run tests or project checks and capture report
         id: tests
         shell: bash
         run: |
           set +e
+          result=0
           if [ "${{ steps.detect.outputs.project_type }}" = "python" ]; then
+            echo "check_type=pytest" >> "$GITHUB_OUTPUT"
             pytest -q > brain-test-report.txt 2>&1
             result=$?
           elif [ "${{ steps.detect.outputs.project_type }}" = "node" ]; then
-            node -e "const p=require('./package.json'); if (!p.scripts || !p.scripts.test) process.exit(2)"
-            result=$?
-            if [ "$result" -eq 0 ]; then
+            if node -e "const p=require('./package.json'); if (!p.scripts || !p.scripts.test) process.exit(1)"; then
+              echo "check_type=tests" >> "$GITHUB_OUTPUT"
               node -e "const p=require('./package.json'); const s=p.scripts.test; if(s.includes('vitest')) process.exit(10); if(s.includes('react-scripts test')) process.exit(11); if(s.includes('jest')) process.exit(12); process.exit(13)"
               kind=$?
               if [ "$kind" -eq 10 ]; then npm test -- --run > brain-test-report.txt 2>&1; result=$?
@@ -119,9 +121,23 @@ jobs:
               else npm test > brain-test-report.txt 2>&1; result=$?
               fi
             else
-              echo "package.json does not define a test script." > brain-test-report.txt
+              echo "check_type=build/lint checks" >> "$GITHUB_OUTPUT"
+              : > brain-test-report.txt
+              if node -e "const p=require('./package.json'); if (!p.scripts || !p.scripts.build) process.exit(1)"; then
+                echo ">>> npm run build" >> brain-test-report.txt
+                npm run build >> brain-test-report.txt 2>&1 || result=$?
+              fi
+              if node -e "const p=require('./package.json'); if (!p.scripts || !p.scripts.lint) process.exit(1)"; then
+                echo ">>> npm run lint" >> brain-test-report.txt
+                npm run lint >> brain-test-report.txt 2>&1 || result=$?
+              fi
+              if [ ! -s brain-test-report.txt ]; then
+                echo "No test, build, or lint script is available." > brain-test-report.txt
+                result=2
+              fi
             fi
           else
+            echo "check_type=unsupported" >> "$GITHUB_OUTPUT"
             echo "Unsupported project. Expected a Python project manifest or package.json." > brain-test-report.txt
             result=2
           fi
@@ -160,6 +176,7 @@ jobs:
         env:
           TEST_SUMMARY: ${{ needs.run-tests.outputs.summary }}
           TEST_EXIT_CODE: ${{ needs.run-tests.outputs.exit_code }}
+          CHECK_TYPE: ${{ needs.run-tests.outputs.check_type }}
           TARGET_REPOSITORY: ${{ needs.run-tests.outputs.target }}
           TEST_JOB_RESULT: ${{ needs.run-tests.result }}
         with:
@@ -173,6 +190,7 @@ jobs:
               '',
               '**Target repository:** ' + target,
               '**Result:** ' + summary,
+              '**Checks:** ' + (process.env.CHECK_TYPE || 'not available'),
               '**Exit code:** ' + exitCode,
               '**Workflow job:** ' + jobResult,
               '',
