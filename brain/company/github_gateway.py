@@ -12,6 +12,7 @@ from urllib.parse import quote
 import httpx
 
 from brain.company.settings import get_setting
+from brain.company.escalation import WorkflowEscalationRequired
 
 
 class GitHubGatewayError(RuntimeError):
@@ -35,12 +36,26 @@ class GitHubRepositoryGateway:
 
     def _validate_repository(self, repository: str) -> tuple[str, str]:
         if not self.token:
-            raise GitHubGatewayError("BRAIN_GITHUB_TOKEN is not configured.")
+            raise WorkflowEscalationRequired(
+                "github_token_missing",
+                "Brain cannot access the target repository because the GitHub token is not configured.",
+                missing_settings=("BRAIN_GITHUB_TOKEN",),
+                suggested_action=(
+                    "Configure a least-privilege GitHub token in the deployment/runtime secret manager, "
+                    "then resume the paused mission. Never place the token in chat or source control."
+                ),
+            )
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository or ""):
             raise GitHubGatewayError("Repository must use owner/repository format.")
         if not self.allowed_owner:
-            raise GitHubGatewayError(
-                "BRAIN_GITHUB_OWNER is not configured; repository writes are disabled."
+            raise WorkflowEscalationRequired(
+                "github_owner_allowlist_missing",
+                "Brain's GitHub repository allowlist is not configured, so repository writes are disabled.",
+                missing_settings=("BRAIN_GITHUB_OWNER",),
+                suggested_action=(
+                    "Set BRAIN_GITHUB_OWNER to the explicitly authorized owner in runtime configuration, "
+                    "then resume the paused mission."
+                ),
             )
         owner, name = repository.split("/", 1)
         if owner.casefold() != self.allowed_owner:
@@ -61,10 +76,25 @@ class GitHubRepositoryGateway:
                 },
                 **kwargs,
             )
+            if response.status_code in {401, 403}:
+                raise WorkflowEscalationRequired(
+                    "github_auth_or_permission_failed",
+                    "GitHub rejected Brain's request. The token may be invalid, expired, or missing required repository permissions.",
+                    missing_settings=("BRAIN_GITHUB_TOKEN",),
+                    suggested_action=(
+                        "Verify token validity and least-privilege repository permissions in the runtime secret manager. "
+                        "Do not copy the token into chat, logs, or repository files."
+                    ),
+                )
+            if response.status_code == 429:
+                raise WorkflowEscalationRequired(
+                    "github_rate_limited",
+                    "GitHub rate-limited Brain's request.",
+                    suggested_action="Wait for the rate limit to reset, then resume the paused mission.",
+                )
             if response.status_code >= 400:
-                detail = response.text[:1200]
                 raise GitHubGatewayError(
-                    f"GitHub API {method} {path} returned {response.status_code}: {detail}"
+                    f"GitHub API {method} {path} returned {response.status_code}."
                 )
             if response.status_code == 204 or not response.content:
                 return {}
