@@ -52,13 +52,17 @@ A task can be dispatched from a phone without a terminal:
 
 1. Open an issue in this repository (or ask ChatGPT to create one).
 2. Put the exact marker `/brain test` in the issue body.
-3. GitHub Actions installs the project dependencies and runs `pytest -q`.
-4. The workflow comments PASS/FAIL on the issue and attaches the full test report.
-5. Review the workflow run and report before deciding what to change next.
+3. Optionally add `repository: owner/repository` to target another **public repository owned by the same GitHub account**. If omitted, Brain is tested.
+4. GitHub Actions detects Python or Node.js projects and runs their test suite. For Node projects without a test script, it runs the available build and lint scripts.
+5. The workflow comments PASS/FAIL on the issue and attaches the full report as a workflow artifact.
+6. Review the workflow run and report before deciding what to change next.
 
 The runner deliberately ignores shell commands and code supplied in the issue body.
-It only runs the fixed test command. This is a real remote execution bridge, but it
-is not yet a general-purpose remote terminal or autonomous code-editing agent.
+It checks out the target without persisting Git credentials and runs in a job with
+read-only repository permissions. Only the reporting job can write an issue comment.
+Private repositories and arbitrary shell commands are not supported. This is a
+remote test/build runner, not yet a general-purpose remote terminal or autonomous
+code-editing agent.
 
 ## First milestone and acceptance criteria
 
