@@ -47,16 +47,16 @@ class SpecialistAgentRunner:
         role_contract = ""
         if role_key == "developer":
             role_contract = (
-                "\\nImplementation contract: deliverables.change_set must be an object with "
+                "\nImplementation contract: deliverables.change_set must be an object with "
                 "a short 'summary' string and a 'files' array. Each array item must contain "
                 "a safe repository-relative 'path' and complete UTF-8 text 'content'. "
                 "Return 1–30 files, each at most 200 KB. Do not claim to have applied changes; "
-                "the repository tool will commit them on an isolated branch.\\n"
+                "the repository tool will commit them on an isolated branch.\n"
             )
         elif role_key == "qa_engineer":
             role_contract = (
                 "\\nUse the supplied test_results from the real check runner. Do not invent "
-                "test runs or mark unexecuted checks as passing.\\n"
+                "test runs or mark unexecuted checks as passing.\n"
             )
         system_prompt = (
             "You are the " + role.title + " in a software company.\\n"
