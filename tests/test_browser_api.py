@@ -109,3 +109,47 @@ def test_browser_mission_runs_through_mission_runtime_and_records_report(monkeyp
         event_types = {item["event_type"] for item in events.json()}
         assert "browser_worker_started" in event_types
         assert "browser_worker_completed" in event_types
+
+def test_unsigned_browser_metadata_cannot_execute(monkeypatch):
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "x" * 32)
+    executed = {"value": False}
+
+    async def should_not_execute(self, actions, owner_approved=False):
+        executed["value"] = True
+        raise AssertionError("unsigned browser metadata reached the browser worker")
+
+    monkeypatch.setattr(
+        "brain.runtime.workers.browser_worker.BrowserWorker.execute",
+        should_not_execute,
+    )
+    app = create_app()
+    with TestClient(app) as client:
+        created = client.post(
+            "/missions",
+            json={
+                "title": "Unsigned browser task",
+                "objective": "This must not execute",
+                "metadata": {
+                    "workflow_type": "browser",
+                    "browser_actions": [{"op": "inspect"}],
+                    "browser_owner_approved": False,
+                },
+            },
+        )
+        assert created.status_code == 201
+        mission_id = created.json()["id"]
+        started = client.post(f"/missions/{mission_id}/start")
+        assert started.status_code == 200
+
+        mission = None
+        for _ in range(40):
+            response = client.get(f"/missions/{mission_id}")
+            mission = response.json()
+            if mission["status"] in {"COMPLETED", "FAILED"}:
+                break
+            time.sleep(0.05)
+
+        assert mission is not None
+        assert mission["status"] == "FAILED", mission
+        assert executed["value"] is False
+
