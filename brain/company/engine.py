@@ -108,7 +108,8 @@ class CompanyWorkflowEngine:
             outputs["code_reviewer"] = review_output
             timeline.append({"role": "code_reviewer", "status": review_output["status"],
                              "cycle": cycle})
-            if review_output["status"] == "PASS":
+            review_decision = review_output.get("deliverables", {}).get("review_decision")
+            if review_output["status"] == "PASS" and str(review_decision).upper() in {"PASS", "APPROVED"}:
                 break
             if cycle >= self.max_repair_cycles:
                 raise CompanyWorkflowBlocked("Independent code review failed after repair limit.")
@@ -152,13 +153,17 @@ class CompanyWorkflowEngine:
         security_output = await self.agent_runner.run("security_auditor", user_request, evidence)
         outputs["security_auditor"] = security_output
         timeline.append({"role": "security_auditor", "status": security_output["status"]})
-        if security_output["status"] != "PASS":
+        if security_output["status"] != "PASS" or str(
+            security_output.get("deliverables", {}).get("security_decision", "")
+        ).upper() not in {"PASS", "APPROVED"}:
             raise CompanyWorkflowBlocked("Security audit did not pass.")
 
         customer_output = await self.agent_runner.run("customer_advocate", user_request, evidence)
         outputs["customer_advocate"] = customer_output
         timeline.append({"role": "customer_advocate", "status": customer_output["status"]})
-        if customer_output["status"] != "PASS":
+        if customer_output["status"] != "PASS" or str(
+            customer_output.get("deliverables", {}).get("customer_review", "")
+        ).upper() not in {"PASS", "APPROVED"}:
             raise CompanyWorkflowBlocked("Customer review did not pass.")
 
         # Release decision is evidence-based and remains a recommendation, not an auto-merge.
@@ -186,7 +191,9 @@ class CompanyWorkflowEngine:
         )
         outputs["release_manager"] = release_output
         timeline.append({"role": "release_manager", "status": release_output["status"]})
-        if release_output["status"] != "PASS":
+        if release_output["status"] != "PASS" or str(
+            release_output.get("deliverables", {}).get("release_decision", "")
+        ).upper() not in {"PASS", "READY_FOR_HUMAN_APPROVAL"}:
             raise CompanyWorkflowBlocked("Release manager blocked release.")
 
         workflow_result = {
