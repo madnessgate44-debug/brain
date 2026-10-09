@@ -44,7 +44,7 @@ class EventRepository:
             mission_id=mission_id,
             event_type=event_type,
             phase=phase,
-            severity=severity.value,
+            severity=severity.value if isinstance(severity, EventSeverity) else EventSeverity(severity).value,
             message=message,
             payload_json=payload_json,
             sequence_number=sequence_number,
