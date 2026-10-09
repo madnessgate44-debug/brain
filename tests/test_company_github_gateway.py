@@ -1,5 +1,7 @@
 """Safety tests for the GitHub repository gateway."""
 
+import json
+
 import httpx
 import pytest
 
@@ -46,14 +48,11 @@ async def test_gateway_rejects_unbounded_change_set_before_network_call():
 
 
 @pytest.mark.asyncio
-async def test_gateway_write_preflight_rejects_token_without_push_permission():
+async def test_gateway_write_preflight_rejects_token_without_contents_write():
     def handler(request):
-        assert request.method == "GET"
-        return httpx.Response(
-            200,
-            json={"permissions": {"pull": True, "push": False}},
-            request=request,
-        )
+        assert request.method == "POST"
+        assert request.url.path == "/repos/example-owner/project/git/blobs"
+        return httpx.Response(403, json={"message": "write permission denied"}, request=request)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         gateway = GitHubRepositoryGateway(
@@ -62,17 +61,23 @@ async def test_gateway_write_preflight_rejects_token_without_push_permission():
             api_base_url="https://example.test",
             client=client,
         )
-        with pytest.raises(GitHubGatewayError, match="Contents: write"):
+        with pytest.raises(GitHubGatewayError, match="returned 403"):
             await gateway.verify_write_access("example-owner/project")
 
 
 @pytest.mark.asyncio
-async def test_gateway_write_preflight_accepts_token_with_push_permission():
+async def test_gateway_write_preflight_accepts_actual_contents_write_permission():
     def handler(request):
-        assert request.method == "GET"
+        assert request.method == "POST"
+        assert request.url.path == "/repos/example-owner/project/git/blobs"
+        payload = json.loads(request.content)
+        assert payload == {
+            "content": "Brain write-access preflight probe; not referenced by a commit.",
+            "encoding": "utf-8",
+        }
         return httpx.Response(
-            200,
-            json={"permissions": {"pull": True, "push": True}},
+            201,
+            json={"sha": "a" * 40, "url": "https://example.test/blob"},
             request=request,
         )
 
@@ -86,19 +91,3 @@ async def test_gateway_write_preflight_accepts_token_with_push_permission():
         result = await gateway.verify_write_access("example-owner/project")
 
     assert result == {"repository": "example-owner/project", "write_access": True}
-
-
-@pytest.mark.asyncio
-async def test_gateway_write_preflight_fails_closed_when_permissions_are_unavailable():
-    def handler(request):
-        return httpx.Response(200, json={"name": "project"}, request=request)
-
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        gateway = GitHubRepositoryGateway(
-            token="test-token",
-            allowed_owner="example-owner",
-            api_base_url="https://example.test",
-            client=client,
-        )
-        with pytest.raises(GitHubGatewayError, match="write access preflight failed"):
-            await gateway.verify_write_access("example-owner/project")
