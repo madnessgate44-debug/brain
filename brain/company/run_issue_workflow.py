@@ -59,6 +59,8 @@ async def run() -> dict[str, Any]:
         token=os.environ["BRAIN_GITHUB_TOKEN"],
         allowed_owner=os.environ.get("BRAIN_GITHUB_OWNER", "madnessgate44-debug"),
     )
+    # Validate write permissions before spending provider quota on specialist calls.
+    await gateway.verify_write_access(repository)
     tools = GitHubCompanyTools(
         gateway=gateway,
         control_repository=os.environ.get("BRAIN_CONTROL_REPOSITORY", "madnessgate44-debug/brain"),
