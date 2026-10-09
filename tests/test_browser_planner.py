@@ -1,9 +1,10 @@
-"""Tests for Brain's natural-language browser planner."""
+"""Regression tests for Brain's natural-language browser planner."""
 import json
-
 import pytest
+from unittest.mock import AsyncMock, patch
 
 from brain.runtime.workers.browser_planner import BrowserPlanner, BrowserPlanningError
+from brain.company.llm_provider import ModelProviderError
 
 
 class FakeProvider:
@@ -17,7 +18,7 @@ class FakeProvider:
 
 
 @pytest.mark.asyncio
-async def test_planner_returns_validated_actions_without_executing_them():
+async def test_planner_returns_validated_actions_without_executing_toplevel_tasks():
     provider = FakeProvider(json.dumps({
         "title": "Inspect example",
         "objective": "Read the Example Domain page",

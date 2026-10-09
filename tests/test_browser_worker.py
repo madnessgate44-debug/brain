@@ -1,7 +1,6 @@
 """Regression tests for Brain's bounded browser worker."""
 
 from contextlib import asynccontextmanager
-
 import pytest
 
 from brain.runtime.workers.browser_worker import (
