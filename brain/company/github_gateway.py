@@ -37,8 +37,12 @@ class GitHubRepositoryGateway:
             raise GitHubGatewayError("BRAIN_GITHUB_TOKEN is not configured.")
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository or ""):
             raise GitHubGatewayError("Repository must use owner/repository format.")
+        if not self.allowed_owner:
+            raise GitHubGatewayError(
+                "BRAIN_GITHUB_OWNER is not configured; repository writes are disabled."
+            )
         owner, name = repository.split("/", 1)
-        if self.allowed_owner and owner.casefold() != self.allowed_owner:
+        if owner.casefold() != self.allowed_owner:
             raise GitHubGatewayError("Repository owner is not in the configured allowlist.")
         return owner, name
 
