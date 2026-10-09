@@ -1,4 +1,4 @@
-""""Boot service."""
+"""Boot service."""
 
 import logging
 from pathlib import Path
