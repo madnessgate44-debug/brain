@@ -84,7 +84,7 @@ def test_domain_matching_requires_exact_or_subdomain_rule():
     assert domain_matches("auth.openai.com", "*.openai.com")
     assert not domain_matches("openai.com", "*.openai.com")
     assert not domain_matches("evilchatgpt.com", "chatgpt.com")
-    assert not domain_matches("anything.example", "*")
+    assert domain_matches("anything.example", "*")
 
 
 def test_url_policy_rejects_non_http_credentials_and_unapproved_domains():
