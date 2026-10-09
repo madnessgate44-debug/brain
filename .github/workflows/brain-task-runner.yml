@@ -13,6 +13,7 @@ jobs:
     permissions: {}
     outputs:
       repository: ${{ steps.parse.outputs.repository }}
+      branch: ${{ steps.parse.outputs.branch }}
     steps:
       - name: Parse and validate task target
         id: parse
@@ -30,6 +31,10 @@ jobs:
           owner = current.split("/", 1)[0]
           match = re.search(r"(?im)^(?:repository|repo):\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
           target = match.group(1) if match else current
+          branch_match = re.search(r"(?im)^branch:\\s*(brain/[A-Za-z0-9._/-]+)\\s*$", body)
+          branch = branch_match.group(1) if branch_match else ""
+          if branch and (".." in branch.split("/") or not re.fullmatch(r"brain/[A-Za-z0-9._/-]+", branch)):
+              raise SystemExit("Invalid branch name.")
           if target.split("/", 1)[0].casefold() != owner.casefold():
               raise SystemExit("Only repositories owned by the Brain repository owner are allowed.")
           if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", target):
@@ -51,11 +56,13 @@ jobs:
       exit_code: ${{ steps.tests.outputs.exit_code }}
       check_type: ${{ steps.tests.outputs.check_type }}
       target: ${{ needs.prepare.outputs.repository }}
+      branch: ${{ needs.prepare.outputs.branch }}
     steps:
       - name: Check out target repository without persisted credentials
         uses: actions/checkout@v4
         with:
           repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.branch || '' }}
           token: ${{ secrets.BRAIN_GITHUB_TOKEN || github.token }}
           persist-credentials: false
       - name: Detect supported project type
@@ -179,6 +186,7 @@ jobs:
           TEST_EXIT_CODE: ${{ needs.run-tests.outputs.exit_code }}
           CHECK_TYPE: ${{ needs.run-tests.outputs.check_type }}
           TARGET_REPOSITORY: ${{ needs.run-tests.outputs.target }}
+          TARGET_BRANCH: ${{ needs.run-tests.outputs.branch }}
           TEST_JOB_RESULT: ${{ needs.run-tests.result }}
         with:
           script: |
@@ -190,6 +198,7 @@ jobs:
               '## Brain remote test run',
               '',
               '**Target repository:** ' + target,
+              '**Target branch:** ' + (process.env.TARGET_BRANCH || 'default branch'),
               '**Result:** ' + summary,
               '**Checks:** ' + (process.env.CHECK_TYPE || 'not available'),
               '**Exit code:** ' + exitCode,
