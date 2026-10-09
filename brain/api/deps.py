@@ -60,12 +60,14 @@ async def get_artifact_store(
 
 
 async def get_mission_service(
+    request: Request,
     mission_repo: MissionRepository = Depends(get_mission_repository),
     event_repo: EventRepository = Depends(get_event_repository),
     artifact_store: ArtifactStore = Depends(get_artifact_store),
 ) -> MissionService:
-    """Get mission service."""
-    return MissionService(mission_repo, event_repo, artifact_store)
+    """Get mission service with a session factory for background execution."""
+    session_factory = request.app.state.db_manager.get_session_factory()
+    return MissionService(mission_repo, event_repo, artifact_store, session_factory)
 
 
 async def get_event_service(
