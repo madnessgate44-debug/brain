@@ -98,7 +98,13 @@ class OpenAICompatibleProvider:
                 await asyncio.sleep(float(2 ** attempt))
                 continue
 
-            if response.status_code in {429, 500, 502, 503, 504} and attempt < 2:
+            if response.status_code == 429:
+                if attempt == 0:
+                    delay = self._google_retry_delay(response, fallback=2.0)
+                    await asyncio.sleep(delay)
+                    continue
+                response.raise_for_status()
+            if response.status_code in {500, 502, 503, 504} and attempt < 2:
                 delay = self._google_retry_delay(response, fallback=float(2 ** (attempt + 1)))
                 await asyncio.sleep(delay)
                 continue
@@ -160,7 +166,16 @@ class OpenAICompatibleProvider:
                     await asyncio.sleep(2 ** attempt)
                     continue
 
-                if response.status_code in {429, 500, 502, 503, 504} and attempt < 2:
+                is_google_compat = (
+                    urlparse(self.base_url).hostname == "generativelanguage.googleapis.com"
+                    and urlparse(self.base_url).path.endswith("/openai")
+                )
+                # A Google 429 commonly indicates project/model quota exhaustion.
+                # Switch once to the native endpoint instead of spending two more
+                # compatibility requests on the same exhausted quota.
+                if response.status_code == 429 and is_google_compat:
+                    return await self._complete_google_native(system_prompt, user_prompt, client)
+                if response.status_code in {500, 502, 503, 504} and attempt < 2:
                     retry_after = response.headers.get("Retry-After", "")
                     try:
                         delay = min(5.0, max(0.0, float(retry_after)))
@@ -168,12 +183,14 @@ class OpenAICompatibleProvider:
                         delay = float(2 ** attempt)
                     await asyncio.sleep(delay)
                     continue
-                if (
-                    response.status_code == 429
-                    and urlparse(self.base_url).hostname == "generativelanguage.googleapis.com"
-                    and urlparse(self.base_url).path.endswith("/openai")
-                ):
-                    return await self._complete_google_native(system_prompt, user_prompt, client)
+                if response.status_code == 429 and attempt < 2:
+                    retry_after = response.headers.get("Retry-After", "")
+                    try:
+                        delay = min(5.0, max(0.0, float(retry_after)))
+                    except ValueError:
+                        delay = float(2 ** attempt)
+                    await asyncio.sleep(delay)
+                    continue
                 response.raise_for_status()
                 break
 
