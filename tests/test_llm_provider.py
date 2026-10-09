@@ -62,3 +62,49 @@ async def test_provider_stops_after_three_transient_server_errors(monkeypatch):
             await provider.complete("system", "user")
 
     assert calls == 3
+
+
+@pytest.mark.asyncio
+async def test_provider_falls_back_to_native_gemini_after_compatibility_429(monkeypatch):
+    compatibility_calls = 0
+    native_calls = 0
+
+    async def no_sleep(_delay):
+        return None
+
+    def handler(request):
+        nonlocal compatibility_calls, native_calls
+        if request.url.path.endswith(":generateContent"):
+            native_calls += 1
+            payload = request.read().decode("utf-8")
+            assert "systemInstruction" in payload
+            return httpx.Response(
+                200,
+                json={
+                    "candidates": [{
+                        "content": {"parts": [{"text": "native Gemini result"}]}
+                    }]
+                },
+                request=request,
+            )
+        compatibility_calls += 1
+        return httpx.Response(
+            429,
+            headers={"Retry-After": "0"},
+            json={"error": {"status": "RESOURCE_EXHAUSTED"}},
+            request=request,
+        )
+
+    monkeypatch.setattr("brain.company.llm_provider.asyncio.sleep", no_sleep)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = OpenAICompatibleProvider(
+            api_key="test-key",
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            model="gemini-2.5-flash",
+            client=client,
+        )
+        result = await provider.complete("system instructions", "write code")
+
+    assert result == "native Gemini result"
+    assert compatibility_calls == 3
+    assert native_calls == 1
