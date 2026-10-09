@@ -39,13 +39,30 @@ call an OpenAI-compatible chat-completions endpoint using `BRAIN_AI_BASE_URL`,
 `BRAIN_AI_MODEL`, and `BRAIN_AI_API_KEY`; credentials must be configured outside
 the repository.
 
-This is the first implementation layer, not a claim that the full company workflow
-is finished. The current code has role definitions, structured specialist execution,
-prerequisite checks, and release-gate policy tests. The end-to-end coordinator still
-needs to connect specialist outputs to isolated Git branches, real repository edits,
-executed CI/browser tests, repair loops, and human approval before merge/release.
+The workflow coordinator is now connected to a bounded GitHub repository gateway:
+it inspects existing source files, asks the specialist roles for structured deliverables,
+commits proposed changes to a dedicated `brain/...` branch, runs the repository's
+actual test/build checks through GitHub Actions, allows bounded developer repair after
+review feedback, and opens a pull request only after the required gates pass. It does
+not merge or deploy. A successful mission remains paused for human review, with the
+role outputs and workflow report stored as mission artifacts.
+
+The model provider and GitHub integration require secrets configured outside source
+control. Set `BRAIN_AI_BASE_URL`, `BRAIN_AI_MODEL`, and `BRAIN_AI_API_KEY`; set
+`BRAIN_GITHUB_OWNER` to the only permitted repository owner; set
+`BRAIN_CONTROL_REPOSITORY` to the repository hosting Brain's Actions runner; and
+set `BRAIN_GITHUB_TOKEN` to a token with only the repository and issue permissions
+needed for branch/PR creation and test dispatch. Set `BRAIN_CONTROL_API_KEY` to a
+long random secret to protect the workflow-start endpoint.
+
+Start a workflow with an authenticated `POST /company-workflows` request and JSON
+body containing `title`, `objective`, and `repository` (`owner/repository`).
+Supply the secret in the `X-Brain-API-Key` header. The response includes the mission
+ID and endpoints for status, events, and artifacts.
+
 Do not treat an agent's assertion as test evidence: QA must attach a real run result,
-and release remains blocked when that evidence is missing.
+and release remains blocked when that evidence is missing. The workflow is not
+complete until its pull request is reviewed and merged by a human.
 
 ## Local setup
 
