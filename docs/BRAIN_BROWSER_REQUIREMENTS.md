@@ -84,3 +84,14 @@ The preferred host is the user's Samsung Android phone. A free alternative is ac
 - Production-safe public hosting.
 
 These are acceptance gates, not claims of completed functionality.
+
+## Implementation evidence update — 2026-10-09
+
+- Draft pull request: https://github.com/madnessgate44-debug/brain/pull/5
+- Verified feature-branch head: `d1fdbf9db2c52e432bd89fc51563f08ca602afb3`
+- GitHub Actions run: https://github.com/madnessgate44-debug/brain/actions/runs/37986708717
+- Automated result: **57 passed, 1 warning** on Python 3.12.
+- Covered by tests: worker action ordering/fail-fast, URL/domain policy, dispatch signature integrity, API authentication and weak-secret rejection, mutating-action approval gate, unsigned metadata rejection, and mission artifact/event persistence.
+
+Still unverified and not to be inferred from the automated suite: real Playwright/Chromium launch, live-site access, ChatGPT sign-in persistence, Samsung/Android execution, secure background operation from the phone, and a direct bridge from this ChatGPT conversation into Brain. The successful suite uses a mocked browser for the runtime integration test; it is not a live ChatGPT end-to-end test.
+
