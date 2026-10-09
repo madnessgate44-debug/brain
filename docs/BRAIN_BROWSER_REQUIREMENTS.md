@@ -95,3 +95,29 @@ These are acceptance gates, not claims of completed functionality.
 
 Still unverified and not to be inferred from the automated suite: real Playwright/Chromium launch, live-site access, ChatGPT sign-in persistence, Samsung/Android execution, secure background operation from the phone, and a direct bridge from this ChatGPT conversation into Brain. The successful suite uses a mocked browser for the runtime integration test; it is not a live ChatGPT end-to-end test.
 
+
+
+---
+
+# Browser-based AI operator accounts — revised requirements
+
+## Decision
+
+Brain must operate its own separately authorized AI website account, independent from the owner's personal ChatGPT/Gemini account. The owner manually signs into the chosen AI website in Brain's browser environment. Brain then uses the authenticated website UI. The primary goal is to avoid provider API keys.
+
+## Requirements
+
+1. **Separate identity:** document and configure a dedicated ChatGPT or Gemini account for Brain; never assume it is the owner's personal account.
+2. **Owner sign-in:** provide a one-time manual sign-in process through a real, visible browser on a supported host. Do not ask Brain to collect passwords, MFA codes, raw cookies, or session tokens in task prompts.
+3. **Persistent session:** use a protected persistent browser profile, with explicit filesystem permissions and no repository commits/backups by default. Detect expired sign-in and pause for the owner to re-authenticate.
+4. **Website interaction, not API:** browser actions must use normal website UI. Do not require OpenAI/Gemini provider API keys. Brain still needs a secure way for its controller to authenticate to Brain itself; this is separate from AI-provider API keys.
+5. **Policy and service constraints:** use the website only in ways permitted by its terms, account type, rate limits, and access controls. No CAPTCHA bypass, bot-detection evasion, access-control circumvention, or unattended behavior the provider prohibits. A normal user login does not guarantee that scripted UI use is permitted or stable.
+6. **Task execution:** first supported scenario is owner-approved, multi-step prompts to the dedicated account, waiting for the visible response, extracting the response, and storing evidence in Brain's existing mission artifacts/events. Sending a prompt is an external write and requires owner approval under the existing policy until a durable approval workflow exists.
+7. **Runtime portability:** do not assume Playwright/Chromium runs on the Samsung phone. First prove a real Chromium runtime on a supported host, then separately prove the phone's secure control path. If the phone cannot host it reliably, the browser worker may run on a suitable free/low-cost host while the phone is the control surface.
+8. **No API-key substitution:** never introduce provider API keys as a hidden requirement or silently fall back to APIs. If the chosen website requires additional account verification, stop and ask the owner to complete it.
+9. **Account setup is owner-controlled:** do not create accounts, accept paid plans, or alter account/security settings without explicit user authorization.
+10. **Verified acceptance:** successful CI unit tests do not count as live-browser success. Required gates: launch real browser; owner manually signs into dedicated account; session persists across separate tasks; send one explicitly approved harmless test prompt; capture response and mission evidence; test expiry/re-authentication; validate policy compliance; demonstrate phone-to-service connectivity.
+
+## Implementation consequence
+
+The current browser worker is a foundation only. It does not yet provide a complete sign-in UX, account-selection UI, natural-language planning, or verified ChatGPT/Gemini end-to-end operation. Keep the feature branch and do not merge/claim production-ready until the gates above are satisfied.
