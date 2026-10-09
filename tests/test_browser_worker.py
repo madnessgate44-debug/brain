@@ -70,6 +70,22 @@ def fake_session_factory(page):
     return session
 
 
+def test_expanded_browser_action_validation():
+    actions = [
+        {"op": "hover", "selector": "#menu"},
+        {"op": "select", "selector": "select#country", "value": "EG"},
+        {"op": "scroll", "direction": "down", "amount": 800},
+        {"op": "go_back"},
+        {"op": "go_forward"},
+        {"op": "reload"},
+    ]
+    assert len(validate_browser_actions(actions)) == 6
+    with pytest.raises(BrowserPolicyError, match="scroll"):
+        validate_browser_actions([{"op": "scroll", "direction": "diagonal"}])
+    with pytest.raises(BrowserPolicyError, match="select value"):
+        validate_browser_actions([{"op": "select", "selector": "#country", "value": 123}])
+
+
 def test_action_validation_rejects_unknown_and_oversized_sequences():
     with pytest.raises(BrowserPolicyError):
         validate_browser_actions([{"op": "shell", "command": "id"}])
