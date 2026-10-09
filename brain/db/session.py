@@ -88,4 +88,3 @@ async def get_db_session(manager: DatabaseSessionManager) -> AsyncGenerator[Asyn
             raise
         finally:
             await session.close()
-"
