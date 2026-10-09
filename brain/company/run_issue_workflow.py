@@ -8,9 +8,37 @@ from typing import Any
 
 from brain.company.agent_runner import SpecialistAgentRunner
 from brain.company.engine import CompanyWorkflowEngine
-from brain.company.github_gateway import GitHubRepositoryGateway
+from brain.company.github_gateway import GitHubGatewayError, GitHubRepositoryGateway
 from brain.company.llm_provider import OpenAICompatibleProvider
 from brain.company.tools import GitHubCompanyTools
+
+
+async def build_write_ready_gateway(
+    repository: str,
+    owner: str,
+    primary_token: str,
+    actions_token: str,
+) -> GitHubRepositoryGateway:
+    """Choose a token with verified write access before any model calls."""
+    candidates = []
+    if primary_token.strip():
+        candidates.append(primary_token.strip())
+    if actions_token.strip() and actions_token.strip() not in candidates:
+        candidates.append(actions_token.strip())
+
+    for token in candidates:
+        gateway = GitHubRepositoryGateway(token=token, allowed_owner=owner)
+        try:
+            await gateway.verify_write_access(repository)
+        except GitHubGatewayError:
+            continue
+        return gateway
+
+    raise RuntimeError(
+        "No configured GitHub token has verified repository write access. "
+        "Grant Contents: write to BRAIN_GITHUB_TOKEN or to the GitHub Actions token "
+        "through the workflow/repository permissions. No model calls were made."
+    )
 
 
 def request_from_issue() -> tuple[str, str, int]:
@@ -51,13 +79,13 @@ def request_from_issue() -> tuple[str, str, int]:
 
 async def run() -> dict[str, Any]:
     repository, objective, issue_number = request_from_issue()
-    if not os.environ.get("BRAIN_GITHUB_TOKEN"):
-        raise RuntimeError("BRAIN_GITHUB_TOKEN Actions secret is missing.")
     if not os.environ.get("BRAIN_AI_API_KEY"):
         raise RuntimeError("BRAIN_AI_API_KEY Actions secret is missing.")
-    gateway = GitHubRepositoryGateway(
-        token=os.environ["BRAIN_GITHUB_TOKEN"],
-        allowed_owner=os.environ.get("BRAIN_GITHUB_OWNER", "madnessgate44-debug"),
+    gateway = await build_write_ready_gateway(
+        repository=repository,
+        owner=os.environ.get("BRAIN_GITHUB_OWNER", "madnessgate44-debug"),
+        primary_token=os.environ.get("BRAIN_GITHUB_TOKEN", ""),
+        actions_token=os.environ.get("BRAIN_GITHUB_ACTIONS_TOKEN", ""),
     )
     tools = GitHubCompanyTools(
         gateway=gateway,

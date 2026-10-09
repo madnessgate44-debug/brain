@@ -74,6 +74,20 @@ class GitHubRepositoryGateway:
             if own_client:
                 await client.aclose()
 
+    async def verify_write_access(self, repository: str) -> dict[str, Any]:
+        """Fail before model calls when the configured token cannot write to the target."""
+        owner, name = self._validate_repository(repository)
+        base = f"/repos/{quote(owner)}/{quote(name)}"
+        metadata = await self._request("GET", base)
+        permissions = metadata.get("permissions")
+        if not isinstance(permissions, dict) or permissions.get("push") is not True:
+            raise GitHubGatewayError(
+                "GitHub write access preflight failed for the target repository. "
+                "The configured token must have Contents: write permission and the "
+                "workflow must grant contents: write. No model workflow was started."
+            )
+        return {"repository": repository, "write_access": True}
+
     async def inspect_repository(self, repository: str, max_files: int = 80) -> dict[str, Any]:
         """Return a bounded repository snapshot for planning and review."""
         owner, name = self._validate_repository(repository)

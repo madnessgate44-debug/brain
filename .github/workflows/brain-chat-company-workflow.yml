@@ -27,6 +27,7 @@ jobs:
       BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
       BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
       BRAIN_GITHUB_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN || github.token }}
+      BRAIN_GITHUB_ACTIONS_TOKEN: ${{ github.token }}
       BRAIN_GITHUB_OWNER: ${{ github.repository_owner }}
       BRAIN_CONTROL_REPOSITORY: ${{ github.repository }}
     steps:
