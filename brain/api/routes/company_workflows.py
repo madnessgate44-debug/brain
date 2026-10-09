@@ -10,6 +10,7 @@ from brain.api.deps import get_mission_service, get_runtime_registry
 from brain.runtime.runtime_registry import RuntimeRegistry
 from brain.schemas.mission import MissionCreate
 from brain.services.mission_service import MissionService
+from brain.company.settings import get_setting
 
 router = APIRouter(prefix="/company-workflows", tags=["company-workflows"])
 
@@ -30,7 +31,7 @@ async def start_company_workflow(
     api_key: str | None = Header(default=None, alias="X-Brain-API-Key"),
 ):
     """Queue the specialist pipeline and return the durable mission identifier."""
-    expected_key = os.getenv("BRAIN_CONTROL_API_KEY", "")
+    expected_key = get_setting("BRAIN_CONTROL_API_KEY")
     if not expected_key:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
