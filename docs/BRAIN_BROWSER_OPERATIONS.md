@@ -97,3 +97,20 @@ control bridge.
 
 Until these gates are met, treat the browser capability as an in-development feature, not a
 working phone-hosted ChatGPT operator.
+
+## Dedicated AI website account (no provider API key)
+
+Use a separate account controlled by the owner for Brain. The owner signs into that account
+manually in the browser profile on the selected host. Do not reuse the owner's personal
+ChatGPT/Gemini session unless the owner explicitly changes this decision.
+
+The current action-list API is only the browser execution foundation. It does not yet provide
+a complete guided sign-in flow, account selector, or natural-language prompt-to-browser planner.
+Before enabling AI-site tasks, verify that scripted interaction with the selected site is
+permitted for the account and service terms. A website session may expire or require verification;
+pause for the owner rather than attempting to bypass those controls.
+
+No OpenAI/Gemini API key should be required for this browser-based provider interaction. The
+Brain control API may still require its own secret to protect Brain's endpoint; that is not an
+AI-provider API key. Keep these two credential roles separate.
+
