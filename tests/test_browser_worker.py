@@ -10,6 +10,7 @@ from brain.runtime.workers.browser_worker import (
     browser_dispatch_payload,
     domain_matches,
     is_allowed_url,
+    is_restricted_consumer_ai_url,
     sign_browser_dispatch,
     validate_browser_actions,
     verify_browser_dispatch,
@@ -94,6 +95,14 @@ def test_url_policy_rejects_non_http_credentials_and_unapproved_domains():
     assert not is_allowed_url("https://example.com", [])
 
 
+def test_consumer_ai_host_detection_is_narrow():
+    assert is_restricted_consumer_ai_url("https://chatgpt.com/")
+    assert is_restricted_consumer_ai_url("https://chat.openai.com/")
+    assert is_restricted_consumer_ai_url("https://gemini.google.com/app")
+    assert not is_restricted_consumer_ai_url("https://openai.com/policies/terms-of-use")
+    assert not is_restricted_consumer_ai_url("https://example.com/")
+
+
 def test_browser_dispatch_signature_is_bound_to_mission_and_actions():
     secret = "this-is-a-long-test-control-secret"
     payload = browser_dispatch_payload(
@@ -128,6 +137,19 @@ async def test_worker_runs_actions_in_order_and_returns_evidence(monkeypatch):
     assert result["completed_actions"] == 3
     assert result["results"][1]["result"]["text"] == "Example page content"
     assert page.actions[-1] == ("click", "button#continue")
+
+
+@pytest.mark.asyncio
+async def test_worker_refuses_automated_interaction_with_consumer_ai_chat(monkeypatch):
+    page = FakePage()
+    page.url = "https://chatgpt.com/"
+    worker = BrowserWorker(
+        allowed_domains=["chatgpt.com", "*.chatgpt.com"],
+        page_session_factory=fake_session_factory(page),
+    )
+    with pytest.raises(BrowserPolicyError, match="provider-supported integration"):
+        await worker.execute([{"op": "inspect"}])
+    assert page.actions == []
 
 
 @pytest.mark.asyncio
