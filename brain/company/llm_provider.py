@@ -11,14 +11,36 @@ from typing import Any
 import httpx
 
 from brain.company.settings import get_setting
+from brain.company.escalation import WorkflowEscalationRequired
 
 
-class ProviderConfigurationError(RuntimeError):
+class ProviderConfigurationError(WorkflowEscalationRequired):
     """Raised when model-provider settings are missing or invalid."""
 
+    def __init__(self, setting: str):
+        super().__init__(
+            "ai_provider_configuration_missing",
+            "Brain cannot call its configured AI provider because required runtime configuration is missing.",
+            missing_settings=(setting,),
+            suggested_action=(
+                "Configure the named setting in the deployment/runtime secret manager, "
+                "then resume the paused mission. Do not place credentials in chat or source control."
+            ),
+        )
 
-class ModelProviderError(RuntimeError):
-    """Raised when the model provider fails or returns an unusable response."""
+
+class ModelProviderError(WorkflowEscalationRequired):
+    """Raised when a provider request fails; raw response details are not exposed."""
+
+    def __init__(self):
+        super().__init__(
+            "ai_provider_request_failed",
+            "Brain's AI provider request failed. Check provider authentication, model access, quota, endpoint, and network connectivity.",
+            suggested_action=(
+                "Verify the provider configuration and account access in the runtime secret manager, "
+                "then resume the paused mission. Raw provider responses are intentionally not recorded."
+            ),
+        )
 
 
 class OpenAICompatibleProvider:
@@ -43,13 +65,9 @@ class OpenAICompatibleProvider:
     async def complete(self, system_prompt: str, user_prompt: str) -> str:
         """Return the assistant's textual completion or fail explicitly."""
         if not self.api_key:
-            raise ProviderConfigurationError(
-                "BRAIN_AI_API_KEY is not configured; no agent was executed."
-            )
+            raise ProviderConfigurationError("BRAIN_AI_API_KEY")
         if not self.model:
-            raise ProviderConfigurationError(
-                "BRAIN_AI_MODEL is not configured; no agent was executed."
-            )
+            raise ProviderConfigurationError("BRAIN_AI_MODEL")
         payload: dict[str, Any] = {
             "model": self.model,
             "temperature": 0.1,
@@ -78,7 +96,7 @@ class OpenAICompatibleProvider:
                 raise ModelProviderError("Provider returned an empty completion.")
             return content.strip()
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
-            raise ModelProviderError(f"Model provider request failed: {exc}") from exc
+            raise ModelProviderError() from exc
         finally:
             if owns_client and client is not None:
                 await client.aclose()
