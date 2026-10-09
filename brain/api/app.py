@@ -61,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(missions.router)
     app.include_router(approvals.router)
+    app.include_router(approvals.mission_router)
     app.include_router(artifacts.router)
     app.include_router(events.router)
     
