@@ -71,7 +71,7 @@ async def run() -> dict[str, Any]:
             "BRAIN_AI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai"
         ),
         model=os.environ.get("BRAIN_AI_MODEL", "gemini-2.5-flash"),
-        timeout_seconds=90,
+        timeout_seconds=45,
     )
     engine = CompanyWorkflowEngine(SpecialistAgentRunner(provider), tools)
     result = await engine.run(
