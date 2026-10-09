@@ -8,16 +8,17 @@ from brain.api.app import create_app
 
 @pytest.fixture
 def client():
-    """Create test client."""
+    """Create a test client with application startup and shutdown enabled."""
     app = create_app()
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 def test_health_endpoint(client):
     """Test health check endpoint."""
     response = client.get("/health")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["status"] in ["healthy", "degraded"]
     assert "version" in data
