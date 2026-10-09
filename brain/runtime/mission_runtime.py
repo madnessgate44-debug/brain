@@ -18,6 +18,7 @@ from brain.company.github_gateway import GitHubRepositoryGateway
 from brain.company.llm_provider import OpenAICompatibleProvider
 from brain.company.agent_runner import SpecialistAgentRunner
 from brain.company.tools import GitHubCompanyTools
+from brain.company.escalation import WorkflowEscalationRequired
 
 logger = logging.getLogger("brain.runtime.mission_runtime")
 
@@ -230,6 +231,68 @@ class MissionRuntime:
         except asyncio.CancelledError:
             logger.info("Mission runtime %s cancelled", self.runtime_id)
             raise
+        except WorkflowEscalationRequired as exc:
+            # Persist a sanitized escalation request instead of marking a recoverable
+            # configuration/provider blocker as an unexplained terminal failure.
+            logger.warning(
+                "Mission runtime %s paused for escalation code=%s",
+                self.runtime_id,
+                exc.code,
+            )
+            try:
+                async with self.session_factory() as escalation_session:
+                    mission_repo = MissionRepository(escalation_session)
+                    event_repo = EventRepository(escalation_session)
+                    artifact_repo = ArtifactRepository(escalation_session)
+                    request = exc.to_request(self.mission_id)
+                    request_bytes = json.dumps(
+                        request, ensure_ascii=False, indent=2
+                    ).encode("utf-8")
+                    request_path = self.artifact_store.save_artifact(
+                        mission_id=self.mission_id,
+                        logical_name="escalation-request.json",
+                        content=request_bytes,
+                        metadata={
+                            "workflow_type": "software_company",
+                            "blocker_code": exc.code,
+                            "secret_values_included": False,
+                        },
+                    )
+                    await artifact_repo.create(
+                        mission_id=self.mission_id,
+                        artifact_type=ArtifactType.EXECUTION,
+                        logical_name="escalation-request.json",
+                        relative_path=str(
+                            request_path.relative_to(self.artifact_store.workspace_root)
+                        ),
+                        mime_type="application/json",
+                        size_bytes=len(request_bytes),
+                        metadata_json=json.dumps({
+                            "workflow_type": "software_company",
+                            "blocker_code": exc.code,
+                            "secret_values_included": False,
+                        }),
+                    )
+                    await event_repo.append_event(
+                        mission_id=self.mission_id,
+                        event_type="escalation_requested",
+                        message=f"Software-company workflow paused: {exc.code}",
+                        phase=MissionPhase.WAITING_FOR_APPROVAL.value,
+                        severity=EventSeverity.WARNING,
+                        payload_json=json.dumps(request, ensure_ascii=False),
+                    )
+                    await mission_repo.update_phase(
+                        self.mission_id, MissionPhase.WAITING_FOR_APPROVAL
+                    )
+                    await mission_repo.update_status(
+                        self.mission_id, MissionStatus.PAUSED
+                    )
+                    await escalation_session.commit()
+            except Exception:
+                logger.exception(
+                    "Unable to persist escalation request for mission %s",
+                    self.mission_id,
+                )
         except Exception as exc:
             logger.exception("Mission runtime %s failed", self.runtime_id)
             try:
