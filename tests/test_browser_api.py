@@ -139,6 +139,7 @@ def test_browser_mission_runs_through_mission_runtime_and_records_report(monkeyp
         assert "browser_worker_started" in event_types
         assert "browser_worker_completed" in event_types
 
+
 def test_unsigned_browser_metadata_cannot_execute(monkeypatch):
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "x" * 32)
     executed = {"value": False}
@@ -181,4 +182,3 @@ def test_unsigned_browser_metadata_cannot_execute(monkeypatch):
         assert mission is not None
         assert mission["status"] == "FAILED", mission
         assert executed["value"] is False
-
