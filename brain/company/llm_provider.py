@@ -20,7 +20,7 @@ class ProviderConfigurationError(WorkflowEscalationRequired):
     def __init__(self, setting: str):
         super().__init__(
             "ai_provider_configuration_missing",
-            "Brain cannot call its configured AI provider because required runtime configuration is missing.",
+            "Required runtime setting " + setting + " is not configured; Brain cannot call its AI provider.",
             missing_settings=(setting,),
             suggested_action=(
                 "Configure the named setting in the deployment/runtime secret manager, "
