@@ -32,6 +32,28 @@ SUPPORTED_ACTIONS = frozenset(
 MAX_ACTIONS = 25
 MAX_TEXT_CHARS = 12_000
 
+# Consumer AI chat interfaces are not generic automation APIs. Their current
+# terms restrict automated extraction of service output. Brain may open these
+# sites for a human, but must not script interaction or read chat output there.
+RESTRICTED_CONSUMER_AI_HOSTS = frozenset({
+    "chatgpt.com",
+    "chat.openai.com",
+    "gemini.google.com",
+    "bard.google.com",
+})
+
+
+def is_restricted_consumer_ai_url(raw_url: str) -> bool:
+    """Return whether a URL is a consumer ChatGPT/Gemini chat interface."""
+    try:
+        hostname = (urlsplit(raw_url).hostname or "").lower().rstrip(".")
+    except ValueError:
+        return False
+    return any(
+        hostname == host or hostname.endswith("." + host)
+        for host in RESTRICTED_CONSUMER_AI_HOSTS
+    )
+
 
 def _canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -273,6 +295,12 @@ class BrowserWorker:
 
     async def _run_action(self, page: Any, action: dict[str, Any]) -> dict[str, Any]:
         op = action["op"]
+        if op != "navigate" and is_restricted_consumer_ai_url(page.url):
+            raise BrowserPolicyError(
+                "Automated interaction with consumer ChatGPT/Gemini chat pages is disabled. "
+                "Use a provider-supported integration; Brain will not script chat submission "
+                "or extract consumer-site output."
+            )
         if op == "navigate":
             if not is_allowed_url(action["url"], self.allowed_domains):
                 raise BrowserPolicyError("navigation URL is outside the configured public-domain allowlist")
