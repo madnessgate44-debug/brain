@@ -63,7 +63,8 @@ def parse_issue_payload(event: dict[str, Any], repository_owner: str) -> dict[st
 async def execute_payload(payload: dict[str, Any], output_dir: Path) -> dict[str, Any]:
     """Execute the bounded task and save screenshots separately from JSON."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    worker = BrowserWorker(allowed_domains=payload["allowed_domains"], profile_dir=str(output_dir / "profile"))
+    profile_root = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "brain-browser-profile"
+    worker = BrowserWorker(allowed_domains=payload["allowed_domains"], profile_dir=str(profile_root))
     result = await worker.execute(payload["actions"], owner_approved=payload["owner_approved"])
     for item in result.get("results", []):
         value = item.get("result")
@@ -79,6 +80,7 @@ async def execute_payload(payload: dict[str, Any], output_dir: Path) -> dict[str
     completed = result.get("completed_actions", 0)
     requested = result.get("requested_actions", 0)
     lines = [
+        "Public, non-sensitive browsing only. Do not use this issue runner for logged-in accounts or private data.",
         f"## Brain browser task: {status}",
         "",
         f"- **Task:** {payload['title']}",
@@ -89,7 +91,11 @@ async def execute_payload(payload: dict[str, Any], output_dir: Path) -> dict[str
     ]
     for item in result.get("results", []):
         if item.get("ok"):
-            summary = json.dumps(item.get("result", {}), ensure_ascii=False)
+            safe_result = dict(item.get("result", {}))
+            if "text" in safe_result:
+                safe_result["text"] = "[page text omitted from public issue comment; inspect workflow artifact if appropriate]"
+            safe_result.pop("base64", None)
+            summary = json.dumps(safe_result, ensure_ascii=False)
             lines.append(f"- Action {item.get('index', 0) + 1} ({item.get('op')}): PASS — {summary[:500]}")
         else:
             lines.append(f"- Action {item.get('index', 0) + 1} ({item.get('op')}): FAIL — {item.get('error')}: {item.get('message')}")
