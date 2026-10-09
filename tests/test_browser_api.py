@@ -182,3 +182,16 @@ def test_unsigned_browser_metadata_cannot_execute(monkeypatch):
         assert mission["status"] == "FAILED", mission
         assert executed["value"] is False
 
+
+
+def test_browser_endpoint_requires_approval_for_select_action(monkeypatch):
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "x" * 32)
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.post(
+            "/browser/tasks",
+            headers={"X-Brain-API-Key": "x" * 32},
+            json=_payload(actions=[{"op": "select", "selector": "select#country", "value": "EG"}]),
+        )
+    assert response.status_code == 409
+    assert "owner explicitly approves" in response.json()["detail"]
