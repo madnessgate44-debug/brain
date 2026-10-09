@@ -5,6 +5,7 @@ The adapter intentionally exposes one narrow operation; workflow policy and tool
 remain separate so a model response cannot bypass approval gates.
 """
 
+import asyncio
 import os
 from typing import Any
 
@@ -63,15 +64,36 @@ class OpenAICompatibleProvider:
         if owns_client:
             client = httpx.AsyncClient(timeout=self.timeout_seconds)
         try:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-            response.raise_for_status()
+            response = None
+            for attempt in range(3):
+                try:
+                    response = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json=payload,
+                    )
+                except httpx.TransportError:
+                    if attempt == 2:
+                        raise
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+
+                if response.status_code in {429, 500, 502, 503, 504} and attempt < 2:
+                    retry_after = response.headers.get("Retry-After", "")
+                    try:
+                        delay = min(5.0, max(0.0, float(retry_after)))
+                    except ValueError:
+                        delay = float(2 ** attempt)
+                    await asyncio.sleep(delay)
+                    continue
+                response.raise_for_status()
+                break
+
+            if response is None:
+                raise ModelProviderError("Provider request failed without a response.")
             data = response.json()
             content = data["choices"][0]["message"]["content"]
             if not isinstance(content, str) or not content.strip():
