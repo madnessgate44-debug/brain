@@ -6,7 +6,7 @@ Implementation branch: `feature/brain-browser-capability-20261009`
 
 ## Product decision
 
-The browser is an internal Brain capability, not a standalone browser product. Brain is the operator; the browser is an execution tool. A visible browser UI is optional and is not an acceptance requirement. The first high-value workflow is operating a separately authorized ChatGPT account through its normal website UI. The same capability must remain reusable for other authorized websites.
+The browser is an internal Brain capability, not a standalone browser product. Brain is the operator; the browser is an execution tool. The same capability must remain reusable for authorized websites. Consumer ChatGPT/Gemini chat pages are not treated as automation APIs: automated prompt submission and programmatic extraction of their responses are disabled unless the provider explicitly supplies a supported route for that use.
 
 The preferred host is the user's Samsung Android phone. A free alternative is acceptable only if it is genuinely usable and does not introduce a TinyFish dependency. Do not claim that Android execution or ChatGPT-to-Brain control works until end-to-end evidence proves it.
 
@@ -22,11 +22,11 @@ The preferred host is the user's Samsung Android phone. A free alternative is ac
 - Return structured per-action results; stop on failure unless a future explicit recovery policy says otherwise.
 - Evidence: unit tests cover action dispatch, order, and fail-fast behavior.
 
-### BR-03 — Separately authorized ChatGPT account
-- The operator signs into the intended account manually in a persistent browser profile.
-- Brain can then navigate ChatGPT, locate the conversation composer, enter a prompt, submit it, and inspect the resulting page.
-- Never request or store the account password or raw session cookies in mission data.
-- Evidence: first local/hosted end-to-end test using a user-authorized session; until that is run, mark this criterion unverified.
+### BR-03 — Consumer AI website boundaries
+- Brain may navigate to a consumer ChatGPT/Gemini website for a human to use, but must not automate interaction with the chat interface or programmatically extract chat output.
+- Use a provider-supported integration for automated AI requests; do not invent a website automation loophole or add an unapproved API-key fallback.
+- Never request or store account passwords, MFA codes, raw cookies, or session tokens in mission data.
+- Evidence: regression tests confirm the worker refuses automated interaction on known consumer ChatGPT/Gemini chat hosts.
 
 ### BR-04 — Reusable website scope
 - Website access is governed by a configurable domain allowlist and safe URL validation.
@@ -72,9 +72,9 @@ The preferred host is the user's Samsung Android phone. A free alternative is ac
 1. Add a tested browser-worker contract and safe policy boundary inside Brain.
 2. Add a dedicated authenticated browser-task API and trusted runtime dispatch; do not expose it via unsigned mission metadata.
 3. Persist action results as normal Brain artifacts/events and add regression tests.
-4. Add the ChatGPT-specific example workflow using a manually authenticated persistent profile.
+4. Validate a real browser runtime on a supported host and test persistent profiles for ordinary authorized websites.
 5. Prove the chosen runtime on the Samsung phone or document and validate a suitable free host alternative.
-6. Only then connect the task invocation path to the actual ChatGPT client; a documented endpoint is not the same as a working ChatGPT connector.
+6. Connect AI requests only through a provider-supported integration whose use is authorized. Consumer chat-page automation is not an accepted implementation path.
 
 ## Explicitly not proven yet
 
@@ -121,3 +121,8 @@ Brain must operate its own separately authorized AI website account, independent
 ## Implementation consequence
 
 The current browser worker is a foundation only. It does not yet provide a complete sign-in UX, account-selection UI, natural-language planning, or verified ChatGPT/Gemini end-to-end operation. Keep the feature branch and do not merge/claim production-ready until the gates above are satisfied.
+
+
+## Policy review update — 2026-10-09
+
+The current OpenAI Terms of Use prohibit automatically or programmatically extracting data or Output from its individual services. Google's current Terms restrict automated access to content when it violates machine-readable instructions. Accordingly, Brain's generic browser worker now refuses non-navigation actions on known consumer ChatGPT/Gemini chat hosts. This does not prevent normal browser automation on other allowlisted websites. The automated consumer-chat workflow is blocked pending an explicitly supported provider route; no API-key fallback is authorized.
