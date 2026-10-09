@@ -5,7 +5,6 @@ merges a pull request, deploys, or executes arbitrary issue-supplied commands.
 """
 
 import base64
-import os
 import re
 from typing import Any
 from urllib.parse import quote
@@ -125,6 +124,7 @@ class GitHubRepositoryGateway:
             or path.startswith("/")
             or "\\" in path
             or any(part in {"", ".", ".."} for part in path.split("/"))
+            or path == ".git"
             or path.startswith(".git/")
         ):
             raise GitHubGatewayError(f"Unsafe repository path: {path!r}")
@@ -135,16 +135,19 @@ class GitHubRepositoryGateway:
         change_set: dict[str, Any],
         branch_name: str,
         commit_message: str,
+        update_branch: bool = False,
     ) -> dict[str, Any]:
-        """Commit a bounded file change set on a new branch; never update default branch."""
+        """Commit a bounded change set on a Brain branch, optionally extending that branch."""
         owner, name = self._validate_repository(repository)
         files = change_set.get("files")
         if not isinstance(files, list) or not files or len(files) > 30:
             raise GitHubGatewayError("Change set must contain 1 to 30 files.")
-        if not re.fullmatch(r"brain/[a-zA-Z0-9._/-]{1,90}", branch_name):
+        if not re.fullmatch(r"brain/[a-zA-Z0-9._/-]{1,90}", branch_name) or ".." in branch_name.split("/"):
             raise GitHubGatewayError("Branch name must use the brain/ prefix and safe characters.")
         if not commit_message.strip() or len(commit_message) > 180:
             raise GitHubGatewayError("Commit message must be 1–180 characters.")
+        if update_branch and not branch_name.startswith("brain/"):
+            raise GitHubGatewayError("Only Brain-created branches may be extended.")
 
         for item in files:
             if not isinstance(item, dict) or not isinstance(item.get("path"), str):
@@ -160,22 +163,30 @@ class GitHubRepositoryGateway:
         default_branch = repo.get("default_branch")
         if not default_branch:
             raise GitHubGatewayError("Repository has no default branch.")
-        base_ref = await self._request(
+        default_ref = await self._request(
             "GET", f"{base}/git/ref/heads/{quote(default_branch, safe='')}"
         )
-        base_sha = base_ref["object"]["sha"]
-        base_commit = await self._request("GET", f"{base}/git/commits/{base_sha}")
-        base_tree_sha = base_commit["tree"]["sha"]
+        default_sha = default_ref["object"]["sha"]
 
-        try:
-            await self._request(
+        if update_branch:
+            branch_ref = await self._request(
                 "GET", f"{base}/git/ref/heads/{quote(branch_name, safe='')}"
             )
-        except GitHubGatewayError as exc:
-            if "returned 404" not in str(exc):
-                raise
+            parent_sha = branch_ref["object"]["sha"]
         else:
-            raise GitHubGatewayError(f"Branch {branch_name} already exists.")
+            try:
+                await self._request(
+                    "GET", f"{base}/git/ref/heads/{quote(branch_name, safe='')}"
+                )
+            except GitHubGatewayError as exc:
+                if "returned 404" not in str(exc):
+                    raise
+            else:
+                raise GitHubGatewayError(f"Branch {branch_name} already exists.")
+            parent_sha = default_sha
+
+        parent_commit = await self._request("GET", f"{base}/git/commits/{parent_sha}")
+        parent_tree_sha = parent_commit["tree"]["sha"]
 
         tree_entries = []
         for item in files:
@@ -195,23 +206,31 @@ class GitHubRepositoryGateway:
             })
         tree = await self._request(
             "POST", f"{base}/git/trees",
-            json={"base_tree": base_tree_sha, "tree": tree_entries},
+            json={"base_tree": parent_tree_sha, "tree": tree_entries},
         )
         commit = await self._request(
             "POST", f"{base}/git/commits",
             json={
                 "message": commit_message,
                 "tree": tree["sha"],
-                "parents": [base_sha],
+                "parents": [parent_sha],
             },
         )
-        await self._request(
-            "POST", f"{base}/git/refs",
-            json={"ref": f"refs/heads/{branch_name}", "sha": commit["sha"]},
-        )
+        if update_branch:
+            await self._request(
+                "PATCH",
+                f"{base}/git/refs/heads/{quote(branch_name, safe='')}",
+                json={"sha": commit["sha"], "force": False},
+            )
+        else:
+            await self._request(
+                "POST", f"{base}/git/refs",
+                json={"ref": f"refs/heads/{branch_name}", "sha": commit["sha"]},
+            )
+
         comparison = await self._request(
             "GET",
-            f"{base}/compare/{quote(base_sha, safe='')}...{quote(branch_name, safe='/')}",
+            f"{base}/compare/{quote(default_sha, safe='')}...{quote(branch_name, safe='/')}",
         )
         diff_parts = []
         for changed in comparison.get("files", []):
@@ -222,7 +241,7 @@ class GitHubRepositoryGateway:
             "repository": repository,
             "branch": branch_name,
             "base_branch": default_branch,
-            "base_sha": base_sha,
+            "base_sha": default_sha,
             "commit_sha": commit["sha"],
             "changed_files": [item["path"] for item in files],
             "diff": actual_diff,
