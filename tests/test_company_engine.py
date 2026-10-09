@@ -88,6 +88,14 @@ class FakeTools:
             "run_url": "https://github.com/example/repo/actions/runs/123",
         }
 
+    async def open_pull_request(self, repository, branch, workflow_result):
+        return {
+            "number": 12,
+            "url": "https://github.com/example/repo/pull/12",
+            "state": "open",
+            "merged": False,
+        }
+
 
 @pytest.mark.asyncio
 async def test_engine_runs_specialists_and_stops_at_human_approval():
