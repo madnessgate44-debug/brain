@@ -73,6 +73,14 @@ class FakeTools:
         self.executed = executed
         self.apply_count = 0
 
+    async def inspect_repository(self, repository):
+        return {
+            "repository": repository,
+            "default_branch": "main",
+            "files": [{"path": "README.md", "size": 100}],
+            "source_contents": {"README.md": "Existing project"},
+        }
+
     async def apply_change_set(self, change_set, repository):
         self.apply_count += 1
         return {
