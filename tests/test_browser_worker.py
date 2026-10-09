@@ -147,8 +147,10 @@ async def test_worker_refuses_automated_interaction_with_consumer_ai_chat(monkey
         allowed_domains=["chatgpt.com", "*.chatgpt.com"],
         page_session_factory=fake_session_factory(page),
     )
-    with pytest.raises(BrowserPolicyError, match="provider-supported integration"):
-        await worker.execute([{"op": "inspect"}])
+    result = await worker.execute([{"op": "inspect"}])
+    assert result["status"] == "failed"
+    assert result["results"][0]["error"] == "BrowserPolicyError"
+    assert "provider-supported integration" in result["results"][0]["message"]
     assert page.actions == []
 
 
