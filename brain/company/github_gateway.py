@@ -5,7 +5,6 @@ merges a pull request, deploys, or executes arbitrary issue-supplied commands.
 """
 
 import base64
-import os
 import re
 from typing import Any
 from urllib.parse import quote
@@ -13,6 +12,7 @@ from urllib.parse import quote
 import httpx
 
 from brain.company.settings import get_setting
+from brain.company.escalation import WorkflowEscalationRequired
 
 
 class GitHubGatewayError(RuntimeError):
@@ -36,12 +36,26 @@ class GitHubRepositoryGateway:
 
     def _validate_repository(self, repository: str) -> tuple[str, str]:
         if not self.token:
-            raise GitHubGatewayError("BRAIN_GITHUB_TOKEN is not configured.")
+            raise WorkflowEscalationRequired(
+                "github_token_missing",
+                "Brain cannot access the target repository because the GitHub token is not configured.",
+                missing_settings=("BRAIN_GITHUB_TOKEN",),
+                suggested_action=(
+                    "Configure a least-privilege GitHub token in the deployment/runtime secret manager, "
+                    "then resume the paused mission. Never place the token in chat or source control."
+                ),
+            )
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository or ""):
             raise GitHubGatewayError("Repository must use owner/repository format.")
         if not self.allowed_owner:
-            raise GitHubGatewayError(
-                "BRAIN_GITHUB_OWNER is not configured; repository writes are disabled."
+            raise WorkflowEscalationRequired(
+                "github_owner_allowlist_missing",
+                "Brain's GitHub repository allowlist is not configured, so repository writes are disabled.",
+                missing_settings=("BRAIN_GITHUB_OWNER",),
+                suggested_action=(
+                    "Set BRAIN_GITHUB_OWNER to the explicitly authorized owner in runtime configuration, "
+                    "then resume the paused mission."
+                ),
             )
         owner, name = repository.split("/", 1)
         if owner.casefold() != self.allowed_owner:
@@ -62,10 +76,25 @@ class GitHubRepositoryGateway:
                 },
                 **kwargs,
             )
+            if response.status_code in {401, 403}:
+                raise WorkflowEscalationRequired(
+                    "github_auth_or_permission_failed",
+                    "GitHub rejected Brain's request. The token may be invalid, expired, or missing required repository permissions.",
+                    missing_settings=("BRAIN_GITHUB_TOKEN",),
+                    suggested_action=(
+                        "Verify token validity and least-privilege repository permissions in the runtime secret manager. "
+                        "Do not copy the token into chat, logs, or repository files."
+                    ),
+                )
+            if response.status_code == 429:
+                raise WorkflowEscalationRequired(
+                    "github_rate_limited",
+                    "GitHub rate-limited Brain's request.",
+                    suggested_action="Wait for the rate limit to reset, then resume the paused mission.",
+                )
             if response.status_code >= 400:
-                detail = response.text[:1200]
                 raise GitHubGatewayError(
-                    f"GitHub API {method} {path} returned {response.status_code}: {detail}"
+                    f"GitHub API {method} {path} returned {response.status_code}."
                 )
             if response.status_code == 204 or not response.content:
                 return {}
@@ -124,8 +153,7 @@ class GitHubRepositoryGateway:
             not path
             or path.startswith("/")
             or "\\" in path
-            or any(part in {"", ".", ".."} for part in path.split("/"))
-            or path.startswith(".git/")
+            or any(part in {"", ".", "..", ".git"} for part in path.split("/"))
         ):
             raise GitHubGatewayError(f"Unsafe repository path: {path!r}")
 
@@ -135,16 +163,19 @@ class GitHubRepositoryGateway:
         change_set: dict[str, Any],
         branch_name: str,
         commit_message: str,
+        update_branch: bool = False,
     ) -> dict[str, Any]:
-        """Commit a bounded file change set on a new branch; never update default branch."""
+        """Commit a bounded change set on a Brain branch, optionally extending that branch."""
         owner, name = self._validate_repository(repository)
         files = change_set.get("files")
         if not isinstance(files, list) or not files or len(files) > 30:
             raise GitHubGatewayError("Change set must contain 1 to 30 files.")
-        if not re.fullmatch(r"brain/[a-zA-Z0-9._/-]{1,90}", branch_name):
+        if not re.fullmatch(r"brain/[a-zA-Z0-9._/-]{1,90}", branch_name) or ".." in branch_name.split("/"):
             raise GitHubGatewayError("Branch name must use the brain/ prefix and safe characters.")
         if not commit_message.strip() or len(commit_message) > 180:
             raise GitHubGatewayError("Commit message must be 1–180 characters.")
+        if update_branch and not branch_name.startswith("brain/"):
+            raise GitHubGatewayError("Only Brain-created branches may be extended.")
 
         for item in files:
             if not isinstance(item, dict) or not isinstance(item.get("path"), str):
@@ -160,22 +191,30 @@ class GitHubRepositoryGateway:
         default_branch = repo.get("default_branch")
         if not default_branch:
             raise GitHubGatewayError("Repository has no default branch.")
-        base_ref = await self._request(
+        default_ref = await self._request(
             "GET", f"{base}/git/ref/heads/{quote(default_branch, safe='')}"
         )
-        base_sha = base_ref["object"]["sha"]
-        base_commit = await self._request("GET", f"{base}/git/commits/{base_sha}")
-        base_tree_sha = base_commit["tree"]["sha"]
+        default_sha = default_ref["object"]["sha"]
 
-        try:
-            await self._request(
+        if update_branch:
+            branch_ref = await self._request(
                 "GET", f"{base}/git/ref/heads/{quote(branch_name, safe='')}"
             )
-        except GitHubGatewayError as exc:
-            if "returned 404" not in str(exc):
-                raise
+            parent_sha = branch_ref["object"]["sha"]
         else:
-            raise GitHubGatewayError(f"Branch {branch_name} already exists.")
+            try:
+                await self._request(
+                    "GET", f"{base}/git/ref/heads/{quote(branch_name, safe='')}"
+                )
+            except GitHubGatewayError as exc:
+                if "returned 404" not in str(exc):
+                    raise
+            else:
+                raise GitHubGatewayError(f"Branch {branch_name} already exists.")
+            parent_sha = default_sha
+
+        parent_commit = await self._request("GET", f"{base}/git/commits/{parent_sha}")
+        parent_tree_sha = parent_commit["tree"]["sha"]
 
         tree_entries = []
         for item in files:
@@ -195,36 +234,44 @@ class GitHubRepositoryGateway:
             })
         tree = await self._request(
             "POST", f"{base}/git/trees",
-            json={"base_tree": base_tree_sha, "tree": tree_entries},
+            json={"base_tree": parent_tree_sha, "tree": tree_entries},
         )
         commit = await self._request(
             "POST", f"{base}/git/commits",
             json={
                 "message": commit_message,
                 "tree": tree["sha"],
-                "parents": [base_sha],
+                "parents": [parent_sha],
             },
         )
-        await self._request(
-            "POST", f"{base}/git/refs",
-            json={"ref": f"refs/heads/{branch_name}", "sha": commit["sha"]},
-        )
+        if update_branch:
+            await self._request(
+                "PATCH",
+                f"{base}/git/refs/heads/{quote(branch_name, safe='')}",
+                json={"sha": commit["sha"], "force": False},
+            )
+        else:
+            await self._request(
+                "POST", f"{base}/git/refs",
+                json={"ref": f"refs/heads/{branch_name}", "sha": commit["sha"]},
+            )
+
         comparison = await self._request(
             "GET",
-            f"{base}/compare/{quote(base_sha, safe='')}...{quote(branch_name, safe='/')}",
+            f"{base}/compare/{quote(default_sha, safe='')}...{quote(branch_name, safe='/')}",
         )
         diff_parts = []
         for changed in comparison.get("files", []):
             diff_parts.append(f"FILE: {changed.get('filename', 'unknown')}")
             diff_parts.append(changed.get("patch") or "[Patch omitted by GitHub; inspect file content.]")
-        actual_diff = "\\n".join(diff_parts)
+        actual_diff = "\n".join(diff_parts)
         return {
             "repository": repository,
             "branch": branch_name,
             "base_branch": default_branch,
-            "base_sha": base_sha,
+            "base_sha": default_sha,
             "commit_sha": commit["sha"],
-            "changed_files": [item["path"] for item in files],
+            "changed_files": [item.get("filename", "unknown") for item in comparison.get("files", [])],
             "diff": actual_diff,
         }
 

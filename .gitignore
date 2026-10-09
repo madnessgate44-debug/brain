@@ -1,0 +1,18 @@
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example
+
+# Python environments and generated files
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local runtime data
+workspace/db/
+workspace/logs/
+workspace/tmp/

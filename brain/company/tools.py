@@ -1,7 +1,6 @@
 """Concrete company workflow tools backed by GitHub and GitHub Actions."""
 
 import asyncio
-import os
 import re
 import uuid
 from typing import Any
@@ -26,6 +25,7 @@ class GitHubCompanyTools:
         )
         self.poll_seconds = poll_seconds
         self.timeout_seconds = timeout_seconds
+        self._active_branches: dict[str, str] = {}
 
     async def inspect_repository(self, repository: str) -> dict[str, Any]:
         """Collect a bounded source snapshot so design and engineering use real files."""
@@ -62,17 +62,22 @@ class GitHubCompanyTools:
     async def apply_change_set(
         self, change_set: dict[str, Any], repository: str
     ) -> dict[str, Any]:
-        """Create a unique branch and commit the model-proposed file changes."""
+        """Create one feature branch, then extend it for any bounded repair cycles."""
         summary = change_set.get("summary", "Implement approved software requirements")
         if not isinstance(summary, str):
             summary = "Implement approved software requirements"
-        branch = f"brain/mission-{uuid.uuid4().hex[:12]}"
+        branch = self._active_branches.get(repository)
+        update_branch = branch is not None
+        if branch is None:
+            branch = f"brain/mission-{uuid.uuid4().hex[:12]}"
         result = await self.gateway.apply_change_set(
             repository=repository,
             change_set=change_set,
             branch_name=branch,
             commit_message=f"Brain: {summary[:140]}",
+            update_branch=update_branch,
         )
+        self._active_branches[repository] = branch
         return result
 
     async def run_checks(self, repository: str, branch: str) -> dict[str, Any]:
@@ -110,14 +115,17 @@ class GitHubCompanyTools:
                 body = comment.get("body", "")
                 if "## Brain remote test run" not in body:
                     continue
-                result_match = re.search(r"\*\*Result:\*\*\s*(PASS|FAIL)", body)
+                result_match = re.search(
+                    r"\*\*Result:\*\*\s*(PASS|FAIL|EXECUTION_ERROR)", body
+                )
                 run_match = re.search(r"https://github\.com/[^\s]+/actions/runs/\d+", body)
                 if not result_match:
                     continue
                 result = result_match.group(1)
                 return {
-                    "executed": True,
-                    "status": result,
+                    "executed": result in {"PASS", "FAIL"},
+                    "status": "FAIL" if result == "EXECUTION_ERROR" else result,
+                    "execution_error": result == "EXECUTION_ERROR",
                     "run_url": run_match.group(0) if run_match else None,
                     "issue_url": issue.get("html_url"),
                     "report": body,

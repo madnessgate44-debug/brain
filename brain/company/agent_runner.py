@@ -55,11 +55,11 @@ class SpecialistAgentRunner:
             )
         elif role_key == "qa_engineer":
             role_contract = (
-                "\\nUse the supplied test_results from the real check runner. Do not invent "
+                "\nUse the supplied test_results from the real check runner. Do not invent "
                 "test runs or mark unexecuted checks as passing.\n"
             )
         system_prompt = (
-            "You are the " + role.title + " in a software company.\\n"
+            "You are the " + role.title + " in a software company.\n"
             "Your responsibility: " + role.mission + "\n"
             "Use only supplied evidence. Distinguish facts, assumptions, and unknowns. "
             "Never claim that code was changed, tests were executed, a website was viewed, "
