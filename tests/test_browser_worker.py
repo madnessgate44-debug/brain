@@ -79,6 +79,11 @@ def test_action_validation_rejects_unknown_and_oversized_sequences():
         validate_browser_actions([{"op": "type", "selector": "#prompt", "text": 3}])
 
 
+def test_browser_defaults_to_general_public_web_scope():
+    worker = BrowserWorker(allowed_domains=[])
+    assert worker.allowed_domains == ["*"]
+
+
 def test_domain_matching_requires_exact_or_subdomain_rule():
     assert domain_matches("chatgpt.com", "chatgpt.com")
     assert domain_matches("auth.openai.com", "*.openai.com")
