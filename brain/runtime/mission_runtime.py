@@ -13,6 +13,11 @@ from brain.repositories.event_repository import EventRepository
 from brain.repositories.mission_repository import MissionRepository
 from brain.runtime.workers.document_worker import build_mission_brief
 from brain.storage.artifact_store import ArtifactStore
+from brain.company.engine import CompanyWorkflowEngine
+from brain.company.github_gateway import GitHubRepositoryGateway
+from brain.company.llm_provider import OpenAICompatibleProvider
+from brain.company.agent_runner import SpecialistAgentRunner
+from brain.company.tools import GitHubCompanyTools
 
 logger = logging.getLogger("brain.runtime.mission_runtime")
 
@@ -53,6 +58,108 @@ class MissionRuntime:
                     raise RuntimeError(f"Mission {self.mission_id} not found")
                 if mission.status != MissionStatus.RUNNING.value:
                     logger.info("Mission %s is no longer running; execution skipped", self.mission_id)
+                    return
+
+                metadata = {}
+                if mission.metadata_json:
+                    try:
+                        metadata = json.loads(mission.metadata_json)
+                    except (TypeError, json.JSONDecodeError):
+                        metadata = {}
+
+                if metadata.get("workflow_type") == "software_company":
+                    repository = metadata.get("repository")
+                    if not isinstance(repository, str) or "/" not in repository:
+                        raise RuntimeError(
+                            "Software-company missions require metadata.repository in owner/repository format."
+                        )
+                    await event_repo.append_event(
+                        mission_id=self.mission_id,
+                        event_type="company_workflow_started",
+                        message="Software-company workflow started",
+                        phase=MissionPhase.PLAN.value,
+                        severity=EventSeverity.INFO,
+                        payload_json=json.dumps({"repository": repository}),
+                    )
+                    gateway = GitHubRepositoryGateway()
+                    tools = GitHubCompanyTools(gateway=gateway)
+                    engine = CompanyWorkflowEngine(
+                        SpecialistAgentRunner(OpenAICompatibleProvider()),
+                        tools,
+                    )
+                    result = await engine.run(mission.objective, repository)
+                    for role_key, role_output in result["role_outputs"].items():
+                        role_name = f"role-{role_key}.json"
+                        role_bytes = json.dumps(role_output, ensure_ascii=False, indent=2).encode("utf-8")
+                        role_path = self.artifact_store.save_artifact(
+                            mission_id=self.mission_id,
+                            logical_name=role_name,
+                            content=role_bytes,
+                            metadata={"role": role_key, "workflow_type": "software_company"},
+                        )
+                        await artifact_repo.create(
+                            mission_id=self.mission_id,
+                            artifact_type=ArtifactType.EXECUTION,
+                            logical_name=role_name,
+                            relative_path=str(role_path.relative_to(self.artifact_store.workspace_root)),
+                            mime_type="application/json",
+                            size_bytes=len(role_bytes),
+                            metadata_json=json.dumps({"role": role_key}),
+                        )
+                        await event_repo.append_event(
+                            mission_id=self.mission_id,
+                            event_type="specialist_completed",
+                            message=f"Specialist completed: {role_key}",
+                            phase=MissionPhase.VALIDATE.value,
+                            severity=EventSeverity.INFO,
+                            payload_json=json.dumps({
+                                "role": role_key,
+                                "status": role_output.get("status"),
+                            }),
+                        )
+
+                    report_name = "software-company-report.json"
+                    report_bytes = json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
+                    report_path = self.artifact_store.save_artifact(
+                        mission_id=self.mission_id,
+                        logical_name=report_name,
+                        content=report_bytes,
+                        metadata={"workflow_type": "software_company", "repository": repository},
+                    )
+                    await artifact_repo.create(
+                        mission_id=self.mission_id,
+                        artifact_type=ArtifactType.TEST_REPORT,
+                        logical_name=report_name,
+                        relative_path=str(report_path.relative_to(self.artifact_store.workspace_root)),
+                        mime_type="application/json",
+                        size_bytes=len(report_bytes),
+                        metadata_json=json.dumps({
+                            "workflow_type": "software_company",
+                            "repository": repository,
+                            "pull_request": result.get("pull_request"),
+                        }),
+                    )
+                    await event_repo.append_event(
+                        mission_id=self.mission_id,
+                        event_type="company_workflow_ready_for_review",
+                        message="All workflow gates passed; pull request awaits human review",
+                        phase=MissionPhase.WAITING_FOR_APPROVAL.value,
+                        severity=EventSeverity.INFO,
+                        payload_json=json.dumps({
+                            "repository": repository,
+                            "pull_request": result.get("pull_request"),
+                            "branch": result.get("branch"),
+                        }),
+                    )
+                    await mission_repo.update_phase(
+                        self.mission_id, MissionPhase.WAITING_FOR_APPROVAL
+                    )
+                    await mission_repo.update_status(self.mission_id, MissionStatus.PAUSED)
+                    await session.commit()
+                    logger.info(
+                        "Software-company workflow for mission %s is ready for human review",
+                        self.mission_id,
+                    )
                     return
 
                 await event_repo.append_event(
