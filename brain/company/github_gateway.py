@@ -217,7 +217,7 @@ class GitHubRepositoryGateway:
         for changed in comparison.get("files", []):
             diff_parts.append(f"FILE: {changed.get('filename', 'unknown')}")
             diff_parts.append(changed.get("patch") or "[Patch omitted by GitHub; inspect file content.]")
-        actual_diff = "\\n".join(diff_parts)
+        actual_diff = "\n".join(diff_parts)
         return {
             "repository": repository,
             "branch": branch_name,
