@@ -1,5 +1,6 @@
 """Safety tests for the GitHub repository gateway."""
 
+import httpx
 import pytest
 
 from brain.company.github_gateway import GitHubGatewayError, GitHubRepositoryGateway
