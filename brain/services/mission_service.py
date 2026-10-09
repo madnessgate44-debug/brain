@@ -2,6 +2,7 @@
 
 import logging
 from typing import Optional, List, Tuple
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from brain.domain.enums import MissionPhase, MissionStatus
 from brain.repositories.mission_repository import MissionRepository
@@ -24,10 +25,12 @@ class MissionService:
         mission_repo: MissionRepository,
         event_repo: EventRepository,
         artifact_store: ArtifactStore,
+        session_factory: async_sessionmaker[AsyncSession],
     ):
         self.mission_repo = mission_repo
         self.event_repo = event_repo
         self.artifact_store = artifact_store
+        self.session_factory = session_factory
 
     async def create_mission(self, data: MissionCreate) -> MissionResponse:
         """Create a new mission."""
@@ -108,11 +111,13 @@ class MissionService:
             payload_json=str({"runtime_id": runtime_id}),
         )
 
+        # Persist the running state before the independent background session reads it.
+        await self.mission_repo.session.commit()
+
         runtime = MissionRuntime(
             mission_id=mission_id,
             runtime_id=runtime_id,
-            mission_repo=self.mission_repo,
-            event_repo=self.event_repo,
+            session_factory=self.session_factory,
             artifact_store=self.artifact_store,
             max_iterations=mission.max_loop_iterations,
         )
