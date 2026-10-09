@@ -1,6 +1,7 @@
 """Mission service."""
 
 import logging
+import json
 from typing import Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -43,7 +44,7 @@ class MissionService:
             priority=data.priority or "MEDIUM",
             risk_level=data.risk_level or "LOW",
             max_loop_iterations=data.max_loop_iterations or 10,
-            metadata_json=str(data.metadata) if data.metadata else None,
+            metadata_json=json.dumps(data.metadata, ensure_ascii=False) if data.metadata else None,
         )
         await self.mission_repo.session.flush()
         await self.event_repo.append_event(
