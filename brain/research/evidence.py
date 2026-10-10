@@ -309,13 +309,14 @@ class ResearchEvidenceCollector:
         # A public job-board endpoint, no API key. Results are samples, not a labor-market census.
         mission_text = mission.casefold()
         browser_mission = any(term in mission_text for term in ("browser", "playwright", "chromium", "puppeteer", "extension"))
+        mission_words = [
+            word for word in re.findall(r"[a-z0-9+#.]{3,}", mission_text)
+            if word not in {"the", "and", "for", "with", "from", "this", "that", "brain", "tomatom", "mission", "research", "free", "build", "design", "return", "roadmap"}
+        ]
         query = (
             "browser automation playwright"
             if browser_mission
-            else " ".join(
-                word for word in re.findall(r"[a-z0-9+#.]{3,}", mission_text)
-                if word not in {"the", "and", "for", "with", "from", "this", "that", "brain", "tomatom", "mission", "research", "free", "build", "design", "return", "roadmap"}
-            )[:4]
+            else " ".join(mission_words[:4])
         ) or "AI automation"
         try:
             response = await client.get(REMOTIVE_API, params={"search": query})
