@@ -519,7 +519,9 @@
         if (type === 'success') el.style.borderLeftColor = '#10b981';
         else if (type === 'error') el.style.borderLeftColor = '#ef4444';
         el.innerHTML =
-            `<span style="color:${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3d8bff'}">●</span><span style="flex:1;font-size:0.75rem;">${msg}</span><button style="background:none;border:none;color:#4e5d78;cursor:pointer;font-size:16px;padding:4px;" onclick="this.parentElement.remove()">✕</button>`;
+            `<span style="color:${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3d8bff'}">●</span><span class="toast-message" style="flex:1;font-size:0.75rem;"></span><button class="toast-close" style="background:none;border:none;color:#4e5d78;cursor:pointer;font-size:16px;padding:4px;" type="button">✕</button>`;
+        el.querySelector('.toast-message').textContent = String(msg ?? '');
+        el.querySelector('.toast-close').addEventListener('click', () => el.remove());
         container.appendChild(el);
         setTimeout(() => { if (el.parentElement) el.remove(); }, 5000);
     }
