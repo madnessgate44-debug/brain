@@ -380,3 +380,39 @@ def test_repository_compactor_never_passes_truncated_files_as_complete_source():
     assert compacted["source_contents"] == {small_path: small_source}
     assert large_path in compacted["source_manifest"]["model_context_omitted_paths"]
     assert compacted["source_manifest"]["model_context_omitted_or_truncated_paths"] == [large_path]
+
+
+
+@pytest.mark.asyncio
+async def test_reviewer_repair_cannot_drop_files_from_the_existing_patch():
+    class DroppingRepairRunner(FakeAgentRunner):
+        def __init__(self):
+            super().__init__(review_statuses=["NEEDS_WORK", "PASS"])
+            self.developer_calls = 0
+
+        async def run(self, role_key, user_request, evidence):
+            output = await super().run(role_key, user_request, evidence)
+            if role_key == "developer":
+                self.developer_calls += 1
+                if self.developer_calls == 1:
+                    output["deliverables"]["change_set"] = {
+                        "summary": "Two-file implementation",
+                        "files": [
+                            {"path": "brain/feature.py", "content": "pass\\n"},
+                            {"path": "brain/second.py", "content": "pass\\n"},
+                        ],
+                    }
+                else:
+                    output["deliverables"]["change_set"] = {
+                        "summary": "Incomplete repair",
+                        "files": [{"path": "brain/feature.py", "content": "pass\\n"}],
+                    }
+            return output
+
+    tools = FakeTools()
+    with pytest.raises(CompanyWorkflowBlocked, match="omitted previously changed files"):
+        await CompanyWorkflowEngine(DroppingRepairRunner(), tools).run(
+            "Build a small feature", "owner/repository"
+        )
+
+    assert tools.apply_count == 1
