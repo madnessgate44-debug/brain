@@ -57,18 +57,21 @@ def mission_relevance(candidate: dict[str, Any], mission: str) -> tuple[int, lis
         if any(matches_term(term, candidate_tokens, normalized_candidate) for term in terms):
             matches.append(name)
             score += weight
-    # An extension-only project can be useful, but it should not outrank a
-    # browser-control project just because the mission also mentions extensions.
-    has_browser_control = any(matches_term(term, candidate_tokens, normalized_candidate) for term in (
-        "browser", "playwright", "chromium", "puppeteer", "selenium", "cdp", "webextension"
-    ))
-    has_automation = any(matches_term(term, candidate_tokens, normalized_candidate) for term in (
-        "automation", "automate", "automated", "rpa", "browser-use", "computer-use"
-    ))
-    if not has_browser_control:
-        score = min(score, 20)
-    elif not has_automation:
-        score = min(score, 55)
+    # Require a core browser-control signal. A project that merely mentions
+    # "automation" and separately says it runs "in the browser" is not enough.
+    # Extension-only and browser-adjacent projects remain discoverable, but are
+    # capped so they cannot outrank actual browser-control tools.
+    core_browser_signals = (
+        "browser automation", "browser control", "browser agent",
+        "playwright", "puppeteer", "selenium", "browser-use",
+        "computer-use", "chrome devtools protocol", "cdp",
+    )
+    has_core_browser_signal = any(
+        matches_term(term, candidate_tokens, normalized_candidate)
+        for term in core_browser_signals
+    )
+    if not has_core_browser_signal:
+        score = min(score, 35)
     return min(100, score), matches
 
 class ResearchAndDevelopmentAgent:
