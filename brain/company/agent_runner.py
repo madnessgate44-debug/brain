@@ -98,10 +98,11 @@ def _select_source_contents(
         scored.append((score, len(raw_content), path, raw_content))
 
     scored.sort(key=lambda item: (-item[0], item[1], item[2]))
+    has_relevant_paths = any(score > 0 for score, _, _, _ in scored)
     selected: dict[str, str] = {}
     used = 0
     for score, size, path, content in scored:
-        if score <= 0 and selected:
+        if has_relevant_paths and score <= 0:
             continue
         explicit = path in explicit_paths or path in changed
         per_file_limit = 60000 if explicit else 25000
