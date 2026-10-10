@@ -186,13 +186,13 @@ class GitHubCompanyTools:
                     continue
                 if "## Brain remote test run" not in body:
                     continue
-                result_match = re.search(r"\\*\\*Result:\\*\\*\\s*(PASS|FAIL|EXECUTION_ERROR)", body)
+                result_match = re.search(r"\*\*Result:\*\*\s*(PASS|FAIL|EXECUTION_ERROR)", body)
                 run_match = re.search(
-                    rf"https://github\\.com/{re.escape(owner)}/{re.escape(name)}/actions/runs/(\\d+)",
+                    rf"https://github\.com/{re.escape(owner)}/{re.escape(name)}/actions/runs/(\d+)",
                     body,
                 )
-                target_match = re.search(r"(?m)^\\*\\*Target repository:\\*\\*\\s*(\\S+)", body)
-                branch_match = re.search(r"(?m)^\\*\\*Target branch:\\*\\*\\s*(\\S+)", body)
+                target_match = re.search(r"(?m)^\*\*Target repository:\*\*\s*(\S+)", body)
+                branch_match = re.search(r"(?m)^\*\*Target branch:\*\*\s*(\S+)", body)
                 if not (result_match and run_match and target_match and branch_match):
                     continue
                 if target_match.group(1).strip("`").casefold() != repository.casefold():
