@@ -89,7 +89,10 @@ class ApprovalService:
             response_note=data.response_note,
         )
         if updated is None:
-            raise ValueError(f"Approval {approval_id} not found")
+            current = await self.approval_repo.get_by_id(approval_id)
+            if current is None:
+                raise ValueError(f"Approval {approval_id} not found")
+            raise RuntimeError(f"Approval {approval_id} is already {current.status}")
 
         mission_state = (
             ApprovalStatus.APPROVED.value if data.approved else ApprovalStatus.REJECTED.value
