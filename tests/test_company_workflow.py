@@ -3,6 +3,9 @@
 import pytest
 
 from brain.company.roles import ROLE_CATALOG, ROLE_BY_KEY, WORKFLOW_ORDER
+from brain.company.run_issue_workflow import parse_issue_body
+from brain.company.diagnostics import failure_report
+from brain.company.engine import CompanyWorkflowBlocked
 from brain.company.workflow import (
     WorkflowPolicyError,
     evaluate_release_gate,
@@ -59,3 +62,48 @@ def test_release_passes_only_when_all_mandatory_gates_pass_with_evidence():
     decision = evaluate_release_gate(evidence)
     assert decision.passed is True
     assert decision.blockers == ()
+
+
+
+@pytest.mark.parametrize("body", [
+    "Objective: Fix the intake parser.\nRepository: madnessgate44-debug/brain\n/brain simulate",
+    "/brain simulate\nObjective: Fix the intake parser.\nRepository: madnessgate44-debug/brain",
+    "Repository: madnessgate44-debug/brain\n/brain simulate Fix the intake parser.",
+])
+def test_issue_parser_preserves_objective_regardless_of_command_position(body):
+    repository, objective = parse_issue_body(body)
+    assert repository == "madnessgate44-debug/brain"
+    assert "Fix the intake parser." in objective
+    assert "/brain simulate" not in objective
+
+
+@pytest.mark.parametrize("body", [
+    "/brain simulate\nRepository: madnessgate44-debug/brain",
+    "Repository: madnessgate44-debug/brain\n/brain simulate",
+    "/brain simulate\nObjective:   \nRepository: madnessgate44-debug/brain",
+])
+def test_issue_parser_rejects_empty_objective_without_defaulting(body):
+    with pytest.raises(RuntimeError, match="Empty mission objective"):
+        parse_issue_body(body)
+
+
+def test_product_owner_contract_does_not_require_future_stage_evidence():
+    from brain.company.agent_runner import SpecialistAgentRunner
+    import inspect
+    source = inspect.getsource(SpecialistAgentRunner.run)
+    assert "Do not demand implementation" in source
+    assert "preserve unresolved details in open_questions" in source
+
+
+def test_failure_report_preserves_sanitized_stage_evidence_and_known_non_mutation():
+    error = CompanyWorkflowBlocked("product_owner did not pass", stage_evidence={
+        "stopped_at": "product_owner", "repository_mutation_started": False,
+        "tests_started": False,
+        "timeline": [{"role": "product_owner", "status": "BLOCKED", "blockers": ["needs evidence"]}],
+        "role_outputs": {"product_owner": {"blockers": ["needs evidence"]}},
+    })
+    report = failure_report(error, mission={"repository": "madnessgate44-debug/brain"}, events=[])
+    assert report["stage_evidence"]["stopped_at"] == "product_owner"
+    assert report["stage_evidence"]["role_outputs"]["product_owner"]["blockers"] == ["needs evidence"]
+    assert report["impact"]["repository_mutation_status"] == "NOT_STARTED"
+    assert report["impact"]["tests_status"] == "NOT_STARTED"

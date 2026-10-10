@@ -46,6 +46,13 @@ def failure_report(
     last_frame = frames[-1] if frames else None
     rendered_traceback = _redact("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
     event_log = [_sanitize(event) for event in (events or [])]
+    stage_evidence = _sanitize(getattr(exc, "stage_evidence", {}) or {})
+    mutation_status = "UNKNOWN"
+    tests_status = "UNKNOWN"
+    if stage_evidence.get("repository_mutation_started") is False:
+        mutation_status = "NOT_STARTED"
+    if stage_evidence.get("tests_started") is False:
+        tests_status = "NOT_STARTED"
     return {
         "schema_version": "1.0",
         "status": "FAILED",
@@ -57,6 +64,7 @@ def failure_report(
         },
         "mission": _sanitize(mission or {}),
         "timeline": event_log,
+        "stage_evidence": stage_evidence,
         "runtime": {
             "started_at": started_at,
             "failed_at": now,
@@ -83,8 +91,8 @@ def failure_report(
         },
         "impact": {
             "success_claimed": False,
-            "repository_mutation_status": "UNKNOWN unless a prior timeline event records it",
-            "tests_status": "UNKNOWN unless a prior timeline event records it",
+            "repository_mutation_status": mutation_status,
+            "tests_status": tests_status,
         },
     }
 

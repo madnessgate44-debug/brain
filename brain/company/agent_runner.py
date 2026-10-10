@@ -324,6 +324,17 @@ class SpecialistAgentRunner:
                 "UI work or request user confirmation for a clear scope boundary. Raise a blocker "
                 "only for a real unresolved product requirement.\n"
             )
+        if role_key == "product_owner":
+            role_contract += (
+                "\nRequirements-stage gate rule: this is planning before UX, architecture, implementation, "
+                "code review, and testing. Produce a product brief, measurable acceptance criteria, assumptions, "
+                "and open questions from the request and supplied source context. Do not demand implementation "
+                "diffs, completed fixes, test logs, or future-stage evidence as prerequisites for planning. "
+                "Record missing information as an explicit question or assumption. Use BLOCKED only when a "
+                "concrete ambiguity makes any safe, testable brief impossible or the request is unsafe; do not "
+                "block merely because implementation and test evidence do not exist yet. If the request is clear "
+                "enough to plan, return PASS and preserve unresolved details in open_questions.\n"
+            )
         system_prompt = (
             "You are the " + role.title + " in a software company.\n"
             "Your responsibility: " + role.mission + "\n"
