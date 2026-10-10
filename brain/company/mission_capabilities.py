@@ -27,6 +27,7 @@ _MUTATION_INTENT = re.compile(
     r"problems?|fixes?|changes?|patches?|branch|pull requests?|prs?|commits?|"
     r"implementation|app|application|them|it)\b"
     r"|\b(?:open|create)\s+(?:a\s+)?(?:pull request|pr|branch|commit|file)\b"
+    r"|\b(?:create|add|write)\s+(?:(?:exactly|the|a|one|specified|requested|new)\s+)*[\w./-]+\.[A-Za-z0-9]{1,8}\b"
     r"|\b(?:commit|push)\s+(?:the\s+)?(?:changes?|files?|code|branch|commit)\b"
     r"|\b(?:deploy|merge)\s+(?:the\s+)?(?:app|application|changes?|branch|pull request|pr|release)\b"
     r"|\bmake\s+(?:the\s+)?changes?\b",
