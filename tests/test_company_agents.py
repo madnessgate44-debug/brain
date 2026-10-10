@@ -137,3 +137,38 @@ async def test_specialist_stops_after_one_failed_json_repair():
     with pytest.raises(AgentOutputError, match="after one repair attempt"):
         await runner.run("developer", "Build the feature", evidence)
     assert provider.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_specialist_prompt_uses_real_newlines_in_role_contract():
+    """Role-specific system prompts use line breaks, not literal backslash-n text."""
+    from brain.company.roles import ROLE_BY_KEY
+
+    class CapturingProvider:
+        def __init__(self):
+            self.system_prompts = []
+
+        async def complete(self, system_prompt, user_prompt):
+            self.system_prompts.append(system_prompt)
+            role = ROLE_BY_KEY["ux_designer"]
+            return json.dumps({
+                "status": "PASS",
+                "deliverables": {key: "verified test value" for key in role.deliverables},
+                "findings": [],
+                "blockers": [],
+                "evidence_needed": [],
+            })
+
+    provider = CapturingProvider()
+    runner = SpecialistAgentRunner(provider)
+    await runner.run(
+        "ux_designer",
+        "Specify backend interaction behavior.",
+        {"product_brief": "brief", "acceptance_criteria": ["AC-1"]},
+    )
+
+    prompt = provider.system_prompts[0]
+    assert "\nScope applicability rule:" in prompt
+    assert "\\nScope applicability rule:" not in prompt
+    assert "software company.\nYour responsibility:" in prompt
+    assert "\\nYour responsibility:" not in prompt
