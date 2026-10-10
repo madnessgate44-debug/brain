@@ -39,7 +39,7 @@ jobs:
       contents: read
     env:
       BRAIN_RD_ENABLE_MODEL_ASSESSMENT: ${{ vars.BRAIN_RD_ENABLE_MODEL_ASSESSMENT || 'false' }}
-      BRAIN_RD_MISSION: ${{ inputs.mission || 'Find tools that improve Brain research, coding, browser automation, testing, and free execution.' }}
+      BRAIN_RD_MISSION: ${{ inputs.mission || 'Design Tomatom, a free-first browser automation platform for Brain. Investigate open-source browser automation repositories, browser extensions, browser control/security, free hosting/persistence limits, and required skills/job-market evidence. Return an evidence-linked recommendation and roadmap.' }}
       BRAIN_RD_MAX_CANDIDATES: ${{ inputs.max_candidates || '30' }}
     steps:
       - name: Check out Brain
@@ -57,7 +57,8 @@ jobs:
           python -m pip install -e .
       - name: Run bounded R&D discovery
         env:
-          BRAIN_RD_GITHUB_TOKEN: ${{ secrets.BRAIN_RD_GITHUB_TOKEN }}
+          # Preserve compatibility with the existing Brain Actions token secret.
+          BRAIN_RD_GITHUB_TOKEN: ${{ secrets.BRAIN_RD_GITHUB_TOKEN || secrets.BRAIN_GITHUB_TOKEN }}
           BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
           BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
           BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
