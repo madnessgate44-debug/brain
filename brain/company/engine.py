@@ -444,8 +444,14 @@ class CompanyWorkflowEngine:
             "reviewer_role": "code_reviewer",
             "findings": review_output.get("findings", []),
         }
-        evidence["security_decision"] = {"status": "PASS"}
-        evidence["customer_review"] = {"status": "PASS"}
+        evidence["security_decision"] = {
+            "status": "PASS",
+            "reviewer_role": "security_auditor",
+        }
+        evidence["customer_review"] = {
+            "status": "PASS",
+            "reviewer_role": "customer_advocate",
+        }
         gate = evaluate_release_gate(evidence)
         if not gate.passed:
             raise CompanyWorkflowBlocked("; ".join(gate.blockers))
