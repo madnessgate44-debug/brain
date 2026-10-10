@@ -78,3 +78,35 @@ def test_only_mutating_action_plans_require_owner_approval():
     assert actions_require_approval([{"op": "navigate"}, {"op": "inspect"}]) is False
     assert actions_require_approval([{"op": "click", "selector": "a"}]) is True
     assert actions_require_approval([{"op": "select", "selector": "select", "value": "x"}]) is True
+
+
+@pytest.mark.asyncio
+async def test_mutating_plan_is_returned_for_review_without_starting_browser(monkeypatch, tmp_path):
+    import scripts.run_browser_research_issue as runner
+
+    class FakePlanner:
+        async def plan(self, objective):
+            return {
+                "title": "Proposed website change",
+                "objective": objective,
+                "actions": [
+                    {"op": "navigate", "url": "https://example.com/"},
+                    {"op": "click", "selector": "a"},
+                ],
+            }
+
+    def browser_must_not_start(*args, **kwargs):
+        raise AssertionError("Mutating plans must not start the browser.")
+
+    monkeypatch.setattr(runner, "BrowserPlanner", FakePlanner)
+    monkeypatch.setattr(runner, "BrowserWorker", browser_must_not_start)
+    payload = {
+        "title": "Review before changing",
+        "objective": "Inspect the page and click the link",
+        "start_url": "https://example.com/",
+        "allowed_domains": ["example.com"],
+    }
+    result = await runner.execute_research(payload, tmp_path)
+    assert result["status"] == "requires_owner_approval"
+    report = (tmp_path / "browser-execution-report.json").read_text(encoding="utf-8")
+    assert '"completed_actions": 0' in report
