@@ -74,3 +74,34 @@ async def test_interrupted_active_mission_is_paused_instead_of_replayed(db_manag
     assert recovered.phase == MissionPhase.EXECUTE.value
     assert recovered.assigned_runtime_id is None
     assert recovered.recovery_state == "recovery_requires_manual_review_from_EXECUTE"
+
+
+
+@pytest.mark.asyncio
+async def test_recovery_does_not_pause_a_mission_with_a_recent_heartbeat(db_manager):
+    config = Config()
+    config.recovery.auto_recover = True
+    config.recovery.recoverable_phases = ["EXECUTE", "VALIDATE", "REPAIR"]
+    config.recovery.orphan_detection_grace_period_seconds = 300
+
+    async with db_manager.get_session_factory()() as session:
+        repo = MissionRepository(session)
+        mission = await repo.create(
+            title="Recently active mission",
+            objective="Do not interrupt a live runtime",
+        )
+        mission_id = mission.id
+        started = await repo.try_start(mission_id, "runtime_live")
+        assert started is True
+        await session.commit()
+
+    recovery = RecoveryService(config, db_manager, RuntimeRegistry())
+    await recovery.recover()
+
+    async with db_manager.get_session_factory()() as session:
+        recovered = await MissionRepository(session).get_by_id(mission_id)
+
+    assert recovered is not None
+    assert recovered.status == MissionStatus.RUNNING.value
+    assert recovered.assigned_runtime_id == "runtime_live"
+    assert recovered.recovery_state is None
