@@ -126,8 +126,6 @@ def test_list_pending_approvals(client):
 
 def test_expired_approval_is_not_accepted(client, monkeypatch):
     from datetime import datetime, timedelta, timezone
-    from brain.db.session import DatabaseSessionManager
-    from brain.core.config import load_config
 
     mission_response = client.post(
         "/missions",
