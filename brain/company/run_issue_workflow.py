@@ -223,36 +223,187 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         timeout_seconds=45,
     )
     if plan.mode == "read_only":
-        events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "repository_inspection", "status": "STARTED", "detail": "Collecting source evidence without repository mutation."})
+        events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "repository_inspection", "status": "STARTED", "detail": "Building multi-pass source inventory without repository mutation."})
         snapshot = await tools.inspect_repository(repository)
-        events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "repository_inspection", "status": "PASS", "detail": f"Read {snapshot.get('source_files_read', 0)} source files at {snapshot.get('base_commit')}."})
-        events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "model_audit", "status": "STARTED", "detail": "Invoking the configured model for evidence-bounded analysis."})
-        prompt = (
-            "Perform a detailed read-only software audit using only the supplied repository snapshot and source contents. "
-            "Do not modify files or claim tests ran. Separate confirmed defects, risks, hypotheses, and missing evidence. "
-            "For each finding include severity, exact file/symbol/line where possible, code evidence, impact, and remediation. "
-            "Cover correctness, architecture, security/privacy, reliability, usability, product behavior, and tests where evidenced. "
-            "List repository, default branch, base commit, files actually read, checks not run and why, strengths, limitations, "
-            "and a prioritized action plan. Return a substantive Markdown report."
+        manifest = snapshot.get("source_manifest", {})
+        events.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": "repository_inspection",
+            "status": "PASS" if manifest.get("read_count", 0) else "FAIL",
+            "detail": (
+                f"Read {manifest.get('read_count', 0)}/{manifest.get('candidate_count', 0)} "
+                f"candidate files at {snapshot.get('base_commit')}; "
+                f"tree_truncated={manifest.get('tree_truncated')}; "
+                f"budget_omissions={len(manifest.get('omitted_by_aggregate_budget', []))}; "
+                f"read_errors={len(manifest.get('failed_paths', {}))}."
+            ),
+        })
+        if not snapshot.get("source_contents"):
+            raise RuntimeError("Repository inspection returned no readable source files.")
+
+        def make_chunks(source_contents: dict[str, str], max_chars: int = 65000) -> list[dict[str, str]]:
+            chunks: list[dict[str, str]] = []
+            current: list[str] = []
+            current_size = 0
+            chunk_number = 1
+            for path, content in source_contents.items():
+                for line_number, raw_line in enumerate(content.splitlines(), start=1):
+                    line = raw_line
+                    if len(line) > 3500:
+                        line = line[:3500] + " [LINE TRUNCATED FOR PROMPT SIZE]"
+                    rendered = f"{path}:L{line_number}: {line}"
+                    if current and current_size + len(rendered) + 1 > max_chars:
+                        chunks.append({"chunk_id": f"source-{chunk_number:03d}", "text": "\n".join(current)})
+                        chunk_number += 1
+                        current = []
+                        current_size = 0
+                    current.append(rendered)
+                    current_size += len(rendered) + 1
+            if current:
+                chunks.append({"chunk_id": f"source-{chunk_number:03d}", "text": "\n".join(current)})
+            return chunks
+
+        chunks = make_chunks(snapshot["source_contents"])
+        if not chunks:
+            raise RuntimeError("Repository inspection produced no source evidence chunks.")
+        evidence_summaries: list[dict[str, str]] = []
+        events.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": "audit_evidence_passes",
+            "status": "STARTED",
+            "detail": f"Analyzing {len(chunks)} numbered source chunks; tests are not executed in read-only mode.",
+        })
+        batch_system = (
+            "You are performing one evidence-extraction pass in a read-only software audit. "
+            "Analyze ONLY the supplied numbered source lines. Do not infer that a feature works merely "
+            "because a component exists. Do not claim tests ran. For each meaningful observation, cite "
+            "exact path and line references exactly as supplied (path:Lx or path:Lx-Ly), explain the "
+            "observed code behavior, and classify it as CONFIRMED, RISK, CONTRADICTED, or UNKNOWN. "
+            "Report relevant data flow, callers/callees, fallbacks, persistence, integration gaps, and tests. "
+            "Keep output concise but specific. Do not invent line references."
         )
-        report = await provider.complete(prompt, json.dumps({"objective": objective, "repository_snapshot": snapshot}, ensure_ascii=False, default=str))
-        if not report.strip():
-            raise RuntimeError("Model returned an empty read-only audit report.")
-        events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "model_audit", "status": "PASS", "detail": "Generated evidence-bounded read-only report."})
+        for chunk in chunks:
+            summary = await provider.complete(
+                batch_system,
+                json.dumps({
+                    "objective": objective,
+                    "repository": repository,
+                    "base_commit": snapshot.get("base_commit"),
+                    "chunk_id": chunk["chunk_id"],
+                    "source_lines": chunk["text"],
+                }, ensure_ascii=False),
+            )
+            if not summary.strip():
+                raise RuntimeError(f"Evidence extraction returned empty output for {chunk['chunk_id']}.")
+            evidence_summaries.append({"chunk_id": chunk["chunk_id"], "analysis": summary})
+            events.append({
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "stage": "audit_evidence_pass",
+                "status": "PASS",
+                "detail": f"Completed evidence extraction for {chunk['chunk_id']}.",
+            })
+
+        inventory = {
+            "repository": repository,
+            "default_branch": snapshot.get("default_branch"),
+            "base_commit": snapshot.get("base_commit"),
+            "tree_file_count_returned": manifest.get("tree_file_count_returned"),
+            "tree_truncated": manifest.get("tree_truncated"),
+            "candidate_count": manifest.get("candidate_count"),
+            "read_count": manifest.get("read_count"),
+            "read_paths": manifest.get("read_paths", []),
+            "failed_paths": manifest.get("failed_paths", {}),
+            "omitted_by_aggregate_budget": manifest.get("omitted_by_aggregate_budget", []),
+            "coverage_complete": manifest.get("coverage_complete"),
+            "aggregate_bytes_read": manifest.get("aggregate_bytes_read"),
+            "line_truncations_possible": True,
+            "tests_executed": False,
+        }
+        synthesis_system = (
+            "You are the lead forensic auditor. Produce a substantial requirement-to-evidence audit "
+            "using ONLY the supplied source inventory and per-chunk evidence analyses. Every material "
+            "finding must cite exact repository path and line range grounded in those analyses. If the "
+            "analysis lacks enough evidence, classify it as a hypothesis or unknown, not a confirmed defect. "
+            "Never say tests were executed: this was a read-only static audit. Distinguish test files/CI "
+            "definitions from recorded execution evidence. Never infer end-to-end functionality from component "
+            "existence. Explain scores with evidence and lower confidence where coverage is incomplete. "
+            "Include: executive verdict and five readiness scores; exact commit and inspection scope; architecture "
+            "and data-flow map; requirements A-M matrix with acceptance criteria, evidence, status, and unknowns; "
+            "severity-ranked findings with impact and evidence; demo/mock/fallback inventory; test/CI evidence "
+            "versus not executed; prioritized backlog with measurable acceptance criteria/dependencies; unknowns. "
+            "Explicitly disclose all skipped paths, truncation, line truncations, and evidence limitations. "
+            "Do not modify the target repository."
+        )
+        draft = await provider.complete(
+            synthesis_system,
+            json.dumps({
+                "objective": objective,
+                "inventory": inventory,
+                "evidence_passes": evidence_summaries,
+            }, ensure_ascii=False, default=str),
+        )
+        if not draft.strip():
+            raise RuntimeError("Audit synthesis returned an empty report.")
+        events.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": "independent_audit_review",
+            "status": "STARTED",
+            "detail": "Checking citations, test claims, coverage disclosure, and unsupported conclusions.",
+        })
+        reviewer_system = (
+            "Act as an independent skeptical reviewer of a static repository audit. Do not rewrite it wholesale. "
+            "Check each major finding and score against the supplied evidence summaries and inventory. Identify "
+            "unsupported or mis-cited claims, claims that infer behavior from file existence, any claim that tests "
+            "ran despite tests_executed=false, missing line citations, omitted coverage limitations, and requirement "
+            "statuses unsupported by evidence. Return a concise Markdown review with corrections and a corrected "
+            "final report. Preserve only claims supportable by supplied evidence; label unresolved claims UNKNOWN. "
+            "Never invent line references."
+        )
+        reviewed = await provider.complete(
+            reviewer_system,
+            json.dumps({
+                "draft_report": draft,
+                "inventory": inventory,
+                "evidence_passes": evidence_summaries,
+                "review_rules": [
+                    "A claim of test execution requires actual run evidence; none is supplied here.",
+                    "Source presence does not prove end-to-end behavior.",
+                    "Every confirmed finding must cite exact file path and line range.",
+                    "Coverage omissions must lower confidence and be disclosed.",
+                    "No Amina repository writes, branches, commits, PRs, or deployments are permitted.",
+                ],
+            }, ensure_ascii=False, default=str),
+        )
+        if not reviewed.strip():
+            raise RuntimeError("Independent audit review returned an empty report.")
+        events.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": "independent_audit_review",
+            "status": "PASS",
+            "detail": "Independent review completed; final report includes its corrections.",
+        })
+        events.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": "model_audit",
+            "status": "PASS",
+            "detail": "Completed multi-pass evidence extraction, synthesis, and independent review.",
+        })
         return {
             "status": "AUDIT_COMPLETE",
             "mode": "read_only",
             "repository": repository,
             "branch": snapshot.get("default_branch"),
             "base_commit": snapshot.get("base_commit"),
-            "files_inspected": snapshot.get("source_files_read", 0),
+            "files_inspected": manifest.get("read_count", 0),
+            "source_manifest": inventory,
+            "evidence_pass_count": len(chunks),
             "changed_files": [],
-            "test_evidence": {"status": "NOT_RUN", "reason": "Read-only mission; no tests were executed or claimed."},
+            "test_evidence": {"status": "NOT_RUN", "reason": "Read-only static audit; no tests or project code were executed."},
             "pull_request": {},
             "timeline": events,
             "release_gate": {"passed": False, "blockers": ["Read-only mission; no release requested."]},
-            "report": report,
-            "next_action": "Review the audit report; no repository changes were made.",
+            "report": reviewed,
+            "next_action": "Review the evidence-linked report; no target repository changes were made.",
         }
 
     events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "company_workflow", "status": "STARTED", "detail": "Running specialist implementation, review, and verification workflow."})
