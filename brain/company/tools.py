@@ -180,7 +180,11 @@ class GitHubCompanyTools:
         if not branch.startswith("brain/"):
             raise GitHubGatewayError("Checks are allowed only for Brain-created branches.")
 
-        owner, name = self.control_repository.split("/", 1)
+        # The PAT that opens the verification issue must itself be restricted to
+        # the configured owner; do not bypass the gateway allowlist via raw REST calls.
+        owner, name = self.verification_gateway._validate_repository(
+            self.control_repository
+        )
         # The verification issue must be created with a PAT, not GITHUB_TOKEN:
         # GitHub suppresses follow-on workflow runs for events caused by GITHUB_TOKEN.
         trigger_gateway = self.verification_gateway
