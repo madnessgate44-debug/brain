@@ -25,12 +25,12 @@ _MUTATION_INTENT = re.compile(
     r"target|repository|source|main|necessary|recommended|reported|remaining)\s+){0,3}"
     r"(?:files?|code|repository|feature|functionality|bug|issues?|defects?|errors?|"
     r"problems?|fixes?|changes?|patches?|branch|pull requests?|prs?|commits?|"
-    r"|\\bcreate\\s+exactly\\b"
     r"implementation|app|application|them|it)\b"
     r"|\b(?:open|create)\s+(?:a\s+)?(?:pull request|pr|branch|commit|file)\b"
     r"|\b(?:commit|push)\s+(?:the\s+)?(?:changes?|files?|code|branch|commit)\b"
     r"|\b(?:deploy|merge)\s+(?:the\s+)?(?:app|application|changes?|branch|pull request|pr|release)\b"
     r"|\bmake\s+(?:the\s+)?changes?\b"
+    r"|\bcreate\s+exactly\b"
     # Product-improvement missions may describe an outcome rather than a file
     # operation (for example, "make Brain more reliable"). Treat those direct
     # imperatives as mutation intent; negated constraints are removed above.
