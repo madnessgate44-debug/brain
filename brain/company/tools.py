@@ -65,7 +65,7 @@ class GitHubCompanyTools:
         contents: dict[str, str] = {}
         errors: dict[str, str] = {}
         total_bytes = 0
-        aggregate_limit = 1_500_000
+        aggregate_limit = 2_200_000
         omitted_by_budget: list[str] = []
         for index, path in enumerate(candidates):
             if total_bytes >= aggregate_limit:
@@ -73,7 +73,7 @@ class GitHubCompanyTools:
                 break
             try:
                 text = await self.gateway.read_file(
-                    repository, path, max_bytes=min(30_000, aggregate_limit - total_bytes)
+                    repository, path, max_bytes=min(200_000, aggregate_limit - total_bytes)
                 )
             except GitHubGatewayError as exc:
                 errors[path] = str(exc)

@@ -241,7 +241,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         if not snapshot.get("source_contents"):
             raise RuntimeError("Repository inspection returned no readable source files.")
 
-        def make_chunks(source_contents: dict[str, str], max_chars: int = 65000) -> list[dict[str, str]]:
+        def make_chunks(source_contents: dict[str, str], max_chars: int = 95000) -> list[dict[str, str]]:
             chunks: list[dict[str, str]] = []
             current: list[str] = []
             current_size = 0
@@ -280,7 +280,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
             "exact path and line references exactly as supplied (path:Lx or path:Lx-Ly), explain the "
             "observed code behavior, and classify it as CONFIRMED, RISK, CONTRADICTED, or UNKNOWN. "
             "Report relevant data flow, callers/callees, fallbacks, persistence, integration gaps, and tests. "
-            "Keep output concise but specific. Do not invent line references."
+            "Keep output concise but specific: at most 12 bullets and 1500 words. Do not invent line references."
         )
         for chunk in chunks:
             summary = await provider.complete(
