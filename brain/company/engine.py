@@ -486,6 +486,7 @@ class CompanyWorkflowEngine:
                 "product_brief", "Reviewed implementation"
             ),
             "repository": repository,
+            "base_commit": model_snapshot.get("base_commit"),
             "branch": evidence["branch"],
             "changed_files": evidence.get("changed_files", []),
             "test_evidence": test_evidence,
