@@ -57,6 +57,11 @@ class GitHubCompanyTools:
             "vitest.config.ts", "jest.config.js", "playwright.config.ts",
             ".env.example", "alembic.ini", "Dockerfile", "render.yaml",
             "Procfile", "requirements.txt", "runtime.txt", "Makefile",
+            ".gitignore", ".gitattributes", ".editorconfig", ".dockerignore",
+            "Dockerfile.dev", "Dockerfile.prod", "Containerfile",
+            "Caddyfile", "nginx.conf", "uv.lock", "poetry.lock",
+            "Pipfile.lock", "package-lock.json", "pnpm-lock.yaml",
+            "yarn.lock", "bun.lock", "bun.lockb",
         }
         excluded_parts = {
             "node_modules", "dist", "build", "coverage", ".git", "generated",
@@ -76,6 +81,7 @@ class GitHubCompanyTools:
             )
             is_root_config = (
                 path in root_files
+                or path.startswith("Dockerfile.")
                 or path.startswith(".github/workflows/")
                 or path.startswith(".github/dependabot.")
             )
