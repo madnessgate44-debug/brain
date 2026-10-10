@@ -31,8 +31,11 @@ def parse_research_payload(event: dict[str, Any], repository_owner: str) -> dict
     """Validate an owner-authored public research request."""
     issue = event.get("issue") or {}
     user = issue.get("user") or {}
+    sender = event.get("sender") or {}
     if user.get("login", "").casefold() != repository_owner.casefold():
         raise ValueError("Only an issue authored by the repository owner may start research.")
+    if sender.get("login", "").casefold() != repository_owner.casefold():
+        raise ValueError("Only the repository owner may trigger or edit a browser research request.")
 
     body = issue.get("body") or ""
     if "/brain browse" not in body:
