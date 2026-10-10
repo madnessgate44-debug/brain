@@ -542,13 +542,17 @@
                 <span class="material-symbols-outlined">psychology</span>
                 <span>BRAIN V1</span>
             </div>
-            <div class="auth-desc">Mobile interface for Brain — connect to GitHub to get started.</div>
+            <div class="auth-desc">Mobile interface for Brain — connect to the authenticated Brain API.</div>
             <div class="field-group">
-                <label class="field-label">GitHub PAT</label>
-                <input type="password" class="field-input" id="auth-pat" placeholder="ghp_xxxxxxxxxxxx">
+                <label class="field-label">Brain Control API Key</label>
+                <input type="password" class="field-input" id="auth-pat" placeholder="Control key from server settings">
             </div>
             <div class="field-group">
-                <label class="field-label">Repository</label>
+                <label class="field-label">Brain API URL</label>
+                <input type="url" class="field-input" id="auth-api-url" value="http://localhost:8000" placeholder="https://your-brain-api.example">
+            </div>
+            <div class="field-group">
+                <label class="field-label">Repository for specialist workflows</label>
                 <input type="text" class="field-input" id="auth-repo" value="madnessgate44-debug/brain" placeholder="owner/repo">
             </div>
             <button class="btn btn-primary" id="btn-connect">Connect</button>
@@ -666,11 +670,15 @@
                     Settings
                 </div>
                 <div class="field-group">
-                    <label class="field-label">GitHub PAT</label>
-                    <input type="password" class="field-input" id="settings-pat" placeholder="ghp_...">
+                    <label class="field-label">Brain Control API Key</label>
+                    <input type="password" class="field-input" id="settings-pat" placeholder="Control key">
                 </div>
                 <div class="field-group">
-                    <label class="field-label">Repository</label>
+                    <label class="field-label">Brain API URL</label>
+                    <input type="url" class="field-input" id="settings-api-url" placeholder="https://your-brain-api.example">
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Repository for specialist workflows</label>
                     <input type="text" class="field-input" id="settings-repo" placeholder="owner/repo">
                 </div>
                 <button class="btn btn-primary" id="btn-update-settings">Update</button>
@@ -685,8 +693,7 @@
                 <div class="text-muted text-sm" style="line-height:1.7;">
                     <strong>Brain V1 Mobile UI</strong><br>
                     Version: 1.0<br>
-                    Runs entirely in your browser.<br>
-                    Data stored in localStorage.
+                    Uses Brain API for missions and approvals. GitHub file browsing is read-only.
                 </div>
             </div>
         </div>
@@ -711,7 +718,8 @@
         // STATE
         // ============================================================
         const State = {
-            token: Store.get('pat', ''),
+            token: sessionStorage.getItem('brain_control_api_key') || '',
+            apiBaseUrl: localStorage.getItem('brain_api_base_url') || 'http://localhost:8000',
             repo: Store.get('repo', 'madnessgate44-debug/brain'),
             connected: false,
             user: null,
@@ -721,6 +729,12 @@
             currentFile: null,
             currentPath: '',
         };
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[ch]));
+        }
 
         // ============================================================
         // TOAST
@@ -741,6 +755,32 @@
         }
 
         // ============================================================
+        // BRAIN API CLIENT
+        // ============================================================
+        const BrainAPI = {
+            async request(path, options = {}) {
+                const base = (State.apiBaseUrl || 'http://localhost:8000').replace(/\/+$/, '');
+                if (!State.token) throw new Error('Brain control API key is required.');
+                let response;
+                try {
+                    response = await fetch(base + path, {
+                        method: options.method || 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Brain-API-Key': State.token
+                        },
+                        body: options.body ? JSON.stringify(options.body) : undefined
+                    });
+                } catch (_) {
+                    throw new Error('Brain API is unreachable. Check the API URL and deployment status.');
+                }
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.detail || 'Brain API request failed (HTTP ' + response.status + ').');
+                return data;
+            }
+        };
+
+        // ============================================================
         // GITHUB CLIENT
         // ============================================================
         const GH = {
@@ -749,10 +789,10 @@
             setToken(t) { this._token = t; },
             setRepo(r) { this._repo = r; },
             async _req(path, opts = {}) {
+                if ((opts.method || 'GET') !== 'GET') throw new Error('GitHub access is read-only in this interface.');
                 const url = path.startsWith('http') ? path : `https://api.github.com${path}`;
                 const res = await fetch(url, {
                     headers: {
-                        'Authorization': `token ${this._token}`,
                         'Accept': 'application/vnd.github+json',
                         'X-GitHub-Api-Version': '2022-11-28',
                         ...(opts.headers || {})
@@ -770,34 +810,18 @@
                 return this._req(`/repos/${owner}/${repo}/contents/${path}?ref=main`);
             },
             async putFile(path, content, message, sha = null) {
-                const [owner, repo] = this._repo.split('/');
-                const body = {
-                    message: message || 'Update via Brain UI',
-                    content: btoa(unescape(encodeURIComponent(content))),
-                    branch: 'main'
-                };
-                if (sha) body.sha = sha;
-                return this._req(`/repos/${owner}/${repo}/contents/${path}`, { method: 'PUT', body });
+                throw new Error('Direct GitHub writes are disabled. Use a reviewed Brain workflow instead.');
             },
             async getTree(path = '') {
                 const [owner, repo] = this._repo.split('/');
                 return this._req(`/repos/${owner}/${repo}/contents/${path}?ref=main`);
             },
             async listMissions() {
-                try {
-                    const file = await this.getFile('brain/missions.json');
-                    const decoded = decodeURIComponent(escape(atob(file.content.replace(/\n/g, ''))));
-                    return JSON.parse(decoded);
-                } catch (e) { return []; }
+                const data = await BrainAPI.request('/missions?limit=100');
+                return data.missions || [];
             },
             async saveMissions(missions) {
-                const content = JSON.stringify(missions, null, 2);
-                try {
-                    const existing = await this.getFile('brain/missions.json');
-                    await this.putFile('brain/missions.json', content, 'Update missions', existing.sha);
-                } catch (e) {
-                    await this.putFile('brain/missions.json', content, 'Create missions file');
-                }
+                throw new Error('Saving mission JSON files directly is disabled.');
             }
         };
 
@@ -805,36 +829,36 @@
         // AUTH
         // ============================================================
         async function connect() {
-            const pat = document.getElementById('auth-pat').value.trim();
+            const key = document.getElementById('auth-pat').value.trim();
             const repo = document.getElementById('auth-repo').value.trim();
-            if (!pat) { document.getElementById('auth-error').textContent = 'PAT required.';
-                document.getElementById('auth-error').style.display = 'block'; return; }
-            if (!repo) { document.getElementById('auth-error').textContent = 'Repository required.';
-                document.getElementById('auth-error').style.display = 'block'; return; }
+            const apiUrl = document.getElementById('auth-api-url').value.trim();
+            if (!key) { document.getElementById('auth-error').textContent = 'Brain control API key required.'; document.getElementById('auth-error').style.display = 'block'; return; }
+            if (!repo) { document.getElementById('auth-error').textContent = 'Repository required.'; document.getElementById('auth-error').style.display = 'block'; return; }
+            if (!apiUrl) { document.getElementById('auth-error').textContent = 'Brain API URL required.'; document.getElementById('auth-error').style.display = 'block'; return; }
 
-            GH.setToken(pat);
-            GH.setRepo(repo);
-
+            State.token = key;
+            State.repo = repo;
+            State.apiBaseUrl = apiUrl.replace(/\/+$/, '');
             try {
-                const user = await GH.getUser();
-                State.token = pat;
-                State.repo = repo;
-                State.user = user;
-                State.connected = true;
-                Store.set('pat', pat);
+                await BrainAPI.request('/missions?limit=1');
+                sessionStorage.setItem('brain_control_api_key', key);
+                localStorage.setItem('brain_api_base_url', State.apiBaseUrl);
                 Store.set('repo', repo);
-
+                State.user = { login: 'Brain API' };
+                State.connected = true;
                 document.getElementById('auth-gate').style.display = 'none';
                 document.getElementById('app').style.display = 'block';
                 document.getElementById('status-dot').className = 'dot online';
-                document.getElementById('status-label').textContent = `@${user.login}`;
-
+                document.getElementById('status-label').textContent = 'Brain API';
+                document.getElementById('settings-pat').value = key;
+                document.getElementById('settings-api-url').value = State.apiBaseUrl;
+                document.getElementById('settings-repo').value = repo;
                 await loadMissions();
                 await loadFiles();
                 await loadApprovals();
-
-                toast(`Connected as @${user.login}`, 'success');
+                toast('Connected to Brain API', 'success');
             } catch (e) {
+                State.token = '';
                 document.getElementById('auth-error').textContent = e.message;
                 document.getElementById('auth-error').style.display = 'block';
             }
@@ -844,7 +868,7 @@
             State.token = '';
             State.repo = '';
             State.connected = false;
-            Store.del('pat');
+            sessionStorage.removeItem('brain_control_api_key');
             Store.del('repo');
             document.getElementById('app').style.display = 'none';
             document.getElementById('auth-gate').style.display = 'flex';
@@ -880,11 +904,11 @@
             list.innerHTML = State.missions.map((m, i) => `
                 <div class="mission-item" data-index="${i}">
                     <div class="top">
-                        <span class="title">${m.title || 'Untitled'}</span>
-                        <span class="status-badge ${(m.status || 'pending').toLowerCase()}">${m.status || 'PENDING'}</span>
+                        <span class="title">${escapeHtml(m.title || 'Untitled')}</span>
+                        <span class="status-badge ${escapeHtml(String(m.status || 'pending').toLowerCase())}">${escapeHtml(m.status || 'PENDING')}</span>
                     </div>
                     <div class="meta">
-                        <span>${m.phase || 'INTAKE'}</span>
+                        <span>${escapeHtml(m.phase || 'INTAKE')}</span>
                         <span>${m.created_at ? new Date(m.created_at).toLocaleDateString() : ''}</span>
                         <span>Iteration: ${m.current_loop_iteration || 0}/${m.max_loop_iterations || 10}</span>
                     </div>
@@ -904,28 +928,18 @@
             const title = document.getElementById('mission-title').value.trim();
             const objective = document.getElementById('mission-objective').value.trim();
             if (!title || !objective) { toast('Title and objective required.', 'error'); return; }
-
-            const mission = {
-                id: 'mis_' + Date.now().toString(36),
-                title,
-                objective,
-                phase: 'INTAKE',
-                status: 'PENDING',
-                priority: 'MEDIUM',
-                risk_level: 'LOW',
-                current_loop_iteration: 0,
-                max_loop_iterations: 10,
-                approval_state: 'NOT_REQUIRED',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-            };
-
-            State.missions.unshift(mission);
-            await GH.saveMissions(State.missions);
-            renderMissions();
-            document.getElementById('mission-title').value = '';
-            document.getElementById('mission-objective').value = '';
-            toast('Mission created!', 'success');
+            try {
+                await BrainAPI.request('/missions', {
+                    method: 'POST',
+                    body: { title, objective, priority: 'MEDIUM', risk_level: 'LOW' }
+                });
+                await loadMissions();
+                document.getElementById('mission-title').value = '';
+                document.getElementById('mission-objective').value = '';
+                toast('Mission created in Brain.', 'success');
+            } catch (e) {
+                toast('Mission creation failed: ' + e.message, 'error');
+            }
         }
 
         // ============================================================
@@ -1024,13 +1038,12 @@
         // ============================================================
         async function loadApprovals() {
             try {
-                const file = await GH.getFile('brain/approvals.json');
-                const decoded = decodeURIComponent(escape(atob(file.content.replace(/\n/g, ''))));
-                State.approvals = JSON.parse(decoded);
+                State.approvals = await BrainAPI.request('/approvals?status_filter=PENDING&limit=100');
                 renderApprovals();
             } catch (e) {
                 State.approvals = [];
                 renderApprovals();
+                toast('Approval load failed: ' + e.message, 'error');
             }
         }
 
@@ -1049,10 +1062,10 @@
 
             list.innerHTML = pending.map((a, i) => `
                 <div class="approval-item" data-index="${i}">
-                    <div class="action">${a.action || 'Action required'}</div>
-                    <div class="reason">${a.reason || 'No reason provided'}</div>
+                    <div class="action">${escapeHtml(a.approval_type || 'Approval required')}</div>
+                    <div class="reason">${escapeHtml(a.reason || 'No reason provided')}</div>
                     <div class="actions">
-                        <button class="btn btn-success btn-sm approve-btn" data-id="${a.id || i}">Approve</button>
+                        <button class="btn btn-success btn-sm approve-btn" data-id="${escapeHtml(a.id || i)}">Approve</button>
                         <button class="btn btn-danger btn-sm reject-btn" data-id="${a.id || i}">Reject</button>
                     </div>
                 </div>
@@ -1067,18 +1080,13 @@
         }
 
         async function resolveApproval(id, approved) {
-            const idx = State.approvals.findIndex(a => a.id === id || String(a.id) === id);
-            if (idx === -1) return;
-            State.approvals[idx].status = approved ? 'APPROVED' : 'REJECTED';
-            State.approvals[idx].responded_at = new Date().toISOString();
-
             try {
-                const content = JSON.stringify(State.approvals, null, 2);
-                const existing = await GH.getFile('brain/approvals.json');
-                await GH.putFile('brain/approvals.json', content, `Approval ${approved ? 'approved' : 'rejected'}`, existing
-                    .sha);
-                renderApprovals();
-                toast(`Approval ${approved ? 'approved' : 'rejected'}`, 'success');
+                await BrainAPI.request('/approvals/' + encodeURIComponent(id) + '/respond', {
+                    method: 'POST',
+                    body: { approved, response_note: approved ? 'Approved in Brain mobile UI' : 'Rejected in Brain mobile UI' }
+                });
+                await loadApprovals();
+                toast('Approval ' + (approved ? 'approved' : 'rejected') + '.', 'success');
             } catch (e) {
                 toast('Failed to update approval: ' + e.message, 'error');
             }
@@ -1107,15 +1115,18 @@
 
         // Files
         document.getElementById('btn-refresh-files').addEventListener('click', () => loadFiles(State.currentPath));
-        document.getElementById('btn-save-file').addEventListener('click', saveFile);
+        document.getElementById('btn-save-file').disabled = true;
+        document.getElementById('btn-save-file').title = 'Direct GitHub writes are disabled; use Brain workflows.';
 
         // Settings
         document.getElementById('btn-update-settings').addEventListener('click', () => {
             const pat = document.getElementById('settings-pat').value.trim();
             const repo = document.getElementById('settings-repo').value.trim();
+            const apiUrl = document.getElementById('settings-api-url').value.trim();
             if (pat) { State.token = pat;
                 GH.setToken(pat);
-                Store.set('pat', pat); }
+                sessionStorage.setItem('brain_control_api_key', pat); }
+            if (apiUrl) { State.apiBaseUrl = apiUrl.replace(/\/+$/, ''); localStorage.setItem('brain_api_base_url', State.apiBaseUrl); }
             if (repo) { State.repo = repo;
                 GH.setRepo(repo);
                 Store.set('repo', repo); }
@@ -1126,6 +1137,7 @@
         // Auto-connect on load
         if (State.token && State.repo) {
             document.getElementById('auth-pat').value = State.token;
+            document.getElementById('auth-api-url').value = State.apiBaseUrl;
             document.getElementById('auth-repo').value = State.repo;
             connect();
         }
