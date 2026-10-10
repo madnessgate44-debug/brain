@@ -250,9 +250,6 @@ async def test_mission_is_preserved_in_report_and_markdown():
 
     assert report["mission"] == mission
     assert report["research_scope"]["source_code"] == "not audited; no third-party code executed"
-    markdown = render_markdown(report)
-    assert "[acme/browser]" in markdown
-    assert "[Browser Automation Engineer]" in markdown
     assert "Job-market sample status" in markdown
     assert "not independently investigated" not in markdown
     assert "bounded job-board sample" in markdown
@@ -302,3 +299,6 @@ async def test_agent_includes_public_source_evidence_without_claiming_code_audit
     assert report["evidence"]["repository_documentation_count"] == 1
     assert report["evidence"]["job_market"]["jobs"][0]["tags"] == ["Playwright", "Python"]
     assert report["research_scope"]["source_code"] == "not audited; no third-party code executed"
+    markdown = render_markdown(report)
+    assert "[acme/browser]" in markdown
+    assert "[Browser Automation Engineer]" in markdown
