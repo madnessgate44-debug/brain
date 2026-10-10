@@ -92,6 +92,31 @@ class MissionRepository:
             .where(MissionModel.id == mission_id)
             .values(status=status.value, updated_at=utc_now())
         )
+
+    async def try_start(
+        self,
+        mission_id: str,
+        runtime_id: str,
+        heartbeat: Optional[datetime] = None,
+    ) -> bool:
+        """Atomically transition a pending mission to running exactly once."""
+        heartbeat = heartbeat or utc_now()
+        result = await self.session.execute(
+            update(MissionModel)
+            .where(
+                MissionModel.id == mission_id,
+                MissionModel.status == MissionStatus.PENDING.value,
+            )
+            .values(
+                status=MissionStatus.RUNNING.value,
+                phase=MissionPhase.EXECUTE.value,
+                assigned_runtime_id=runtime_id,
+                last_heartbeat_at=heartbeat,
+                updated_at=heartbeat,
+            )
+        )
+        await self.session.flush()
+        return result.rowcount == 1
     
     async def increment_loop_iteration(self, mission_id: str) -> None:
         """Increment loop iteration count."""
