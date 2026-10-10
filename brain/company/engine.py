@@ -142,6 +142,8 @@ def _compact_repository_snapshot(
                 else []
             ),
             "model_context_omitted_paths": omitted_paths,
+            # Compatibility alias retained for existing diagnostic consumers.
+            "model_context_omitted_or_truncated_paths": omitted_paths,
             "model_context_char_limit": max_chars,
             "model_context_file_limit": max_files,
         },
