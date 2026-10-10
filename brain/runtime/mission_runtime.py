@@ -34,12 +34,14 @@ class MissionRuntime:
         session_factory: async_sessionmaker[AsyncSession],
         artifact_store: ArtifactStore,
         max_iterations: int = 10,
+        heartbeat_interval_seconds: float = 30.0,
     ):
         self.mission_id = mission_id
         self.runtime_id = runtime_id
         self.session_factory = session_factory
         self.artifact_store = artifact_store
         self.max_iterations = max_iterations
+        self.heartbeat_interval_seconds = max(0.1, float(heartbeat_interval_seconds))
         self._running = False
         self._task: Optional[asyncio.Task] = None
 
@@ -50,6 +52,7 @@ class MissionRuntime:
 
         self._running = True
         runtime_started_at = datetime.now(timezone.utc).isoformat()
+        heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         try:
             async with self.session_factory() as session:
                 mission_repo = MissionRepository(session)
@@ -84,6 +87,8 @@ class MissionRuntime:
                         severity=EventSeverity.INFO,
                         payload_json=json.dumps({"repository": repository}),
                     )
+                    # Release the SQLite write transaction before long external model/API calls.
+                    await session.commit()
                     gateway = GitHubRepositoryGateway()
                     tools = GitHubCompanyTools(gateway=gateway)
                     engine = CompanyWorkflowEngine(
@@ -199,6 +204,8 @@ class MissionRuntime:
                                 "requested_actions": len(actions) if isinstance(actions, list) else 0,
                             }),
                         )
+                        # Browser actions may take minutes; do not hold a SQLite write lock.
+                        await session.commit()
                         result = await BrowserWorker().execute(actions, owner_approved=owner_approved)
                         report_name = "browser-execution-report.json"
                         report_bytes = json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
@@ -470,6 +477,33 @@ class MissionRuntime:
                 logger.error("Unable to persist failure state and diagnostic references for mission %s", self.mission_id)
         finally:
             self._running = False
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+
+    async def _heartbeat_loop(self) -> None:
+        """Refresh this runtime's lease while its mission remains RUNNING."""
+        while True:
+            await asyncio.sleep(self.heartbeat_interval_seconds)
+            try:
+                async with self.session_factory() as heartbeat_session:
+                    updated = await MissionRepository(heartbeat_session).update_heartbeat_if_running(
+                        self.mission_id,
+                        self.runtime_id,
+                    )
+                    await heartbeat_session.commit()
+                if not updated:
+                    return
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning(
+                    "Heartbeat refresh failed for runtime %s (type=%s)",
+                    self.runtime_id,
+                    type(exc).__name__,
+                )
 
     def start(self) -> None:
         """Start the runtime task if it is not already active."""
