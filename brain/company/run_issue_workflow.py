@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from brain.company.diagnostics import write_failure_artifacts
+from brain.company.diagnostics import sanitize_diagnostic_value, write_failure_artifacts
 from brain.company.mission_capabilities import plan_capabilities
 
 from brain.company.agent_runner import SpecialistAgentRunner
