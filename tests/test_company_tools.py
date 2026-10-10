@@ -213,8 +213,8 @@ async def test_verification_runner_bootstrap_error_is_reported_as_terminal_failu
             if method == "GET" and path.endswith("/issues/43/comments"):
                 return [{
                     "body": (
-                        "## Brain remote test run\\n\\n"
-                        "**Result:** EXECUTION_ERROR\\n"
+                        "## Brain remote test run\n\n"
+                        "**Result:** EXECUTION_ERROR\n"
                         "Workflow run: https://github.com/owner/brain/actions/runs/124"
                     )
                 }]
