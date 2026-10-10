@@ -146,11 +146,10 @@ def request_from_issue() -> tuple[str, str, int]:
         raise RuntimeError("Missing /brain simulate command.")
     repository = os.environ.get("BRAIN_TARGET_REPOSITORY", "").strip()
     if not repository:
-        import re
         match = re.search(r"(?im)^repository:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
-        repository = match.group(1) if match else ""
-    if not repository or "/" not in repository:
-        raise RuntimeError("Add a repository: owner/name line to the issue body.")
+        repository = match.group(1) if match else os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise RuntimeError("Target repository must use owner/repository format.")
     if repository.split("/", 1)[0].casefold() != owner.casefold():
         raise RuntimeError("Target repository must belong to the Brain repository owner.")
     objective = body.split("/brain simulate", 1)[1].strip()
