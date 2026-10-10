@@ -1,5 +1,6 @@
 """End-to-end mission execution checks."""
 
+import json
 import time
 
 from fastapi.testclient import TestClient
@@ -44,7 +45,10 @@ def test_started_mission_persists_artifact_and_completion(monkeypatch):
         events = client.get(f"/missions/{mission_id}/events")
         assert events.status_code == 200
         event_types = {item["event_type"] for item in events.json()}
-        assert {"worker_started", "artifact_created", "mission_phase_changed"} <= event_types
+        assert {"mission_created", "mission_started", "worker_started", "artifact_created", "mission_phase_changed"} <= event_types
+        events_by_type = {item["event_type"]: item for item in events.json()}
+        assert json.loads(events_by_type["mission_created"]["payload_json"])["title"] == "Runtime verification"
+        assert json.loads(events_by_type["mission_started"]["payload_json"])["runtime_id"]
 
 
 def test_failed_mission_persists_detailed_diagnostic_artifacts(monkeypatch):
