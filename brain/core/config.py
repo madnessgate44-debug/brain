@@ -1,9 +1,9 @@
 """Configuration management."""
 
-from typing import Optional, List
+from typing import Annotated, Optional, List
 from pathlib import Path
 from pydantic import AliasChoices, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class SystemConfig(BaseSettings):
@@ -71,8 +71,16 @@ class RecoveryConfig(BaseSettings):
     """Recovery configuration."""
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="RECOVERY_", extra="ignore")
     auto_recover: bool = Field(default=True)
-    recoverable_phases: List[str] = Field(default=["EXECUTE", "VALIDATE", "REPAIR", "WAITING_FOR_APPROVAL"])
+    recoverable_phases: Annotated[List[str], NoDecode] = Field(default=["EXECUTE", "VALIDATE", "REPAIR", "WAITING_FOR_APPROVAL"])
     orphan_detection_grace_period_seconds: int = Field(default=300, gt=0)
+
+    @field_validator("recoverable_phases", mode="before")
+    @classmethod
+    def parse_recoverable_phases(cls, value):
+        """Accept the comma-separated format documented in .env.example."""
+        if isinstance(value, str):
+            return [phase.strip() for phase in value.split(",") if phase.strip()]
+        return value
 
 
 class ConcurrencyConfig(BaseSettings):
