@@ -17,7 +17,7 @@ jobs:
       github.event.issue.user.login == github.repository_owner &&
       contains(github.event.issue.body, '/brain simulate')
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       contents: write
       issues: write
@@ -50,11 +50,150 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e .
 
+      # GitHub's concurrency groups retain only one pending run. Use an atomic
+      # Git ref lease instead so distinct missions wait rather than run Gemini
+      # calls concurrently or silently replace one another in the pending slot.
+      - name: Acquire shared specialist workflow lock
+        id: mission_lock
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const lockRef = 'heads/brain-company-workflow-lock';
+            const lockFullRef = 'refs/' + lockRef;
+            const timeoutMs = 35 * 60 * 1000;
+            const staleMs = 95 * 60 * 1000;
+            const started = Date.now();
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+            async function readLock() {
+              const ref = await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: lockRef
+              });
+              const commit = await github.rest.git.getCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: ref.data.object.sha
+              });
+              const message = commit.data.message || '';
+              const match = message.match(/acquired_at=([^\s]+)/);
+              const date = match ? Date.parse(match[1]) : Date.parse(commit.data.committer?.date || '');
+              return { sha: ref.data.object.sha, message, acquiredAt: date };
+            }
+
+            while (Date.now() - started < timeoutMs) {
+              let existing = null;
+              try {
+                existing = await readLock();
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+
+              if (existing) {
+                if (Number.isFinite(existing.acquiredAt) && Date.now() - existing.acquiredAt > staleMs) {
+                  try {
+                    const currentRef = await github.rest.git.getRef({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      ref: lockRef
+                    });
+                    if (currentRef.data.object.sha !== existing.sha) {
+                      await sleep(1000);
+                      continue;
+                    }
+                    await github.rest.git.deleteRef({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      ref: lockRef
+                    });
+                    core.warning('Removed a stale specialist-workflow lease.');
+                    continue;
+                  } catch (error) {
+                    if (error.status !== 404) core.warning('Could not clear stale lease yet: ' + error.message);
+                  }
+                }
+                await sleep(10000);
+                continue;
+              }
+
+              const mainRef = await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'heads/main'
+              });
+              const parentSha = mainRef.data.object.sha;
+              const parent = await github.rest.git.getCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: parentSha
+              });
+              const acquiredAt = new Date().toISOString();
+              const leaseCommit = await github.rest.git.createCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                message: 'Brain company workflow lease run=' + context.runId + ' acquired_at=' + acquiredAt,
+                tree: parent.data.tree.sha,
+                parents: [parentSha]
+              });
+
+              try {
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: lockFullRef,
+                  sha: leaseCommit.data.sha
+                });
+                core.setOutput('acquired', 'true');
+                core.setOutput('lock_sha', leaseCommit.data.sha);
+                core.info('Acquired shared specialist-workflow lease for run ' + context.runId + '.');
+                return;
+              } catch (error) {
+                if (error.status !== 422 && error.status !== 409) throw error;
+                // Another runner won the create-ref race. Retry after observing its lease.
+                await sleep(10000);
+              }
+            }
+
+            throw new Error('Timed out waiting for the shared specialist-workflow lease after 35 minutes. No specialist mission was started.');
+
       - name: Run Brain's specialist workflow
         id: run
         env:
           GITHUB_EVENT_PATH: ${{ github.event_path }}
         run: python -m brain.company.run_issue_workflow
+
+      - name: Release shared specialist workflow lock
+        if: always() && steps.mission_lock.outputs.acquired == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const lockRef = 'heads/brain-company-workflow-lock';
+            try {
+              const ref = await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: lockRef
+              });
+              const commit = await github.rest.git.getCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: ref.data.object.sha
+              });
+              if ((commit.data.message || '').includes('run=' + context.runId)) {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: lockRef
+                });
+                core.info('Released shared specialist-workflow lease.');
+              } else {
+                core.warning('Lease now belongs to another run; leaving it intact.');
+              }
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              core.info('Shared specialist-workflow lease was already cleared.');
+            }
 
       - name: Ensure failure diagnostics exist
         if: always()
@@ -62,6 +201,7 @@ jobs:
           CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
           SETUP_PYTHON_OUTCOME: ${{ steps.setup_python.outcome }}
           INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          LOCK_OUTCOME: ${{ steps.mission_lock.outcome }}
           RUN_OUTCOME: ${{ steps.run.outcome }}
         shell: bash
         run: |
@@ -76,7 +216,7 @@ jobs:
                   'status': 'FAILED',
                   'failure': {
                       'type': 'WorkflowBootstrapFailure',
-                      'message': 'Brain did not produce its own execution report; a workflow bootstrap or reporting stage failed.',
+                      'message': 'Brain did not produce its own execution report; a workflow bootstrap, lease, or reporting stage failed.',
                       'traceback': None,
                       'probable_location': 'GitHub Actions workflow step before or around Python mission execution',
                   },
@@ -94,6 +234,7 @@ jobs:
                       'checkout': os.environ.get('CHECKOUT_OUTCOME'),
                       'setup_python': os.environ.get('SETUP_PYTHON_OUTCOME'),
                       'install': os.environ.get('INSTALL_OUTCOME'),
+                      'lease': os.environ.get('LOCK_OUTCOME'),
                       'mission_runner': os.environ.get('RUN_OUTCOME'),
                   },
                   'impact': {'success_claimed': False, 'repository_mutation_status': 'UNKNOWN; inspect job logs', 'tests_status': 'UNKNOWN; mission runner may not have started'},
