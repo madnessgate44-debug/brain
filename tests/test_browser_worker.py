@@ -25,6 +25,13 @@ class FakeLocator:
     async def inner_text(self):
         return "Example page content"
 
+    async def evaluate_all(self, script):
+        return [
+            {"href": "https://example.com/docs", "text": "Documentation"},
+            {"href": "https://example.com/docs", "text": "Duplicate"},
+            {"href": "https://private.invalid/admin", "text": "Blocked"},
+        ]
+
     async def click(self, **kwargs):
         if self.selector == "button#missing":
             raise RuntimeError("selector not found")
@@ -78,6 +85,7 @@ def test_expanded_browser_action_validation():
         {"op": "go_back"},
         {"op": "go_forward"},
         {"op": "reload"},
+        {"op": "extract_links"},
     ]
     assert len(validate_browser_actions(actions)) == 6
     with pytest.raises(BrowserPolicyError, match="scroll"):
@@ -201,3 +209,18 @@ async def test_worker_stops_after_first_action_failure(monkeypatch):
     assert result["status"] == "failed"
     assert result["completed_actions"] == 1
     assert len(result["results"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_worker_extracts_deduplicated_public_links(monkeypatch):
+    page = FakePage()
+    page.url = "https://example.com/"
+    worker = BrowserWorker(allowed_domains=["example.com"], page_session_factory=fake_session_factory(page))
+    monkeypatch.setattr(
+        "brain.runtime.workers.browser_worker.is_allowed_url",
+        lambda url, domains: url.startswith("https://example.com/"),
+    )
+    result = await worker.execute([{"op": "extract_links"}])
+    assert result["status"] == "succeeded"
+    links = result["results"][0]["result"]["links"]
+    assert links == [{"url": "https://example.com/docs", "text": "Documentation"}]
