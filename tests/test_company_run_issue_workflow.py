@@ -358,7 +358,7 @@ async def test_run_persists_checkpoint_before_later_stage_failure(monkeypatch, t
     event_path.write_text(json.dumps({
         "issue": {
             "number": 999,
-            "body": "/brain simulate\nrepository: madnessgate44-debug/brain\n\nImplement a small feature.",
+            "body": "/brain simulate\nrepository: madnessgate44-debug/brain\n\nImplement new feature and add tests.",
             "user": {"login": "madnessgate44-debug"},
         }
     }), encoding="utf-8")
