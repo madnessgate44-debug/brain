@@ -140,7 +140,6 @@ class OpenAICompatibleProvider:
                     json={
                         "systemInstruction": {"parts": [{"text": system_prompt}]},
                         "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-                        "generationConfig": {"temperature": 0.1},
                     },
                 )
             except httpx.TransportError:
@@ -187,14 +186,21 @@ class OpenAICompatibleProvider:
             raise ProviderConfigurationError(
                 "BRAIN_AI_MODEL is not configured; no agent was executed."
             )
+        is_google_compat = (
+            urlparse(self.base_url).hostname == "generativelanguage.googleapis.com"
+            and urlparse(self.base_url).path.endswith("/openai")
+        )
         payload: dict[str, Any] = {
             "model": self.model,
-            "temperature": 0.1,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
         }
+        # Gemini 3.x recommends omitting legacy sampling parameters. Keep the
+        # deterministic temperature only for non-Google OpenAI-compatible providers.
+        if not is_google_compat:
+            payload["temperature"] = 0.1
         client = self._client
         owns_client = client is None
         if owns_client:
@@ -217,10 +223,6 @@ class OpenAICompatibleProvider:
                     await asyncio.sleep(2 ** attempt)
                     continue
 
-                is_google_compat = (
-                    urlparse(self.base_url).hostname == "generativelanguage.googleapis.com"
-                    and urlparse(self.base_url).path.endswith("/openai")
-                )
                 # A Google 429 commonly indicates project/model quota exhaustion.
                 # Switch once to the native endpoint instead of spending two more
                 # compatibility requests on the same exhausted quota.
