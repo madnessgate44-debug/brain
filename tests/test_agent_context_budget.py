@@ -206,3 +206,32 @@ async def test_reviewer_blocks_when_github_omits_a_changed_file_patch():
         await SpecialistAgentRunner(NeverCalledProvider()).run(
             "code_reviewer", "Review this change", evidence
         )
+
+
+
+def test_explicit_file_omitted_outside_bounded_file_index_is_reported_as_missing():
+    files = [{"path": f"src/file_{index}.py", "size": 10} for index in range(301)]
+    evidence = {
+        "file_plan": ["src/late.py"],
+        "repository_snapshot": {
+            "repository": "owner/repository",
+            "default_branch": "main",
+            "base_commit": "abc123",
+            "files": files,
+            "source_contents": {},
+            "source_manifest": {
+                "candidate_count": 302,
+                "read_count": 302,
+                "coverage_complete": True,
+                "model_context_omitted_paths": ["src/late.py"],
+            },
+        },
+    }
+
+    prepared = _prepare_prompt_evidence(
+        "developer",
+        "Edit src/late.py and preserve its complete original contents.",
+        evidence,
+    )
+
+    assert "src/late.py" in prepared["repository_snapshot"]["source_selection"]["omitted_explicit_paths"]
