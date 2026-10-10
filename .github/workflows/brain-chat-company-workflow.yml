@@ -22,6 +22,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      actions: write
     env:
       BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
       BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
@@ -195,6 +196,87 @@ jobs:
               core.info('Shared specialist-workflow lease was already cleared.');
             }
 
+      - name: Dispatch and verify post-PR checks
+        id: post_pr_verification
+        if: success()
+        uses: actions/github-script@v7
+        timeout-minutes: 25
+        with:
+          script: |
+            const fs = require('fs');
+            const resultPath = 'brain-company-result.json';
+            const markdownPath = 'brain-company-result.md';
+            if (!fs.existsSync(resultPath)) {
+              core.warning('No company workflow result JSON; post-PR verification was not dispatched.');
+              return;
+            }
+            const result = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+            const branch = result.branch;
+            const prUrl = result.pull_request && result.pull_request.url;
+            const prMatch = typeof prUrl === 'string' ? prUrl.match(/\\/pull\\/(\\d+)/) : null;
+            const prNumber = prMatch ? Number(prMatch[1]) : null;
+            if (result.status !== 'READY_FOR_HUMAN_APPROVAL' || !branch || !prNumber) {
+              core.info('No successfully created review PR; skipping post-PR verification.');
+              return;
+            }
+            const workflowIds = ['brain-ci.yml', 'tests.yml', 'browser-runtime-smoke.yml'];
+            const dispatchStartedAt = {};
+            const outcomes = [];
+            for (const workflowId of workflowIds) {
+              dispatchStartedAt[workflowId] = Date.now() - 5000;
+              try {
+                await github.rest.actions.createWorkflowDispatch({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: workflowId,
+                  ref: branch
+                });
+                core.info('Dispatched ' + workflowId + ' for ' + branch + '.');
+              } catch (error) {
+                outcomes.push({workflow: workflowId, status: 'DISPATCH_FAILED', conclusion: null, url: null, error: String(error.message || error).slice(0, 500)});
+              }
+            }
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+            for (const workflowId of workflowIds) {
+              if (outcomes.some(item => item.workflow === workflowId)) continue;
+              const deadline = Date.now() + 8 * 60 * 1000;
+              let completed = null;
+              while (Date.now() < deadline) {
+                const response = await github.rest.actions.listWorkflowRuns({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: workflowId,
+                  branch,
+                  event: 'workflow_dispatch',
+                  per_page: 20
+                });
+                const candidates = response.data.workflow_runs.filter(item =>
+                  item.head_branch === branch && Date.parse(item.created_at) >= dispatchStartedAt[workflowId]
+                ).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+                const run = candidates[0];
+                if (run && run.status === 'completed') { completed = run; break; }
+                await sleep(10000);
+              }
+              outcomes.push(completed
+                ? {workflow: workflowId, status: completed.conclusion === 'success' ? 'PASS' : 'FAIL', conclusion: completed.conclusion, url: completed.html_url, run_id: completed.id}
+                : {workflow: workflowId, status: 'TIMEOUT', conclusion: null, url: null});
+            }
+            const passed = outcomes.length === workflowIds.length && outcomes.every(item => item.status === 'PASS');
+            result.post_pr_verification = {status: passed ? 'PASS' : 'FAIL', workflows: outcomes, verified_branch: branch};
+            if (!passed) {
+              result.status = 'POST_PR_VERIFICATION_FAILED';
+              result.next_action = 'Do not merge this PR. Inspect the post-PR verification outcomes, fix the failing check, and rerun verification.';
+            }
+            fs.writeFileSync(resultPath, JSON.stringify(result, null, 2) + '\\n', 'utf8');
+            let report = fs.existsSync(markdownPath) ? fs.readFileSync(markdownPath, 'utf8') : '# Brain company workflow result\\n';
+            if (!passed) report = report.replace('- Status: **READY_FOR_HUMAN_APPROVAL**', '- Status: **POST_PR_VERIFICATION_FAILED**');
+            report += '\\n## Post-PR verification\\n\\n- Status: **' + (passed ? 'PASS' : 'FAIL') + '**\\n';
+            for (const item of outcomes) report += '- ' + item.workflow + ': **' + item.status + '**' + (item.url ? ' — ' + item.url : '') + (item.error ? ' — ' + item.error : '') + '\\n';
+            report += '\\nNative pull_request event checks may remain action_required when the PR is created by GITHUB_TOKEN. The results above are explicit workflow_dispatch runs against the exact PR branch.\\n';
+            fs.writeFileSync(markdownPath, report, 'utf8');
+            const comment = ['## Brain post-PR verification: ' + (passed ? 'PASS' : 'FAIL'), '', 'Branch: `' + branch + '`', '', ...outcomes.map(item => '- ' + item.workflow + ': **' + item.status + '**' + (item.url ? ' — ' + item.url : '') + (item.error ? ' — ' + item.error : '')), '', 'These checks were explicitly dispatched against the PR branch. Native pull_request event runs may remain `action_required` because Brain created the PR using `GITHUB_TOKEN`.'].join('\\n');
+            await github.rest.issues.createComment({owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber, body: comment});
+            if (!passed) core.setFailed('One or more explicit post-PR verification workflows failed or timed out.');
       - name: Ensure failure diagnostics exist
         if: always()
         env:
