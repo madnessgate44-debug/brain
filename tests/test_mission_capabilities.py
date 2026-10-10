@@ -31,3 +31,19 @@ Hard constraints:
     plan = plan_capabilities(objective)
     assert plan.mode == "read_only"
     assert "repository:write" not in plan.required_capabilities
+
+
+def test_audit_mentions_of_build_and_commit_are_not_mutation_intent():
+    objective = """Perform a READ-ONLY audit and report findings only.
+Audit test/build/lint coverage and include the repository/branch/commit examined.
+- Do NOT edit, create, delete, commit, or push files in the target repository.
+- Do NOT create a branch or pull request.
+"""
+    plan = plan_capabilities(objective)
+    assert plan.mode == "read_only"
+
+
+def test_positive_change_request_still_requires_write_capability():
+    plan = plan_capabilities("Inspect the repository and fix the identified defects.")
+    assert plan.mode == "mutating"
+    assert "repository:write" in plan.required_capabilities
