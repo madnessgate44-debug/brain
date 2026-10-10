@@ -19,9 +19,7 @@ jobs:
     permissions:
       contents: read
     env:
-      BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
-      BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
-      BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
+      BRAIN_RD_ENABLE_MODEL_ASSESSMENT: ${{ vars.BRAIN_RD_ENABLE_MODEL_ASSESSMENT || 'false' }}
     steps:
       - name: Check out Brain
         uses: actions/checkout@v4
@@ -39,6 +37,9 @@ jobs:
       - name: Run bounded R&D discovery
         env:
           BRAIN_RD_GITHUB_TOKEN: ${{ secrets.BRAIN_RD_GITHUB_TOKEN }}
+          BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
+          BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
+          BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
         run: python -m brain.research.cli --max-candidates 30 --output-dir .
       - name: Add shortlist to workflow summary
         if: always()
