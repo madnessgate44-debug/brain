@@ -144,7 +144,7 @@ class GitHubRepositoryGateway:
             or path.startswith("/")
             or "\\" in path
             or any(part in {"", ".", ".."} for part in path.split("/"))
-            or path.startswith(".git/")
+            or any(part.casefold() == ".git" for part in path.split("/"))
         ):
             raise GitHubGatewayError(f"Unsafe repository path: {path!r}")
 
