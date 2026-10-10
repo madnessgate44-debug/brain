@@ -206,6 +206,9 @@ def _prepare_prompt_evidence(
 
     actual_diff = prepared.get("actual_diff")
     if isinstance(actual_diff, str):
+        if "[Patch omitted by GitHub; inspect file content.]" in actual_diff:
+            prepared["diff_review_blocked"] = True
+            prepared["diff_incomplete_reason"] = "GitHub omitted one or more changed-file patches"
         prepared["actual_diff_truncated"] = False
         prepared["actual_diff_original_chars"] = len(actual_diff)
         limit = _REVIEW_DIFF_BUDGET_CHARS if role_key == "code_reviewer" else _OTHER_DIFF_BUDGET_CHARS
@@ -341,6 +344,22 @@ class SpecialistAgentRunner:
             + role_contract
         )
         prompt_evidence = _prepare_prompt_evidence(role_key, user_request, evidence)
+        gated_roles = {
+            "code_reviewer", "qa_engineer", "security_auditor",
+            "customer_advocate", "release_manager",
+        }
+        if role_key in gated_roles and (
+            prompt_evidence.get("diff_review_blocked") is True
+            or prompt_evidence.get("actual_diff_truncated") is True
+        ):
+            reason = prompt_evidence.get(
+                "diff_incomplete_reason",
+                "the complete actual diff exceeds this role's review context budget",
+            )
+            raise AgentOutputError(
+                f"{role_key} blocked: complete change evidence is unavailable ({reason}); "
+                "no approval decision was requested from the model."
+            )
         if role_key == "developer":
             snapshot = prompt_evidence.get("repository_snapshot", {})
             selection = snapshot.get("source_selection", {}) if isinstance(snapshot, dict) else {}
