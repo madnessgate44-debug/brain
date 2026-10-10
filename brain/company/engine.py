@@ -369,6 +369,18 @@ class CompanyWorkflowEngine:
                     "Reviewer repair returned an invalid change set: "
                     + "; ".join(repair_errors)
                 )
+            prior_changed_paths = set(evidence.get("changed_files", []))
+            revised_paths = {
+                item["path"]
+                for item in revised_change_set.get("files", [])
+                if isinstance(item, dict) and isinstance(item.get("path"), str)
+            }
+            dropped_paths = sorted(prior_changed_paths - revised_paths)
+            if dropped_paths:
+                raise CompanyWorkflowBlocked(
+                    "Reviewer repair omitted previously changed files; refusing to lose "
+                    "prior implementation: " + ", ".join(dropped_paths[:20])
+                )
             applied = await self.tools.apply_change_set(
                 revised_change_set,
                 repository,
