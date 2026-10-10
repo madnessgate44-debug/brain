@@ -241,15 +241,14 @@ def test_explicit_file_omitted_outside_bounded_file_index_is_reported_as_missing
 def test_explicit_large_file_is_reported_when_source_selector_omits_it():
     huge_content = "x" * 70_000
     files = [{"path": f"src/file_{index}.py", "size": 10} for index in range(301)]
-    files[0] = {"path": "src/large.py", "size": len(huge_content)}
     evidence = {
-        "file_plan": ["src/large.py"],
+        "file_plan": ["src/late_large.py"],
         "repository_snapshot": {
             "repository": "owner/repository",
             "default_branch": "main",
             "base_commit": "abc123",
             "files": files,
-            "source_contents": {"src/large.py": huge_content},
+            "source_contents": {"src/late_large.py": huge_content},
             "source_manifest": {
                 "candidate_count": 301,
                 "read_count": 301,
@@ -261,8 +260,8 @@ def test_explicit_large_file_is_reported_when_source_selector_omits_it():
 
     prepared = _prepare_prompt_evidence(
         "developer",
-        "Edit src/large.py using its complete original contents.",
+        "Edit src/late_large.py using its complete original contents.",
         evidence,
     )
 
-    assert "src/large.py" in prepared["repository_snapshot"]["source_selection"]["omitted_explicit_paths"]
+    assert "src/late_large.py" in prepared["repository_snapshot"]["source_selection"]["omitted_explicit_paths"]
