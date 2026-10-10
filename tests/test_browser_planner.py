@@ -61,7 +61,7 @@ async def test_planner_rejects_empty_objective_before_provider_call():
 
 
 @pytest.mark.asyncio
-async def test_planner_marks_screenshot_and_scroll_as_requiring_owner_approval():
+async def test_planner_does_not_require_approval_for_non_mutating_browser_actions():
     provider = FakeProvider(json.dumps({
         "title": "Inspect page visually",
         "objective": "Capture and inspect the page",
@@ -76,5 +76,5 @@ async def test_planner_marks_screenshot_and_scroll_as_requiring_owner_approval()
         "Open https://example.com, capture a screenshot, then scroll down"
     )
 
-    assert plan["requires_owner_approval"] is True
+    assert plan["requires_owner_approval"] is False
     assert plan["execution_started"] is False
