@@ -163,8 +163,14 @@ def _prepare_prompt_evidence(
                 "selected_chars": sum(len(content) for content in selected.values()),
                 "budget_chars": budget,
                 "omitted_explicit_paths": sorted(
-                    path for path in explicit_context_paths
-                    if path in source_contents and path not in selected
+                    path
+                    for path in explicit_context_paths
+                    if path in {
+                        item.get("path")
+                        for item in files
+                        if isinstance(item, dict) and isinstance(item.get("path"), str)
+                    }
+                    and path not in selected
                 ),
                 "note": "Only complete files selected by task relevance are supplied; use the manifest to identify omitted context.",
             }
