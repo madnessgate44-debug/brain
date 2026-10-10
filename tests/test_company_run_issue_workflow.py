@@ -275,3 +275,150 @@ def test_build_audit_source_chunks_marks_truncated_long_lines():
     )
 
     assert "[LINE TRUNCATED FOR PROMPT SIZE]" in chunks[0]["text"]
+
+
+
+def _set_issue_event(monkeypatch, tmp_path, body, *, actor="madnessgate44-debug", number=120):
+    import json
+
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps({
+            "issue": {
+                "number": number,
+                "body": body,
+                "user": {"login": actor},
+            }
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    monkeypatch.delenv("BRAIN_TARGET_REPOSITORY", raising=False)
+
+
+def test_issue_parser_defaults_target_and_excludes_other_brain_commands(monkeypatch, tmp_path):
+    _set_issue_event(
+        monkeypatch,
+        tmp_path,
+        "## Commands\n/brain simulate\n/brain test\n\n"
+        "## Mission\nAudit orchestration and report verified blockers.",
+    )
+
+    repository, objective, issue_number = workflow.request_from_issue()
+
+    assert repository == "madnessgate44-debug/brain"
+    assert issue_number == 120
+    assert "Audit orchestration and report verified blockers." in objective
+    assert "/brain test" not in objective
+
+
+def test_issue_parser_accepts_explicit_same_owner_repository(monkeypatch, tmp_path):
+    _set_issue_event(
+        monkeypatch,
+        tmp_path,
+        "/brain simulate\nrepository: madnessgate44-debug/Amina\n\nAudit the repo.",
+    )
+
+    repository, objective, _ = workflow.request_from_issue()
+
+    assert repository == "madnessgate44-debug/Amina"
+    assert "repository:" not in objective
+    assert "Audit the repo." in objective
+
+
+def test_issue_parser_rejects_cross_owner_repository(monkeypatch, tmp_path):
+    _set_issue_event(
+        monkeypatch,
+        tmp_path,
+        "/brain simulate\nrepository: other-owner/project\n\nAudit the repo.",
+    )
+
+    with pytest.raises(RuntimeError, match="must belong to the Brain repository owner"):
+        workflow.request_from_issue()
+
+
+def test_issue_parser_rejects_non_owner_issue(monkeypatch, tmp_path):
+    _set_issue_event(
+        monkeypatch,
+        tmp_path,
+        "/brain simulate\nAudit the repo.",
+        actor="untrusted-user",
+    )
+
+    with pytest.raises(RuntimeError, match="Only an issue opened by the repository owner"):
+        workflow.request_from_issue()
+
+
+@pytest.mark.asyncio
+async def test_run_persists_checkpoint_before_later_stage_failure(monkeypatch, tmp_path):
+    import json
+
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps({
+        "issue": {
+            "number": 999,
+            "body": "/brain simulate\nrepository: madnessgate44-debug/brain\n\nImplement new feature and add tests.",
+            "user": {"login": "madnessgate44-debug"},
+        }
+    }), encoding="utf-8")
+    checkpoint_path = tmp_path / "checkpoint.json"
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    monkeypatch.setenv("BRAIN_COMPANY_CHECKPOINT_PATH", str(checkpoint_path))
+    monkeypatch.setenv("BRAIN_AI_API_KEY", "fixture-provider-value")
+    monkeypatch.setenv("BRAIN_GITHUB_OWNER", "madnessgate44-debug")
+    monkeypatch.setenv("BRAIN_GITHUB_TOKEN", "fixture-github-value")
+    monkeypatch.setenv("BRAIN_GITHUB_ACTIONS_TOKEN", "fixture-actions-value")
+    monkeypatch.setenv("BRAIN_CONTROL_REPOSITORY", "madnessgate44-debug/brain")
+
+    class FakeProvider:
+        def __init__(self, **kwargs):
+            pass
+
+    class FakeTools:
+        def __init__(self, **kwargs):
+            pass
+
+    class FakeAgentRunner:
+        def __init__(self, provider):
+            pass
+
+    class CrashingEngine:
+        def __init__(self, agent_runner, tools, checkpoint_callback=None):
+            self.checkpoint_callback = checkpoint_callback
+
+        async def run(self, **kwargs):
+            self.checkpoint_callback({
+                "stage": "architect_completed",
+                "completed_roles": ["product_owner", "architect"],
+                "role_outputs": {"architect": {"status": "PASS", "notes": "fixture"}},
+                "timeline": [{"role": "architect", "status": "PASS"}],
+                "repository": "madnessgate44-debug/brain",
+                "branch": "brain/test-checkpoint",
+                "changed_files": [],
+                "test_evidence": None,
+            })
+            raise RuntimeError("simulated downstream stage failure")
+
+    async def fake_collect(objective, events):
+        return {"status": "completed", "pages_fetched": 1, "sources": []}
+
+    async def fake_build_gateway(**kwargs):
+        return FakeGateway(token="fixture-github-value", allowed_owner="madnessgate44-debug")
+
+    monkeypatch.setattr(workflow, "OpenAICompatibleProvider", FakeProvider)
+    monkeypatch.setattr(workflow, "SpecialistAgentRunner", FakeAgentRunner)
+    monkeypatch.setattr(workflow, "CompanyWorkflowEngine", CrashingEngine)
+    monkeypatch.setattr(workflow, "GitHubCompanyTools", FakeTools)
+    monkeypatch.setattr(workflow, "collect_shared_public_web_evidence", fake_collect)
+    monkeypatch.setattr(workflow, "build_gateway", fake_build_gateway)
+
+    with pytest.raises(RuntimeError, match="simulated downstream stage failure"):
+        await workflow.run(events=[])
+
+    assert checkpoint_path.exists()
+    saved = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert saved["issue_number"] == 999
+    assert saved["checkpoint"]["stage"] == "architect_completed"
+    assert "architect" in saved["checkpoint"]["completed_roles"]
