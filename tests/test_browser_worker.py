@@ -25,6 +25,13 @@ class FakeLocator:
     async def inner_text(self):
         return "Example page content"
 
+    async def evaluate_all(self, script):
+        return [
+            {"href": "https://example.com/docs", "text": "Documentation"},
+            {"href": "https://example.com/docs", "text": "Duplicate"},
+            {"href": "https://private.invalid/admin", "text": "Blocked"},
+        ]
+
     async def click(self, **kwargs):
         if self.selector == "button#missing":
             raise RuntimeError("selector not found")
@@ -43,10 +50,29 @@ class FakeLocator:
         self.page.actions.append(("wait_for", self.selector, kwargs.get("state")))
 
 
-class FakePage:
+class FakeContext:
     def __init__(self):
+        self.pages = []
+
+    async def new_page(self):
+        page = FakePage(context=self)
+        self.pages.append(page)
+        return page
+
+
+class FakePage:
+    def __init__(self, context=None):
         self.url = "about:blank"
         self.actions = []
+        self.context = context or FakeContext()
+        if context is None:
+            self.context.pages.append(self)
+
+    def set_default_timeout(self, timeout):
+        self.default_timeout = timeout
+
+    async def close(self):
+        self.context.pages.remove(self)
 
     async def goto(self, url, **kwargs):
         self.url = url
@@ -78,12 +104,21 @@ def test_expanded_browser_action_validation():
         {"op": "go_back"},
         {"op": "go_forward"},
         {"op": "reload"},
+        {"op": "extract_links"},
     ]
-    assert len(validate_browser_actions(actions)) == 6
+    assert len(validate_browser_actions(actions)) == 7
     with pytest.raises(BrowserPolicyError, match="scroll"):
         validate_browser_actions([{"op": "scroll", "direction": "diagonal"}])
     with pytest.raises(BrowserPolicyError, match="select value"):
         validate_browser_actions([{"op": "select", "selector": "#country", "value": 123}])
+
+
+def test_tab_action_validation_requires_a_non_negative_integer_index():
+    assert len(validate_browser_actions([{"op": "new_tab"}, {"op": "list_tabs"}, {"op": "close_tab"}])) == 3
+    with pytest.raises(BrowserPolicyError, match="tab index"):
+        validate_browser_actions([{"op": "switch_tab", "index": -1}])
+    with pytest.raises(BrowserPolicyError, match="tab index"):
+        validate_browser_actions([{"op": "switch_tab", "index": True}])
 
 
 def test_action_validation_rejects_unknown_and_oversized_sequences():
@@ -201,3 +236,48 @@ async def test_worker_stops_after_first_action_failure(monkeypatch):
     assert result["status"] == "failed"
     assert result["completed_actions"] == 1
     assert len(result["results"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_worker_manages_tabs_and_prevents_closing_final_tab(monkeypatch):
+    page = FakePage()
+    worker = BrowserWorker(
+        allowed_domains=["example.com"],
+        page_session_factory=fake_session_factory(page),
+    )
+    monkeypatch.setattr(
+        "brain.runtime.workers.browser_worker.is_allowed_url",
+        lambda url, domains: url == "https://example.com/",
+    )
+    result = await worker.execute([
+        {"op": "new_tab"},
+        {"op": "navigate", "url": "https://example.com/"},
+        {"op": "list_tabs"},
+        {"op": "switch_tab", "index": 0},
+        {"op": "close_tab"},
+        {"op": "list_tabs"},
+    ])
+    assert result["status"] == "succeeded"
+    assert result["results"][0]["result"]["index"] == 1
+    assert result["results"][2]["result"]["count"] == 2
+    assert result["results"][4]["result"]["url"] == "https://example.com/"
+    assert result["results"][5]["result"]["count"] == 1
+
+    final_tab_result = await worker.execute([{"op": "close_tab"}])
+    assert final_tab_result["status"] == "failed"
+    assert "final browser tab" in final_tab_result["results"][0]["message"]
+
+
+@pytest.mark.asyncio
+async def test_worker_extracts_deduplicated_public_links(monkeypatch):
+    page = FakePage()
+    page.url = "https://example.com/"
+    worker = BrowserWorker(allowed_domains=["example.com"], page_session_factory=fake_session_factory(page))
+    monkeypatch.setattr(
+        "brain.runtime.workers.browser_worker.is_allowed_url",
+        lambda url, domains: url.startswith("https://example.com/"),
+    )
+    result = await worker.execute([{"op": "extract_links"}])
+    assert result["status"] == "succeeded"
+    links = result["results"][0]["result"]["links"]
+    assert links == [{"url": "https://example.com/docs", "text": "Documentation"}]

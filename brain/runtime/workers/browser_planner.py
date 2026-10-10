@@ -23,6 +23,7 @@ Return ONLY one JSON object with exactly this shape:
 Supported actions and schemas:
 - {"op":"navigate","url":"https://public-host/path"}
 - {"op":"inspect","max_chars":3000}
+- {"op":"extract_links","max_chars":3000}
 - {"op":"click","selector":"CSS selector"}
 - {"op":"type","selector":"CSS selector","text":"text to enter","clear":true}
 - {"op":"press","selector":"CSS selector","key":"Enter"}
@@ -32,6 +33,7 @@ Supported actions and schemas:
 - {"op":"select","selector":"select CSS selector","value":"option value"}
 - {"op":"scroll","direction":"down","amount":600}
 - {"op":"go_back"}, {"op":"go_forward"}, or {"op":"reload"}
+- {"op":"new_tab"}, {"op":"list_tabs"}, {"op":"switch_tab","index":0}, or {"op":"close_tab"}
 Rules:
 - 1 to 25 actions only.
 - Start by navigating to a URL explicitly provided by the user. If no URL is given,
@@ -98,7 +100,7 @@ class BrowserPlanner:
             "objective": normalized_objective.strip(),
             "actions": actions,
             "requires_owner_approval": any(
-                action["op"] in {"click", "type", "press"} for action in actions
+                action["op"] in {"click", "type", "press", "select"} for action in actions
             ),
             "execution_started": False,
         }
