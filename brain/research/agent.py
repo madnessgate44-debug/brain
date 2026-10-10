@@ -339,7 +339,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             continue
         repo_name = str(item.get("repository", "unknown")).replace("[", "\\[").replace("]", "\\]")
         source_url = str(item.get("source_url", ""))
-        excerpt = str(item.get("excerpt", "")).replace("\\n", " ")[:700]
+        excerpt = " ".join(str(item.get("excerpt", "")).replace("\\n", " ").split())[:700]
         for char in ("\\", "`", "*", "_", "[", "]"):
             excerpt = excerpt.replace(char, "\\" + char)
         lines.extend([
@@ -371,7 +371,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         title = str(job.get("title", "Job listing")).replace("[", "\\[").replace("]", "\\]")
         url = str(job.get("url", ""))
         tags = ", ".join(str(tag)[:80] for tag in job.get("tags", [])[:12])
-        excerpt = str(job.get("description_excerpt", "")).replace("\\n", " ")[:500]
+        excerpt = " ".join(str(job.get("description_excerpt", "")).replace("\\n", " ").split())[:500]
         for char in ("\\", "`", "*", "_", "[", "]"):
             excerpt = excerpt.replace(char, "\\" + char)
         lines.extend([
