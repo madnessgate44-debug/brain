@@ -59,6 +59,18 @@ class ApprovalRepository:
         result = await self.session.execute(query)
         return result.scalars().all()
     
+    async def list_all(
+        self,
+        status_filter: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[ApprovalModel]:
+        """List recent approvals, optionally filtered by status."""
+        query = select(ApprovalModel).order_by(ApprovalModel.requested_at.desc()).limit(limit)
+        if status_filter:
+            query = query.where(ApprovalModel.status == status_filter)
+        result = await self.session.execute(query)
+        return result.scalars().all()
+
     async def respond(
         self,
         approval_id: str,
