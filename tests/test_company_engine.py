@@ -201,6 +201,7 @@ async def test_engine_runs_specialists_and_stops_at_human_approval():
     result = await engine.run("Build a small feature", "owner/repository")
 
     assert result["status"] == "READY_FOR_HUMAN_APPROVAL"
+    assert result["base_commit"] == "abc123"
     assert result["next_action"].startswith("Human review required")
     assert "code_reviewer" in runner.calls
     assert "qa_engineer" in runner.calls
