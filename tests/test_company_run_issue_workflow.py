@@ -134,3 +134,24 @@ async def test_external_repository_write_keeps_primary_token_first(monkeypatch):
     )
 
     assert gateway.token == "primary-write"
+
+
+@pytest.mark.asyncio
+async def test_control_repository_actions_token_uses_read_preflight_then_actual_write(monkeypatch):
+    """Do not reject GITHUB_TOKEN solely because repo metadata reports push=false."""
+    class ActionsTokenMetadataGateway(FakeGateway):
+        async def verify_write_access(self, repository):
+            raise GitHubGatewayError("metadata reports push=false")
+
+    monkeypatch.setattr(workflow, "GitHubRepositoryGateway", ActionsTokenMetadataGateway)
+
+    gateway = await workflow.build_gateway(
+        repository="owner/brain",
+        owner="owner",
+        primary_token="primary-write",
+        actions_token="actions-write",
+        capability_plan=plan_capabilities("create file docs/guide.md"),
+        control_repository="owner/brain",
+    )
+
+    assert gateway.token == "actions-write"
