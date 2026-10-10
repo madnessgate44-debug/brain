@@ -215,3 +215,52 @@ async def test_customer_advocate_scope_rule_covers_non_ui_work():
     assert "documentation-only" in prompt
     assert "test-only" in prompt
     assert "Do not invent UI work" in prompt
+
+
+@pytest.mark.asyncio
+async def test_customer_decision_must_be_machine_readable_and_repairs_once():
+    """A prose customer decision is rejected and retried as an explicit gate value."""
+    from brain.company.roles import ROLE_BY_KEY
+
+    class CapturingProvider:
+        def __init__(self):
+            self.calls = 0
+            self.system_prompts = []
+
+        async def complete(self, system_prompt, user_prompt):
+            self.calls += 1
+            self.system_prompts.append(system_prompt)
+            role = ROLE_BY_KEY["customer_advocate"]
+            decision = (
+                "The generated operational status report is useful"
+                if self.calls == 1 else "PASS"
+            )
+            return json.dumps({
+                "status": "PASS",
+                "deliverables": {
+                    "customer_review": decision,
+                    "usability_findings": ["Documentation-only scope is appropriate."],
+                },
+                "findings": [],
+                "blockers": [],
+                "evidence_needed": [],
+            })
+
+    provider = CapturingProvider()
+    runner = SpecialistAgentRunner(provider)
+    result = await runner.run(
+        "customer_advocate",
+        "Create a documentation-only runtime verification report.",
+        {
+            "product_brief": "Record verified evidence accurately",
+            "acceptance_criteria": ["No unsupported claims"],
+            "screen_specification": "Not applicable: documentation-only work",
+            "change_set": {"files": [{"path": "docs/report.md", "content": "Evidence log"}]},
+            "test_results": {"status": "PASS", "executed": True},
+        },
+    )
+
+    assert result["deliverables"]["customer_review"] == "PASS"
+    assert provider.calls == 2
+    assert "Machine-readable decision contract" in provider.system_prompts[0]
+    assert "deliverables.customer_review" in provider.system_prompts[0]
