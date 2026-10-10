@@ -167,7 +167,7 @@ async def test_inspection_reads_all_in_scope_source_and_test_files_and_reports_c
         + [
             "package.json", "README.md", "brain-app.html", "brain-ui-mobile.html",
             "alembic/versions/001_initial_schema.py", "docs/operations.md",
-            "scripts/deploy.sh", "src/db/schema.sql",
+            "scripts/deploy.sh", "src/db/schema.sql", "src/UPPER.PY",
             ".gitignore", "Dockerfile.prod", "uv.lock",
             ".github/workflows/ci.yml", "render.yaml",
             "dist/bundle.js", "node_modules/pkg/index.js",
