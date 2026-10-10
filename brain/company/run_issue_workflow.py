@@ -118,16 +118,21 @@ def build_audit_source_chunks(
         current.append(header)
         current_size += len(header) + 1
         for line_number, raw_line in enumerate(content.splitlines(), start=1):
-            line = raw_line
-            if len(line) > max_line_chars:
-                line = line[:max_line_chars] + " [LINE TRUNCATED FOR PROMPT SIZE]"
-            rendered = f"L{line_number}: {line}"
-            if current and current_size + len(rendered) + 1 > max_chars:
-                flush()
-                current.append(header)
-                current_size = len(header) + 1
-            current.append(rendered)
-            current_size += len(rendered) + 1
+            segment_count = max(1, (len(raw_line) + max_line_chars - 1) // max_line_chars)
+            for segment_index in range(segment_count):
+                start = segment_index * max_line_chars
+                segment = raw_line[start:start + max_line_chars]
+                rendered = (
+                    f"L{line_number}: {segment}"
+                    if segment_count == 1
+                    else f"L{line_number} [segment {segment_index + 1}/{segment_count}]: {segment}"
+                )
+                if current and current_size + len(rendered) + 1 > max_chars:
+                    flush()
+                    current.append(header)
+                    current_size = len(header) + 1
+                current.append(rendered)
+                current_size += len(rendered) + 1
     flush()
     return chunks
 
@@ -443,7 +448,8 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
             "omitted_by_aggregate_budget": manifest.get("omitted_by_aggregate_budget", []),
             "coverage_complete": manifest.get("coverage_complete"),
             "aggregate_bytes_read": manifest.get("aggregate_bytes_read"),
-            "line_truncations_possible": True,
+            "line_truncations_possible": False,
+            "long_line_segments_preserved": True,
             "tests_executed": False,
             "public_web_research": public_web_evidence,
         }
