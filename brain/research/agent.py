@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 
 from brain.research.discovery import GitHubRepositoryDiscovery, heuristic_score
+from brain.research.evidence import ResearchEvidenceCollector
 
 
 class TextProvider(Protocol):
@@ -21,10 +22,12 @@ class ResearchAndDevelopmentAgent:
         discovery: GitHubRepositoryDiscovery | None = None,
         provider: TextProvider | None = None,
         now: datetime | None = None,
+        evidence_collector: ResearchEvidenceCollector | None = None,
     ) -> None:
         self.discovery = discovery or GitHubRepositoryDiscovery()
         self.provider = provider
         self.now = now or datetime.now(timezone.utc)
+        self.evidence_collector = evidence_collector
 
     async def run(self, max_candidates: int = 30, mission: str = "Find tools that improve Brain research, coding, browser automation, testing, and free execution.") -> dict[str, Any]:
         """Discover candidates, rank them, and return a machine-readable evidence report."""
@@ -80,13 +83,31 @@ class ResearchAndDevelopmentAgent:
             reverse=True,
         )
         private_count = sum(1 for item in ranked if item.get("private", False))
+        evidence = (
+            await self.evidence_collector.collect(ranked, mission)
+            if self.evidence_collector is not None
+            else {
+                "repository_documentation": [],
+                "repository_documentation_count": 0,
+                "repository_documentation_errors": 0,
+                "job_market": {
+                    "status": "not_configured",
+                    "source_url": "https://remotive.com/api/remote-jobs",
+                    "sample_count": 0,
+                    "jobs": [],
+                    "limitation": "No evidence collector configured; no job-market conclusions should be drawn.",
+                },
+                "limitation": "No public source evidence collected in this run.",
+            }
+        )
         return {
             "schema_version": "1.1",
             "mission": mission,
             "research_scope": {
                 "repository_metadata": "searched and scored",
-                "source_code_and_documentation": "not inspected by this version",
-                "job_descriptions_and_live_skill_requirements": "not researched by this version",
+                "source_code": "not audited; no third-party code executed",
+                "repository_documentation": "public README excerpts collected when available",
+                "job_descriptions_and_live_skill_requirements": evidence.get("job_market", {}).get("status", "unknown"),
                 "hosting_prices_and_free_tier_terms": "not independently verified",
                 "limitations": [
                     "GitHub repository metadata is a discovery signal, not source-level evidence.",
@@ -114,6 +135,7 @@ class ResearchAndDevelopmentAgent:
                 "credentials_exposed_to_candidates": False,
             },
             "candidates": ranked,
+            "evidence": evidence,
         }
 
     async def _assess_with_model(self, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -196,8 +218,15 @@ def render_markdown(report: dict[str, Any]) -> str:
         "## Research scope and limitations",
         "",
         "- Repository discovery and ranking use metadata only in this version.",
-        "- Source files/documentation, job descriptions, required skills, and hosting terms are not independently investigated.",
+        "- Public README excerpts and a bounded job-board sample may be collected; neither is a source-code audit or comprehensive labor-market survey.",
         "- Do not treat this report as a completed technical or job-market research report.",
+        "",
+        "## Source evidence",
+        "",
+        f"- Public README excerpts collected: {report.get('evidence', {}).get('repository_documentation_count', 0)}",
+        f"- Job-market sample status: {report.get('evidence', {}).get('job_market', {}).get('status', 'not collected')}",
+        "",
+        "### Public repository documentation",
         "",
         "## Candidate shortlist",
         "",
