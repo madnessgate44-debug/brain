@@ -6,7 +6,7 @@ from scripts.run_browser_research_issue import actions_require_approval, parse_r
 
 
 def event_for(body, login="madnessgate44-debug"):
-    return {"issue": {"user": {"login": login}, "body": body}}
+    return {"issue": {"user": {"login": login}, "body": body}, "sender": {"login": login}}
 
 
 def valid_body():
@@ -40,6 +40,13 @@ def test_defaults_domain_allowlist_to_start_url_host():
 def test_rejects_non_owner_issue():
     with pytest.raises(ValueError, match="repository owner"):
         parse_research_payload(event_for(valid_body(), login="someone-else"), "madnessgate44-debug")
+
+
+def test_rejects_non_owner_editor_of_owner_authored_issue():
+    event = event_for(valid_body())
+    event["sender"] = {"login": "untrusted-collaborator"}
+    with pytest.raises(ValueError, match="trigger or edit"):
+        parse_research_payload(event, "madnessgate44-debug")
 
 
 def test_requires_exactly_one_json_block():
