@@ -45,12 +45,28 @@ def validate_stage_entry(role_key: str, evidence: dict[str, Any]) -> None:
 def evaluate_release_gate(evidence: dict[str, Any]) -> GateDecision:
     """Require explicit positive decisions and real QA evidence before release."""
     blockers: list[str] = []
+    required_reviewers = {
+        "review_decision": "code_reviewer",
+        "security_decision": "security_auditor",
+        "customer_review": "customer_advocate",
+    }
     for key in MANDATORY_RELEASE_GATES:
         value = evidence.get(key)
         if value is None or value == "":
             blockers.append(f"Missing required gate evidence: {key}")
             continue
-        if isinstance(value, dict):
+        if key in required_reviewers:
+            if not isinstance(value, dict):
+                blockers.append(f"{key} must include a structured independent reviewer decision")
+                continue
+            status = str(value.get("status", "")).strip().upper()
+            if status not in {"PASS", "APPROVED"}:
+                blockers.append(f"{key} did not pass")
+            if value.get("reviewer_role") != required_reviewers[key]:
+                blockers.append(
+                    f"{key} must be recorded by independent role {required_reviewers[key]}"
+                )
+        elif isinstance(value, dict):
             status = str(value.get("status", "")).strip().upper()
             if status not in {"PASS", "APPROVED"}:
                 blockers.append(f"{key} did not pass")
