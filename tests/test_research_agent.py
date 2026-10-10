@@ -250,22 +250,36 @@ async def test_mission_is_preserved_in_report_and_markdown():
 
     assert report["mission"] == mission
     assert report["research_scope"]["source_code"] == "not audited; no third-party code executed"
-    assert "job descriptions" in markdown
+    markdown = render_markdown(report)
+    assert "[acme/browser]" in markdown
+    assert "[Browser Automation Engineer]" in markdown
+    assert "Job-market sample status" in markdown
     assert "not independently investigated" not in markdown
     assert "bounded job-board sample" in markdown
 
 
-def test_mission_discovery_adds_bounded_targeted_query():
-    discovery = GitHubRepositoryDiscovery(mission="Tomatom browser extensions free hosting limits")
-    words = []
-    stop_words = {"about", "after", "also", "and", "are", "build", "built", "can", "could", "design", "find", "from", "free", "give", "into", "mission", "need", "our", "that", "the", "their", "them", "then", "this", "through", "tools", "with", "would", "your", "brain", "tomatom", "research", "investigate", "return"}
-    for raw_word in discovery.mission.lower().replace("/", " ").replace("-", " ").split():
-        word = "".join(ch for ch in raw_word if ch.isalnum())
-        if len(word) >= 4 and word not in stop_words and word not in words:
-            words.append(word)
-        if len(words) >= 5:
-            break
-    assert words == ["browser", "extensions", "hosting", "limits"]
+@pytest.mark.asyncio
+async def test_mission_discovery_adds_bounded_targeted_query():
+    seen_queries = []
+
+    def handler(request):
+        seen_queries.append(request.url.params["q"])
+        return httpx.Response(200, json={"items": []})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    discovery = GitHubRepositoryDiscovery(
+        client=client,
+        mission="Tomatom browser extensions free hosting limits",
+        now=datetime(2026, 10, 10, tzinfo=timezone.utc),
+    )
+    try:
+        await discovery.search(max_candidates=5)
+    finally:
+        await client.aclose()
+
+    assert len(seen_queries) == len(discovery.queries) + 1
+    assert "browser extensions hosting limits in:name,description" in seen_queries[0]
+    assert "Tomatom" not in seen_queries[0]
 
 
 @pytest.mark.asyncio
