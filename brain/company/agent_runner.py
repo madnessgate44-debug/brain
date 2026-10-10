@@ -337,12 +337,23 @@ class SpecialistAgentRunner:
             + ". findings, blockers, evidence_needed must be arrays."
             + role_contract
         )
+        prompt_evidence = _prepare_prompt_evidence(role_key, user_request, evidence)
+        if role_key == "developer":
+            snapshot = prompt_evidence.get("repository_snapshot", {})
+            selection = snapshot.get("source_selection", {}) if isinstance(snapshot, dict) else {}
+            omitted_paths = selection.get("omitted_explicit_paths", []) if isinstance(selection, dict) else []
+            if omitted_paths:
+                paths = ", ".join(str(path) for path in omitted_paths[:10])
+                raise AgentOutputError(
+                    "Developer blocked: complete source contents are unavailable for existing planned/requested files: "
+                    + paths
+                )
         user_prompt = json.dumps(
             {
                 "user_request": user_request,
                 "role": role.key,
                 "required_deliverables": list(role.deliverables),
-                "available_evidence": _prepare_prompt_evidence(role_key, user_request, evidence),
+                "available_evidence": prompt_evidence,
                 "independence_rules": list(role.must_be_independent_of),
             },
             ensure_ascii=False,
