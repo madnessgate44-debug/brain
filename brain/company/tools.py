@@ -131,12 +131,25 @@ class GitHubCompanyTools:
     async def apply_change_set(
         self, change_set: dict[str, Any], repository: str
     ) -> dict[str, Any]:
-        """Create a unique branch and commit the model-proposed file changes."""
+        """Create a unique branch and commit changes with the credential appropriate to the paths."""
         summary = change_set.get("summary", "Implement approved software requirements")
         if not isinstance(summary, str):
             summary = "Implement approved software requirements"
+        files = change_set.get("files", [])
+        touches_workflow_file = any(
+            isinstance(item, dict)
+            and isinstance(item.get("path"), str)
+            and item["path"].replace("\\", "/").startswith(".github/workflows/")
+            for item in files
+        ) if isinstance(files, list) else False
+
+        # GitHub requires workflow-file write authority in addition to ordinary
+        # contents access. The workflow GITHUB_TOKEN may pass read preflight and
+        # write normal source files but still be denied when the tree contains a
+        # .github/workflows file. Route those patches through the configured PAT.
+        write_gateway = self.verification_gateway if touches_workflow_file else self.gateway
         branch = f"brain/mission-{uuid.uuid4().hex[:12]}"
-        result = await self.gateway.apply_change_set(
+        result = await write_gateway.apply_change_set(
             repository=repository,
             change_set=change_set,
             branch_name=branch,
