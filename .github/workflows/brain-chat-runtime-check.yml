@@ -1,0 +1,130 @@
+name: Brain Mission-Free Chat Runtime Check
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions: {}
+
+jobs:
+  chat-runtime-check:
+    if: >-
+      github.event.issue.state == 'open' &&
+      github.event.issue.user.login == github.repository_owner &&
+      contains(github.event.issue.body, '/brain chat-check')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
+      BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL }}
+      BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL }}
+      BRAIN_CONTROL_API_KEY: test-only-${{ github.run_id }}-${{ github.run_attempt }}
+      DATABASE__SQLITE_PATH: ./test_workspace/db/chat-runtime-check.db
+      WORKSPACE__ROOT: ./test_workspace
+    steps:
+      - name: Check out Brain
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Brain and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Call the real Brain chat route and configured Gemini provider
+        id: runtime
+        shell: bash
+        run: |
+          set +x
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+          from fastapi.testclient import TestClient
+          from brain.api.app import create_app
+
+          base_url = os.environ.get("BRAIN_AI_BASE_URL", "").strip().rstrip("/")
+          if not base_url:
+              base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+          elif (
+              urlparse(base_url).hostname == "generativelanguage.googleapis.com"
+              and not base_url.endswith("/openai")
+          ):
+              base_url += "/openai"
+          os.environ["BRAIN_AI_BASE_URL"] = base_url
+          if not os.environ.get("BRAIN_AI_MODEL", "").strip():
+              os.environ["BRAIN_AI_MODEL"] = "gemini-3.5-flash-lite"
+
+          report_path = "brain-chat-runtime-result.md"
+          try:
+              if not os.environ.get("BRAIN_AI_API_KEY", "").strip():
+                  raise RuntimeError("ProviderConfigurationMissing")
+              with TestClient(create_app()) as client:
+                  before = client.get("/missions")
+                  if before.status_code != 200:
+                      raise RuntimeError("MissionBaselineCheckFailed")
+                  mission_count_before = before.json().get("total")
+                  response = client.post(
+                      "/chat",
+                      headers={"X-Brain-API-Key": os.environ["BRAIN_CONTROL_API_KEY"]},
+                      json={"messages": [{"role": "user", "content": "Reply with exactly BRAIN_CHAT_OK"}]},
+                  )
+                  if response.status_code != 200:
+                      raise RuntimeError("ChatEndpointHTTP" + str(response.status_code))
+                  reply = response.json().get("reply", "")
+                  if "BRAIN_CHAT_OK" not in reply:
+                      raise RuntimeError("ModelResponseValidationFailed")
+                  after = client.get("/missions")
+                  if after.status_code != 200 or after.json().get("total") != mission_count_before:
+                      raise RuntimeError("ChatUnexpectedlyChangedMissionState")
+              report = "# Brain chat runtime check\n\n**Result: PASS**\n\nThe real authenticated /chat API route called the configured model provider, returned the required response marker, and did not create a mission. The model response and credentials were not logged.\n"
+              print("RESULT=PASS")
+          except Exception as exc:
+              report = (
+                  "# Brain chat runtime check\n\n**Result: FAILED**\n\n"
+                  "The authenticated /chat end-to-end check failed. Failure class: "
+                  + type(exc).__name__
+                  + ". No provider response or credential was logged. Inspect the workflow steps and sanitized application diagnostics.\n"
+              )
+              print("RESULT=FAILED")
+              with open(report_path, "w", encoding="utf-8") as handle:
+                  handle.write(report)
+              raise SystemExit(1)
+          with open(report_path, "w", encoding="utf-8") as handle:
+              handle.write(report)
+          PY
+
+      - name: Upload sanitized runtime report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brain-chat-runtime-result
+          path: brain-chat-runtime-result.md
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Report outcome on the initiating issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'brain-chat-runtime-result.md';
+            const report = fs.existsSync(path)
+              ? fs.readFileSync(path, 'utf8').slice(0, 10000)
+              : '# Brain chat runtime check\n\n**Result: FAILED**\n\nNo report was produced.';
+            const runUrl = context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: report + '\n\nWorkflow run: ' + runUrl
+            });
