@@ -1,4 +1,4 @@
-"""Tests for the R&D discovery agent, metadata scoring, and model-output boundaries."""
+"""Tests for R&D discovery, metadata scoring, and model-output boundaries."""
 
 import json
 from datetime import datetime, timezone
@@ -24,6 +24,7 @@ def repo(name, **overrides):
         "topics": ["ai-agent"],
         "fork": False,
         "archived": False,
+        "private": False,
     }
     value.update(overrides)
     return value
@@ -57,6 +58,32 @@ async def test_discovery_deduplicates_filters_old_forks_and_limits_results():
 
 
 @pytest.mark.asyncio
+async def test_discovery_can_include_authorized_private_repositories():
+    seen_headers = []
+    def handler(request):
+        seen_headers.append(request.headers.get("Authorization"))
+        if "is:private" in request.url.params["q"]:
+            return httpx.Response(200, json={"items": [repo("owner/internal-tool", private=True)]})
+        return httpx.Response(200, json={"items": []})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    discovery = GitHubRepositoryDiscovery(
+        client=client,
+        queries=("topic:ai-agent",),
+        token="read-only-test-token",
+        now=datetime(2026, 10, 10, tzinfo=timezone.utc),
+    )
+    try:
+        result = await discovery.search()
+    finally:
+        await client.aclose()
+
+    assert len(result) == 1
+    assert result[0]["private"] is True
+    assert seen_headers == ["Bearer read-only-test-token", "Bearer read-only-test-token"]
+
+
+@pytest.mark.asyncio
 async def test_discovery_fails_explicitly_on_api_error():
     client = httpx.AsyncClient(
         transport=httpx.MockTransport(lambda request: httpx.Response(503))
@@ -87,8 +114,10 @@ def test_heuristic_score_rewards_recent_activity_and_identified_license():
 
 
 @pytest.mark.asyncio
-async def test_agent_uses_only_model_assessments_for_discovered_repositories():
+async def test_agent_uses_only_model_assessments_for_discovered_public_repositories():
     class FakeDiscovery:
+        token = ""
+
         async def search(self, max_candidates=30):
             return [{
                 "full_name": "acme/real",
@@ -101,6 +130,7 @@ async def test_agent_uses_only_model_assessments_for_discovered_repositories():
                 "pushed_at": "2026-10-09T12:00:00Z",
                 "created_at": "2025-01-01T00:00:00Z",
                 "topics": [],
+                "private": False,
             }]
 
     class FakeProvider:
@@ -128,8 +158,43 @@ async def test_agent_uses_only_model_assessments_for_discovered_repositories():
 
 
 @pytest.mark.asyncio
+async def test_private_repository_metadata_is_not_sent_to_external_model():
+    class FakeDiscovery:
+        token = "configured"
+
+        async def search(self, max_candidates=30):
+            return [{
+                "full_name": "owner/internal-tool",
+                "url": "https://github.com/owner/internal-tool",
+                "description": "private project metadata",
+                "stars": 5,
+                "forks": 0,
+                "language": "Python",
+                "license": "NOASSERTION",
+                "pushed_at": "2026-10-09T12:00:00Z",
+                "created_at": "2026-10-01T00:00:00Z",
+                "topics": [],
+                "private": True,
+            }]
+
+    class NeverCalledProvider:
+        async def complete(self, system_prompt, user_prompt):
+            raise AssertionError("private metadata must not be sent to the external provider")
+
+    report = await ResearchAndDevelopmentAgent(
+        discovery=FakeDiscovery(), provider=NeverCalledProvider()
+    ).run()
+
+    assert report["model_assessment_status"] == "skipped_private_metadata"
+    assert report["private_candidate_count"] == 1
+    assert report["policy"]["private_metadata_sent_to_external_model"] is False
+
+
+@pytest.mark.asyncio
 async def test_agent_keeps_metadata_results_if_model_returns_invalid_json():
     class FakeDiscovery:
+        token = ""
+
         async def search(self, max_candidates=30):
             return [{
                 "full_name": "acme/real",
@@ -142,6 +207,7 @@ async def test_agent_keeps_metadata_results_if_model_returns_invalid_json():
                 "pushed_at": "2026-10-09T12:00:00Z",
                 "created_at": "2026-10-01T00:00:00Z",
                 "topics": [],
+                "private": False,
             }]
 
     class FakeProvider:
@@ -161,6 +227,7 @@ def test_markdown_report_warns_that_discovery_is_not_a_security_audit():
     report = {
         "generated_at": "2026-10-10T00:00:00+00:00",
         "candidate_count": 0,
+        "private_candidate_count": 0,
         "model_assessment_status": "not_configured",
         "candidates": [],
     }
