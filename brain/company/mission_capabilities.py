@@ -27,6 +27,8 @@ _MUTATION_INTENT = re.compile(
     r"problems?|fixes?|changes?|patches?|branch|pull requests?|prs?|commits?|"
     r"implementation|app|application|them|it)\b"
     r"|\b(?:open|create)\s+(?:a\s+)?(?:pull request|pr|branch|commit|file)\b"
+    # Explicit "create exactly <path>" requests are affirmative file mutations.
+    r"|\bcreate\s+exactly\b"
     r"|\b(?:commit|push)\s+(?:the\s+)?(?:changes?|files?|code|branch|commit)\b"
     r"|\b(?:deploy|merge)\s+(?:the\s+)?(?:app|application|changes?|branch|pull request|pr|release)\b"
     r"|\bmake\s+(?:the\s+)?changes?\b",
