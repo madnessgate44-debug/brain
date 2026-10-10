@@ -121,3 +121,62 @@ def test_list_pending_approvals(client):
     response = client.get("/approvals?status_filter=PENDING")
     assert response.status_code == 200
     assert any(item["id"] == created.json()["id"] for item in response.json())
+
+
+
+def test_expired_approval_is_not_accepted(client, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from brain.db.session import DatabaseSessionManager
+    from brain.core.config import load_config
+
+    mission_response = client.post(
+        "/missions",
+        json={"title": "Expiry test", "objective": "Approval must expire"},
+    )
+    mission_id = mission_response.json()["id"]
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+    created = client.post(
+        f"/missions/{mission_id}/approvals",
+        json={
+            "approval_type": ApprovalType.PLAN_REVIEW.value,
+            "reason": "Expiry test",
+            "expires_at": expires_at.isoformat(),
+        },
+    )
+    assert created.status_code == 200
+    approval_id = created.json()["id"]
+
+    monkeypatch.setattr(
+        "brain.services.approval_service.utc_now",
+        lambda: expires_at + timedelta(seconds=1),
+    )
+    response = client.post(
+        f"/approvals/{approval_id}/respond",
+        json={"approved": True, "response_note": "Too late"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "EXPIRED"
+    assert response.json()["response_note"] is None
+    assert client.post(f"/missions/{mission_id}/start").status_code == 409
+
+
+def test_approval_expiration_must_be_in_the_future(client):
+    from datetime import datetime, timedelta, timezone
+
+    mission_response = client.post(
+        "/missions",
+        json={"title": "Past expiry test", "objective": "Reject past expiration"},
+    )
+    mission_id = mission_response.json()["id"]
+    past = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    response = client.post(
+        f"/missions/{mission_id}/approvals",
+        json={
+            "approval_type": ApprovalType.PLAN_REVIEW.value,
+            "reason": "Past expiry test",
+            "expires_at": past,
+        },
+    )
+    assert response.status_code == 400
+    assert "must be in the future" in response.json()["detail"]
