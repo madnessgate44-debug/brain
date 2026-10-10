@@ -148,11 +148,12 @@ def render_failure_markdown(report: Mapping[str, Any]) -> str:
     else:
         outcome_text = display(stage_outcomes) if stage_outcomes else "- No stage outcomes captured."
 
-    title = (
-        "# Brain mission report"
-        if status.upper() in {"PASS", "SUCCESS", "COMPLETED", "READY_FOR_HUMAN_APPROVAL"}
-        else "# Brain execution report"
-    )
+    if status.upper() in {"PASS", "SUCCESS", "COMPLETED", "READY_FOR_HUMAN_APPROVAL"}:
+        title = "# Brain mission report"
+    elif status.upper() in {"FAILED", "FAIL", "ERROR", "POST_PR_VERIFICATION_FAILED"}:
+        title = "# Brain execution failure report"
+    else:
+        title = "# Brain execution report"
     lines = [
         title,
         "",
