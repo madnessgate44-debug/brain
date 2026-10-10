@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 
 from brain.company.llm_provider import OpenAICompatibleProvider
@@ -14,7 +15,14 @@ from brain.research.discovery import GitHubRepositoryDiscovery
 
 
 async def _run(max_candidates: int) -> dict:
-    provider = OpenAICompatibleProvider() if get_setting("BRAIN_AI_API_KEY") else None
+    # Model calls are disabled by default so scheduled research cannot unexpectedly
+    # consume a metered API quota. Enable only after confirming the provider's free terms.
+    model_enabled = os.getenv("BRAIN_RD_ENABLE_MODEL_ASSESSMENT", "false").strip().casefold() == "true"
+    provider = (
+        OpenAICompatibleProvider()
+        if model_enabled and get_setting("BRAIN_AI_API_KEY")
+        else None
+    )
     agent = ResearchAndDevelopmentAgent(
         discovery=GitHubRepositoryDiscovery(per_query=15),
         provider=provider,
