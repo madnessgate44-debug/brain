@@ -59,6 +59,11 @@ async def chat(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Brain chat is disabled until BRAIN_CONTROL_API_KEY is configured.",
         )
+    if len(expected_key) < 24:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Brain chat requires BRAIN_CONTROL_API_KEY to contain at least 24 characters.",
+        )
     if not api_key or not hmac.compare_digest(api_key, expected_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
