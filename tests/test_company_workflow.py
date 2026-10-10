@@ -109,13 +109,13 @@ def test_failure_report_preserves_sanitized_stage_evidence_and_known_non_mutatio
     assert report["impact"]["tests_status"] == "NOT_STARTED"
 
 
-@pytest.mark.parametrize("request", [
+@pytest.mark.parametrize("request_text", [
     "A documentation-only change does NOT satisfy the task.",
     "A docs-only report does not satisfy acceptance.",
 ])
-def test_explicitly_disallowed_documentation_only_change_set_is_rejected(request):
+def test_explicitly_disallowed_documentation_only_change_set_is_rejected(request_text):
     change_set = {"files": [{"path": "docs/BRAIN_RELIABILITY_MISSION_REPORT.md", "content": "# Report"}]}
-    errors = validate_change_set_scope(change_set, request)
+    errors = validate_change_set_scope(change_set, request_text)
     assert errors
     assert "documentation-only change does not satisfy" in errors[0]
 
