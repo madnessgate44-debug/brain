@@ -75,6 +75,13 @@ def test_respond_to_approval(client):
     assert approval["status"] == "APPROVED"
     assert approval["response_note"] == "Plan looks good"
 
+    repeated_response = client.post(
+        f"/approvals/{approval_id}/respond",
+        json={"approved": False, "response_note": "conflicting second response"},
+    )
+    assert repeated_response.status_code == 409
+    assert client.get(f"/approvals?status_filter=APPROVED").json()[0]["status"] == "APPROVED"
+
     events_response = client.get(f"/missions/{mission_id}/events")
     assert events_response.status_code == 200
     events_by_type = {
