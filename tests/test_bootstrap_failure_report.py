@@ -121,3 +121,16 @@ def test_existing_mission_reports_are_never_overwritten(tmp_path):
     assert created is False
     assert markdown_path.read_text(encoding="utf-8") == "existing mission report"
     assert json.loads(json_path.read_text(encoding="utf-8"))["status"] == "PASS"
+
+
+def test_workflow_wires_helper_and_retains_checkout_safe_fallback():
+    from pathlib import Path
+
+    workflow = Path(".github/workflows/brain-chat-company-workflow.yml").read_text(encoding="utf-8")
+
+    assert "python3 scripts/write_bootstrap_failure_report.py" in workflow
+    assert "Checkout itself can fail" in workflow
+    assert "GITHUB_SHA" in workflow
+    assert "GITHUB_REF_NAME" in workflow
+    assert "failed_steps" in workflow
+    assert "GITHUB_EVENT_PATH" in workflow
