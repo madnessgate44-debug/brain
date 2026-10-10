@@ -123,6 +123,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "repository_inspection", "status": "STARTED", "detail": "Collecting source evidence without repository mutation."})
         snapshot = await tools.inspect_repository(repository)
         events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "repository_inspection", "status": "PASS", "detail": f"Read {snapshot.get('source_files_read', 0)} source files at {snapshot.get('base_commit')}."})
+        events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "model_audit", "status": "STARTED", "detail": "Invoking the configured model for evidence-bounded analysis."})
         prompt = (
             "Perform a detailed read-only software audit using only the supplied repository snapshot and source contents. "
             "Do not modify files or claim tests ran. Separate confirmed defects, risks, hypotheses, and missing evidence. "
@@ -151,8 +152,8 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
             "next_action": "Review the audit report; no repository changes were made.",
         }
 
-    engine = CompanyWorkflowEngine(SpecialistAgentRunner(provider), tools)
-    result = await engine.run(
+    events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "company_workflow", "status": "STARTED", "detail": "Running specialist implementation, review, and verification workflow."})
+    result = await CompanyWorkflowEngine(SpecialistAgentRunner(provider), tools).run(
         user_request=objective,
         repository=repository,
         initial_evidence={
