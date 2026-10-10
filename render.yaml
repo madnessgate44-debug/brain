@@ -14,11 +14,11 @@ services:
       mountPath: /var/data
       sizeGB: 1
     envVars:
-      - key: BRAIN_DATABASE__SQLITE_PATH
+      - key: DATABASE__SQLITE_PATH
         value: /var/data/brain.db
-      - key: BRAIN_WORKSPACE__ROOT
+      - key: WORKSPACE__ROOT
         value: /var/data/workspace
-      - key: BRAIN_SYSTEM__ENVIRONMENT
+      - key: SYSTEM__ENVIRONMENT
         value: production
       - key: BRAIN_CORS_ORIGINS
         value: https://madnessgate44-debug.github.io
