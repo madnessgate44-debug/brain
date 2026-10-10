@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from brain.company.diagnostics import write_failure_artifacts
+from brain.company.diagnostics import sanitize_diagnostic_value, write_failure_artifacts
 from brain.company.mission_capabilities import plan_capabilities
 
 from brain.company.agent_runner import SpecialistAgentRunner
@@ -279,6 +279,8 @@ def build_pull_request_gateway(
 async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[str, Any] | None = None) -> dict[str, Any]:
     events = events if events is not None else []
     started = datetime.now(timezone.utc).isoformat()
+    checkpoint_path = Path(os.environ.get("BRAIN_COMPANY_CHECKPOINT_PATH", "brain-company-checkpoint.json"))
+    checkpoint_path.unlink(missing_ok=True)
     repository, objective, issue_number = request_from_issue()
     mission = {"repository": repository, "objective": objective, "issue_number": issue_number}
     plan = plan_capabilities(objective)
@@ -520,7 +522,34 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         }
 
     events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "company_workflow", "status": "STARTED", "detail": "Running specialist implementation, review, and verification workflow."})
-    result = await CompanyWorkflowEngine(SpecialistAgentRunner(provider), tools).run(
+
+    def persist_checkpoint(snapshot: dict[str, Any]) -> None:
+        payload = sanitize_diagnostic_value({
+            "schema_version": "1.0",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "issue_number": issue_number,
+            "repository": repository,
+            "checkpoint": snapshot,
+        })
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = checkpoint_path.with_suffix(checkpoint_path.suffix + ".tmp")
+        temporary_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
+        temporary_path.replace(checkpoint_path)
+        events.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": "agent_checkpoint",
+            "status": "PASS",
+            "detail": f"Persisted checkpoint after {snapshot.get('stage')}; roles recorded={len(snapshot.get('completed_roles', []))}.",
+        })
+
+    result = await CompanyWorkflowEngine(
+        SpecialistAgentRunner(provider),
+        tools,
+        checkpoint_callback=persist_checkpoint,
+    ).run(
         user_request=objective,
         repository=repository,
         initial_evidence={
