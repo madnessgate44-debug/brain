@@ -94,15 +94,21 @@ class MissionService:
         mission = await self.mission_repo.get_by_id(mission_id)
         if not mission:
             raise ValueError(f"Mission {mission_id} not found")
-        if mission.status in [MissionStatus.RUNNING.value, MissionStatus.COMPLETED.value]:
-            raise RuntimeError(f"Mission {mission_id} is already {mission.status}")
-        if mission.status == MissionStatus.FAILED.value:
-            raise RuntimeError(f"Mission {mission_id} has failed and cannot be started")
+        if mission.status != MissionStatus.PENDING.value:
+            raise RuntimeError(
+                f"Mission {mission_id} cannot be started from status {mission.status}; "
+                "only PENDING missions can start. Paused missions require explicit resume support."
+            )
 
         runtime_id = generate_runtime_id()
-        await self.mission_repo.update_phase(mission_id, MissionPhase.EXECUTE)
-        await self.mission_repo.update_status(mission_id, MissionStatus.RUNNING)
-        await self.mission_repo.attach_runtime(mission_id, runtime_id, utc_now())
+        heartbeat = utc_now()
+        if not await self.mission_repo.try_start(mission_id, runtime_id, heartbeat):
+            current = await self.mission_repo.get_by_id(mission_id)
+            if current is None:
+                raise ValueError(f"Mission {mission_id} not found")
+            raise RuntimeError(
+                f"Mission {mission_id} could not be started because its status changed to {current.status}"
+            )
         await self.event_repo.append_event(
             mission_id=mission_id,
             event_type="mission_started",
