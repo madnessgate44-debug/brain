@@ -5,7 +5,7 @@ import pytest
 from brain.company.roles import ROLE_CATALOG, ROLE_BY_KEY, WORKFLOW_ORDER
 from brain.company.run_issue_workflow import parse_issue_body
 from brain.company.diagnostics import failure_report
-from brain.company.engine import CompanyWorkflowBlocked, validate_change_set_scope
+from brain.company.engine import CompanyWorkflowBlocked, CompanyWorkflowEngine, validate_change_set_scope
 from brain.company.workflow import (
     WorkflowPolicyError,
     evaluate_release_gate,
@@ -138,3 +138,82 @@ def test_documentation_only_change_remains_allowed_when_requested():
         change_set,
         "Create a documentation-only acceptance report.",
     ) == ()
+
+
+@pytest.mark.asyncio
+async def test_engine_blocks_docs_only_proposal_before_any_repository_write():
+    class FakeRunner:
+        def __init__(self):
+            self.developer_calls = 0
+
+        async def run(self, role_key, user_request, evidence):
+            if role_key == "developer":
+                self.developer_calls += 1
+                return {
+                    "status": "PASS",
+                    "findings": [],
+                    "blockers": [],
+                    "evidence_needed": [],
+                    "deliverables": {
+                        "change_set": {
+                            "files": [{
+                                "path": "docs/BRAIN_RELIABILITY_MISSION_REPORT.md",
+                                "content": "# Report only",
+                            }]
+                        }
+                    },
+                }
+            deliverables = {
+                "product_owner": {
+                    "product_brief": "Reliability fix",
+                    "acceptance_criteria": ["Implementation change and regression test required"],
+                },
+                "ux_designer": {"ux_notes": "Not applicable to backend gate"},
+                "architect": {"architecture_decisions": ["Preserve current architecture"]},
+            }.get(role_key, {})
+            return {
+                "status": "PASS",
+                "findings": [],
+                "blockers": [],
+                "evidence_needed": [],
+                "deliverables": deliverables,
+            }
+
+    class FakeTools:
+        def __init__(self):
+            self.apply_calls = 0
+
+        async def inspect_repository(self, repository):
+            return {
+                "repository": repository,
+                "default_branch": "main",
+                "base_commit": "base-sha",
+                "files": [],
+                "source_contents": {},
+                "source_manifest": {"coverage_complete": True},
+            }
+
+        async def apply_change_set(self, change_set, repository):
+            self.apply_calls += 1
+            return {"branch": "unexpected", "diff": "unexpected", "changed_files": []}
+
+        async def run_checks(self, repository, branch):
+            return {"executed": True, "status": "PASS", "run_url": "https://example.test/run"}
+
+        async def open_pull_request(self, repository, branch, workflow_result):
+            return {"url": "https://example.test/pull/1", "number": 1}
+
+    runner = FakeRunner()
+    tools = FakeTools()
+    engine = CompanyWorkflowEngine(runner, tools, max_repair_cycles=2)
+    objective = (
+        "Fix verified defects and add regression tests. A documentation-only change, "
+        "generic checklist, unverified claims, or a run that stops without explicit "
+        "diagnosis does NOT satisfy the task."
+    )
+
+    with pytest.raises(CompanyWorkflowBlocked, match="remained invalid after repair limit"):
+        await engine.run(objective, "madnessgate44-debug/brain")
+
+    assert runner.developer_calls == 3
+    assert tools.apply_calls == 0
