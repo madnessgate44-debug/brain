@@ -90,6 +90,23 @@ async def test_run_checks_rejects_non_bot_comment():
 
 
 @pytest.mark.asyncio
+async def test_run_checks_rejects_run_url_from_another_repository():
+    trigger_gateway = FakeGateway(
+        "pat",
+        run_url="https://github.com/owner/other-repo/actions/runs/123",
+    )
+    tools = GitHubCompanyTools(
+        verification_gateway=trigger_gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=0.1,
+    )
+
+    with pytest.raises(TimeoutError):
+        await tools.run_checks("owner/brain", "brain/test-branch")
+
+
+@pytest.mark.asyncio
 async def test_run_checks_rejects_wrong_target_repository():
     run_data = {
         "status": "completed",
