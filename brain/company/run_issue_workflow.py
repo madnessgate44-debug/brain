@@ -226,7 +226,7 @@ def main() -> None:
             mission=mission, events=events, started_at=started_at,
         )
         print(report_path.read_text(encoding="utf-8"))
-        raise SystemExit(1) from exc
+        raise SystemExit(1) from None
 
 if __name__ == "__main__":
     main()
