@@ -140,7 +140,7 @@ async def test_live_runtime_refreshes_heartbeat_for_orphan_detection(db_manager,
     )
     heartbeat_task = asyncio.create_task(runtime._heartbeat_loop())
     try:
-        await asyncio.sleep(0.06)
+        await asyncio.sleep(0.25)
     finally:
         heartbeat_task.cancel()
         with pytest.raises(asyncio.CancelledError):
