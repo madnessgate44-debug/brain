@@ -76,6 +76,7 @@ class FakePage:
 
     async def goto(self, url, **kwargs):
         self.url = url
+        self.last_navigation_kwargs = kwargs
         self.actions.append(("navigate", url))
         return None
 
@@ -301,3 +302,24 @@ def test_browser_numeric_controls_reject_booleans():
         validate_browser_actions([
             {"op": "type", "selector": "#query", "text": "search", "clear": "false"}
         ])
+
+
+
+@pytest.mark.asyncio
+async def test_navigation_honors_validated_custom_timeout(monkeypatch):
+    page = FakePage()
+    worker = BrowserWorker(
+        allowed_domains=["example.com"],
+        page_session_factory=fake_session_factory(page),
+    )
+    monkeypatch.setattr(
+        "brain.runtime.workers.browser_worker.is_allowed_url",
+        lambda url, domains: url == "https://example.com/",
+    )
+
+    result = await worker.execute([
+        {"op": "navigate", "url": "https://example.com/", "timeout_ms": 1200}
+    ])
+
+    assert result["status"] == "succeeded"
+    assert page.last_navigation_kwargs["timeout"] == 1200
