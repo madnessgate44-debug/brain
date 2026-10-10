@@ -12,6 +12,14 @@ class AgentOutputError(ValueError):
     """Raised when a specialist returns malformed structured output."""
 
 
+_DECISION_VALUES = {
+    "review_decision": {"PASS", "APPROVED", "NEEDS_WORK", "BLOCKED"},
+    "security_decision": {"PASS", "APPROVED", "NEEDS_WORK", "BLOCKED"},
+    "customer_review": {"PASS", "APPROVED", "NEEDS_WORK", "BLOCKED"},
+    "release_decision": {"PASS", "READY_FOR_HUMAN_APPROVAL", "NEEDS_WORK", "BLOCKED"},
+}
+
+
 def _parse_json_object(text: str) -> dict[str, Any]:
     """Parse a strict JSON object; do not silently accept prose as a deliverable."""
     value = text.strip()
@@ -47,6 +55,15 @@ def _validate_specialist_output(raw: str, role: Any) -> dict[str, Any]:
     for key in ("findings", "blockers", "evidence_needed"):
         if not isinstance(result.get(key), list):
             raise AgentOutputError(f"Specialist field '{key}' must be an array.")
+    for key in role.deliverables:
+        if key not in _DECISION_VALUES:
+            continue
+        decision = result["deliverables"].get(key)
+        if not isinstance(decision, str) or decision.strip().upper() not in _DECISION_VALUES[key]:
+            allowed = ", ".join(sorted(_DECISION_VALUES[key]))
+            raise AgentOutputError(
+                f"Specialist deliverable '{key}' must be one of: {allowed}."
+            )
     return result
 
 
@@ -77,6 +94,17 @@ class SpecialistAgentRunner:
             role_contract = (
                 "\nUse the supplied test_results from the real check runner. Do not invent "
                 "test runs or mark unexecuted checks as passing.\n"
+            )
+        decision_field = next(
+            (key for key in role.deliverables if key in _DECISION_VALUES), None
+        )
+        if decision_field:
+            allowed = ", ".join(sorted(_DECISION_VALUES[decision_field]))
+            role_contract += (
+                f"\nMachine-readable decision contract: deliverables.{decision_field} "
+                f"must be exactly one of these enum values: {allowed}. Do not put a sentence, "
+                "summary, or explanation in this field. Put reasoning in findings, blockers, "
+                "evidence_needed, or the role's separate explanatory deliverables.\n"
             )
         if role_key in {"ux_designer", "customer_advocate"}:
             role_contract += (
