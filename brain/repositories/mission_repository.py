@@ -148,6 +148,26 @@ class MissionRepository:
             )
         )
     
+    async def update_heartbeat_if_running(
+        self,
+        mission_id: str,
+        runtime_id: str,
+        heartbeat: Optional[datetime] = None,
+    ) -> bool:
+        """Refresh a live runtime heartbeat without touching another runtime's lease."""
+        heartbeat = heartbeat or utc_now()
+        result = await self.session.execute(
+            update(MissionModel)
+            .where(
+                MissionModel.id == mission_id,
+                MissionModel.status == MissionStatus.RUNNING.value,
+                MissionModel.assigned_runtime_id == runtime_id,
+            )
+            .values(last_heartbeat_at=heartbeat, updated_at=heartbeat)
+        )
+        await self.session.flush()
+        return result.rowcount == 1
+
     async def clear_runtime(self, mission_id: str) -> None:
         """Clear runtime from mission."""
         await self.session.execute(
