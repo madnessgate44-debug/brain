@@ -1,7 +1,5 @@
 """Prompt-budget regression tests for role-specific repository evidence."""
 
-import json
-
 from brain.company.agent_runner import _prepare_prompt_evidence, _select_source_contents
 
 
@@ -115,3 +113,14 @@ def test_developer_context_prioritizes_architect_file_plan():
         planned_files=["src/planned.py"],
     )
     assert "src/planned.py" in selected
+
+
+def test_existing_explicit_file_omitted_by_budget_is_reported_to_developer():
+    path = "src/large_module.py"
+    prepared = _prepare_prompt_evidence(
+        "developer",
+        f"Update only {path}.",
+        {"repository_snapshot": _snapshot({path: "x" * 70000})},
+    )
+    selection = prepared["repository_snapshot"]["source_selection"]
+    assert path in selection["omitted_explicit_paths"]
