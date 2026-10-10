@@ -53,8 +53,15 @@ class ArtifactStore:
         if ensure_dir:
             artifacts_dir.mkdir(parents=True, exist_ok=True)
         
-        # Sanitize logical name for filesystem
+        # Sanitize logical name for filesystem and reject unusable path components.
+        if not isinstance(logical_name, str) or not logical_name.strip():
+            raise ValueError("Artifact logical name must not be empty.")
         safe_name = "".join(c for c in logical_name if c.isalnum() or c in "._-")
+        if safe_name in {"", ".", ".."} or safe_name != logical_name:
+            raise ValueError(
+                "Artifact logical name must be a plain filename containing only letters, "
+                "numbers, dots, underscores, and hyphens."
+            )
         return artifacts_dir / safe_name
     
     def save_artifact(

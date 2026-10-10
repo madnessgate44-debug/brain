@@ -1,5 +1,7 @@
 """Artifact API tests."""
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -40,6 +42,7 @@ def test_create_artifact(client):
     artifact = response.json()
     assert artifact["mission_id"] == mission_id
     assert artifact["logical_name"] == "test_doc.md"
+    assert json.loads(artifact["metadata_json"]) == {"author": "test"}
     assert "id" in artifact
 
 

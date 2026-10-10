@@ -1,6 +1,7 @@
 """Mission API tests."""
 
 import asyncio
+import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
@@ -85,6 +86,10 @@ def test_start_mission(client):
     assert data["status"] in ["RUNNING", "COMPLETED"]
     assert "runtime_id" in data
 
+    # A second request must never start a duplicate runtime or replay a completed mission.
+    repeated = client.post(f"/missions/{mission_id}/start")
+    assert repeated.status_code == 409
+
 
 def test_mission_events(client):
     """Test mission events endpoint."""
@@ -139,3 +144,40 @@ def test_mission_api_fails_closed_when_control_key_is_missing(monkeypatch):
     with TestClient(create_app()) as client:
         response = client.get("/missions", headers={"X-Brain-API-Key": "x" * 32})
     assert response.status_code == 503
+
+
+
+def test_start_mission_does_not_replay_paused_approval_workflow(client):
+    created = client.post(
+        "/missions",
+        json={"title": "Approval wait", "objective": "Wait for human approval"},
+    )
+    assert created.status_code == 201
+    mission_id = created.json()["id"]
+
+    # Simulate the persisted state written after a workflow reaches its approval gate.
+    with sqlite3.connect("./test_workspace/db/brain.db") as connection:
+        connection.execute(
+            "UPDATE missions SET status = ?, phase = ? WHERE id = ?",
+            ("PAUSED", "WAITING_FOR_APPROVAL", mission_id),
+        )
+
+    response = client.post(f"/missions/{mission_id}/start")
+
+    assert response.status_code == 409
+    assert "only PENDING missions can start" in response.json()["detail"]
+
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["limit=0", "limit=501", "offset=-1"],
+)
+def test_mission_and_event_pagination_rejects_unbounded_values(client, query):
+    assert client.get(f"/missions?{query}").status_code == 422
+    created = client.post(
+        "/missions",
+        json={"title": "Pagination test", "objective": "Verify bounded event queries"},
+    )
+    mission_id = created.json()["id"]
+    assert client.get(f"/missions/{mission_id}/events?{query}").status_code == 422

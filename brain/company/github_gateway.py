@@ -144,7 +144,7 @@ class GitHubRepositoryGateway:
             or path.startswith("/")
             or "\\" in path
             or any(part in {"", ".", ".."} for part in path.split("/"))
-            or path.startswith(".git/")
+            or any(part.casefold() == ".git" for part in path.split("/"))
         ):
             raise GitHubGatewayError(f"Unsafe repository path: {path!r}")
 
@@ -154,6 +154,7 @@ class GitHubRepositoryGateway:
         change_set: dict[str, Any],
         branch_name: str,
         commit_message: str,
+        expected_base_sha: str | None = None,
     ) -> dict[str, Any]:
         """Commit a bounded file change set on a new branch; never update default branch."""
         owner, name = self._validate_repository(repository)
@@ -165,14 +166,26 @@ class GitHubRepositoryGateway:
         if not commit_message.strip() or len(commit_message) > 180:
             raise GitHubGatewayError("Commit message must be 1–180 characters.")
 
+        seen_paths: set[str] = set()
+        aggregate_bytes = 0
         for item in files:
             if not isinstance(item, dict) or not isinstance(item.get("path"), str):
                 raise GitHubGatewayError("Each change must contain a path and text content.")
-            self._validate_path(item["path"])
+            path = item["path"]
+            self._validate_path(path)
+            if path in seen_paths:
+                raise GitHubGatewayError(f"Duplicate file path in change set: {path}")
+            seen_paths.add(path)
             if not isinstance(item.get("content"), str):
                 raise GitHubGatewayError("Binary or missing file content is not supported.")
-            if len(item["content"].encode("utf-8")) > 200_000:
-                raise GitHubGatewayError(f"{item['path']} exceeds the 200 KB per-file limit.")
+            size = len(item["content"].encode("utf-8"))
+            if size > 200_000:
+                raise GitHubGatewayError(f"{path} exceeds the 200 KB per-file limit.")
+            aggregate_bytes += size
+        if aggregate_bytes > 2_200_000:
+            raise GitHubGatewayError(
+                "Change set exceeds the 2,200,000-byte aggregate limit."
+            )
 
         base = f"/repos/{quote(owner)}/{quote(name)}"
         repo = await self._request("GET", base)
@@ -183,6 +196,12 @@ class GitHubRepositoryGateway:
             "GET", f"{base}/git/ref/heads/{quote(default_branch, safe='')}"
         )
         base_sha = base_ref["object"]["sha"]
+        if expected_base_sha and base_sha != expected_base_sha:
+            raise GitHubGatewayError(
+                "Default branch changed after repository inspection; refusing to apply "
+                f"a change set based on stale commit {expected_base_sha}. Current base is {base_sha}. "
+                "Re-inspect the repository and regenerate the change set."
+            )
         base_commit = await self._request("GET", f"{base}/git/commits/{base_sha}")
         base_tree_sha = base_commit["tree"]["sha"]
 
@@ -236,7 +255,7 @@ class GitHubRepositoryGateway:
         for changed in comparison.get("files", []):
             diff_parts.append(f"FILE: {changed.get('filename', 'unknown')}")
             diff_parts.append(changed.get("patch") or "[Patch omitted by GitHub; inspect file content.]")
-        actual_diff = "\\n".join(diff_parts)
+        actual_diff = "\n".join(diff_parts)
         return {
             "repository": repository,
             "branch": branch_name,

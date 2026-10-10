@@ -267,11 +267,132 @@ def test_build_audit_source_chunks_compactly_preserves_paths_and_line_numbers():
     assert all(len(chunk["text"]) <= 80 for chunk in chunks)
 
 
-def test_build_audit_source_chunks_marks_truncated_long_lines():
+def test_build_audit_source_chunks_preserves_long_lines_in_segments():
+    long_line = "x" * 100
     chunks = workflow.build_audit_source_chunks(
-        {"src/large.ts": "x" * 100},
+        {"src/large.ts": long_line},
         max_chars=200,
         max_line_chars=20,
     )
 
-    assert "[LINE TRUNCATED FOR PROMPT SIZE]" in chunks[0]["text"]
+    rendered = "\n".join(chunk["text"] for chunk in chunks)
+    assert "[LINE TRUNCATED FOR PROMPT SIZE]" not in rendered
+    assert all(len(chunk["text"]) <= 200 for chunk in chunks)
+    for segment_index in range(1, 6):
+        assert f"L1 [segment {segment_index}/5]:" in rendered
+    recovered = "".join(
+        line.split(": ", 1)[1]
+        for line in rendered.splitlines()
+        if line.startswith("L1 [segment ")
+    )
+    assert recovered == long_line
+
+
+
+def _set_issue_event(monkeypatch, tmp_path, body, *, actor="madnessgate44-debug", number=120):
+    import json
+
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps({
+            "issue": {
+                "number": number,
+                "body": body,
+                "user": {"login": actor},
+            }
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    monkeypatch.delenv("BRAIN_TARGET_REPOSITORY", raising=False)
+
+
+def test_issue_parser_defaults_target_and_excludes_other_brain_commands(monkeypatch, tmp_path):
+    _set_issue_event(
+        monkeypatch,
+        tmp_path,
+        "## Commands\n/brain simulate\n/brain test\n\n"
+        "## Mission\nAudit orchestration and report verified blockers.",
+    )
+
+    repository, objective, issue_number = workflow.request_from_issue()
+
+    assert repository == "madnessgate44-debug/brain"
+    assert issue_number == 120
+    assert "Audit orchestration and report verified blockers." in objective
+    assert "/brain test" not in objective
+
+
+def test_issue_parser_accepts_explicit_same_owner_repository(monkeypatch, tmp_path):
+    _set_issue_event(
+        monkeypatch,
+        tmp_path,
+        "/brain simulate\nrepository: madnessgate44-debug/Amina\n\nAudit the repo.",
+    )
+
+    repository, objective, _ = workflow.request_from_issue()
+
+    assert repository == "madnessgate44-debug/Amina"
+    assert "repository:" not in objective
+    assert "Audit the repo." in objective
+
+
+def test_issue_parser_rejects_cross_owner_repository(monkeypatch, tmp_path):
+    _set_issue_event(
+        monkeypatch,
+        tmp_path,
+        "/brain simulate\nrepository: other-owner/project\n\nAudit the repo.",
+    )
+
+    with pytest.raises(RuntimeError, match="must belong to the Brain repository owner"):
+        workflow.request_from_issue()
+
+
+def test_issue_parser_rejects_non_owner_issue(monkeypatch, tmp_path):
+    _set_issue_event(
+        monkeypatch,
+        tmp_path,
+        "/brain simulate\nAudit the repo.",
+        actor="untrusted-user",
+    )
+
+    with pytest.raises(RuntimeError, match="Only an issue opened by the repository owner"):
+        workflow.request_from_issue()
+
+def test_audit_source_chunks_preserve_real_line_breaks_and_line_numbers():
+    chunks = workflow.build_audit_source_chunks({"brain/example.py": "first line\nsecond line\n"})
+
+    assert len(chunks) == 1
+    assert chunks[0]["text"].splitlines() == [
+        "FILE: brain/example.py",
+        "L1: first line",
+        "L2: second line",
+    ]
+
+
+
+def test_audit_source_chunks_preserve_entire_long_lines():
+    long_line = "".join(str(index % 10) for index in range(8_000))
+    chunks = workflow.build_audit_source_chunks(
+        {"src/long_line.py": "before = 1\n" + long_line + "\nafter = 2"},
+        max_chars=5_000,
+        max_line_chars=1_000,
+    )
+
+    rendered_chunks = [chunk["text"] for chunk in chunks]
+    rendered = "\n".join(rendered_chunks)
+
+    assert all(len(chunk) <= 5_000 for chunk in rendered_chunks)
+    assert "[LINE TRUNCATED FOR PROMPT SIZE]" not in rendered
+    assert long_line not in rendered  # The line is segmented to fit bounded chunks.
+    for segment_index in range(1, 9):
+        assert f"L2 [segment {segment_index}/8]:" in rendered
+    assert "L1: before = 1" in rendered
+    assert "L3: after = 2" in rendered
+    recovered = "".join(
+        line.split(": ", 1)[1]
+        for line in rendered.splitlines()
+        if line.startswith("L2 [segment ")
+    )
+    assert recovered == long_line

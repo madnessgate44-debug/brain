@@ -2,7 +2,12 @@
 
 import pytest
 
-from brain.company.engine import CompanyWorkflowBlocked, CompanyWorkflowEngine, validate_change_set
+from brain.company.engine import (
+    CompanyWorkflowBlocked,
+    CompanyWorkflowEngine,
+    _compact_repository_snapshot,
+    validate_change_set,
+)
 
 
 class FakeAgentRunner:
@@ -77,16 +82,26 @@ class FakeTools:
         return {
             "repository": repository,
             "default_branch": "main",
+            "base_commit": "abc123",
             "files": [{"path": "README.md", "size": 100}],
             "source_contents": {"README.md": "Existing project"},
+            "source_manifest": {
+                "candidate_count": 1,
+                "read_count": 1,
+                "coverage_complete": True,
+                "failed_paths": {},
+                "omitted_by_aggregate_budget": [],
+                "tree_truncated": False,
+            },
         }
 
-    async def apply_change_set(self, change_set, repository):
+    async def apply_change_set(self, change_set, repository, expected_base_sha=None):
         self.apply_count += 1
+        assert expected_base_sha == "abc123"
         return {
             "branch": "brain/feature-test",
             "diff": "diff --git a/brain/feature.py b/brain/feature.py\n+pass",
-            "changed_files": ["brain/feature.py"],
+            "changed_files": [item["path"] for item in change_set["files"]],
         }
 
     async def run_checks(self, repository, branch):
@@ -112,6 +127,9 @@ def test_validate_change_set_rejects_unsafe_and_duplicate_paths():
             {"path": "brain/safe.py", "content": "pass"},
             {"path": "brain/safe.py", "content": "again"},
             {"path": "brain\\unsafe.py", "content": "pass"},
+            {"path": ".git/config", "content": "pass"},
+            {"path": ".GIT/config", "content": "pass"},
+            {"path": "src/.git/config", "content": "pass"},
         ]
     })
     assert any("unsafe" in error for error in errors)
@@ -292,3 +310,139 @@ async def test_engine_bounds_repository_source_context_before_model_calls():
     assert len(snapshot["files"]) <= 300
     assert snapshot["source_manifest"]["model_context_char_limit"] == 40_000
     assert len(snapshot["source_manifest"]["model_context_omitted_or_truncated_paths"]) > 0
+
+
+
+@pytest.mark.asyncio
+async def test_engine_checkpoints_prior_agent_outputs_before_later_stage_failure():
+    checkpoints = []
+    engine = CompanyWorkflowEngine(
+        FakeAgentRunner(),
+        FakeTools(test_status="FAIL"),
+        checkpoint_callback=checkpoints.append,
+    )
+
+    with pytest.raises(CompanyWorkflowBlocked, match="checks failed"):
+        await engine.run("Build a small feature", "owner/repository")
+
+    assert checkpoints
+    checkpoint = checkpoints[-1]
+    assert checkpoint["stage"] == "test_execution_completed"
+    assert checkpoint["test_evidence"]["status"] == "FAIL"
+    assert {"product_owner", "ux_designer", "architect", "developer", "code_reviewer"} <= set(
+        checkpoint["role_outputs"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_engine_final_checkpoint_records_all_roles_and_human_approval_gate():
+    checkpoints = []
+    engine = CompanyWorkflowEngine(
+        FakeAgentRunner(),
+        FakeTools(),
+        checkpoint_callback=checkpoints.append,
+    )
+
+    result = await engine.run("Build a small feature", "owner/repository")
+
+    assert result["status"] == "READY_FOR_HUMAN_APPROVAL"
+    assert checkpoints[-1]["stage"] == "human_review_handoff_created"
+    assert checkpoints[-1]["status"] == "READY_FOR_HUMAN_APPROVAL"
+    assert len(checkpoints[-1]["completed_roles"]) == 9
+
+
+
+def test_repository_compactor_never_passes_truncated_files_as_complete_source():
+    large_path = "brain/large_module.py"
+    complete_large_source = "line of source\n" * 500
+    small_path = "README.md"
+    small_source = "# Brain\n"
+
+    snapshot = {
+        "repository": "owner/repository",
+        "default_branch": "main",
+        "base_commit": "abc123",
+        "files": [
+            {"path": large_path, "size": len(complete_large_source)},
+            {"path": small_path, "size": len(small_source)},
+        ],
+        "source_contents": {
+            large_path: complete_large_source,
+            small_path: small_source,
+        },
+        "source_manifest": {
+            "candidate_count": 2,
+            "read_count": 2,
+            "coverage_complete": True,
+            "failed_paths": {},
+        },
+    }
+
+    compacted = _compact_repository_snapshot(
+        snapshot,
+        f"Update {large_path}",
+        max_chars=1000,
+        max_files=10,
+    )
+
+    assert compacted["source_contents"] == {small_path: small_source}
+    assert large_path in compacted["source_manifest"]["model_context_omitted_paths"]
+    assert compacted["source_manifest"]["model_context_omitted_or_truncated_paths"] == [large_path]
+
+
+
+@pytest.mark.asyncio
+async def test_reviewer_repair_cannot_drop_files_from_the_existing_patch():
+    class DroppingRepairRunner(FakeAgentRunner):
+        def __init__(self):
+            super().__init__(review_statuses=["NEEDS_WORK", "PASS"])
+            self.developer_calls = 0
+
+        async def run(self, role_key, user_request, evidence):
+            output = await super().run(role_key, user_request, evidence)
+            if role_key == "developer":
+                self.developer_calls += 1
+                if self.developer_calls == 1:
+                    output["deliverables"]["change_set"] = {
+                        "summary": "Two-file implementation",
+                        "files": [
+                            {"path": "brain/feature.py", "content": "pass\\n"},
+                            {"path": "brain/second.py", "content": "pass\\n"},
+                        ],
+                    }
+                else:
+                    output["deliverables"]["change_set"] = {
+                        "summary": "Incomplete repair",
+                        "files": [{"path": "brain/feature.py", "content": "pass\\n"}],
+                    }
+            return output
+
+    tools = FakeTools()
+    with pytest.raises(CompanyWorkflowBlocked, match="omitted previously changed files"):
+        await CompanyWorkflowEngine(DroppingRepairRunner(), tools).run(
+            "Build a small feature", "owner/repository"
+        )
+
+    assert tools.apply_count == 1
+
+
+
+@pytest.mark.asyncio
+async def test_incomplete_repository_inspection_blocks_before_agent_or_write():
+    class IncompleteTools(FakeTools):
+        async def inspect_repository(self, repository):
+            snapshot = await super().inspect_repository(repository)
+            snapshot["source_manifest"]["coverage_complete"] = False
+            snapshot["source_manifest"]["failed_paths"] = {"brain/missing.py": "HTTP 404"}
+            return snapshot
+
+    runner = FakeAgentRunner()
+    tools = IncompleteTools()
+
+    with pytest.raises(CompanyWorkflowBlocked, match="Repository inspection is incomplete"):
+        await CompanyWorkflowEngine(runner, tools).run(
+            "Implement a feature", "owner/repository"
+        )
+
+    assert runner.calls == []
+    assert tools.apply_count == 0

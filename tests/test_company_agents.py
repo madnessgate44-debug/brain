@@ -47,6 +47,7 @@ async def test_provider_calls_configured_compatible_endpoint():
     assert requests[0].headers["Authorization"] == "Bearer test-key"
     body = json.loads(requests[0].content)
     assert body["model"] == "test-model"
+    assert body["temperature"] == 0.1
 
 
 @pytest.mark.asyncio
@@ -264,3 +265,41 @@ async def test_customer_decision_must_be_machine_readable_and_repairs_once():
     assert provider.calls == 2
     assert "Machine-readable decision contract" in provider.system_prompts[0]
     assert "deliverables.customer_review" in provider.system_prompts[0]
+
+
+
+@pytest.mark.parametrize(
+    ("blockers", "evidence_needed", "message"),
+    [
+        (["unresolved critical issue"], [], "blockers remain"),
+        ([], ["complete source file"], "required evidence is missing"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_specialist_cannot_pass_with_open_blockers_or_missing_evidence(
+    blockers, evidence_needed, message
+):
+    class AlwaysBlockedPassProvider:
+        async def complete(self, system_prompt, user_prompt):
+            return json.dumps({
+                "status": "PASS",
+                "deliverables": {
+                    "change_set": {
+                        "files": [{"path": "src/feature.py", "content": "pass\\n"}]
+                    },
+                    "implementation_notes": "proposed change",
+                },
+                "findings": [],
+                "blockers": blockers,
+                "evidence_needed": evidence_needed,
+            })
+
+    runner = SpecialistAgentRunner(AlwaysBlockedPassProvider())
+    evidence = {
+        "acceptance_criteria": ["AC-1"],
+        "architecture": "simple feature",
+        "file_plan": ["src/feature.py"],
+    }
+
+    with pytest.raises(AgentOutputError, match=message):
+        await runner.run("developer", "Implement the feature", evidence)

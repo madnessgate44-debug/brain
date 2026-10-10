@@ -92,6 +92,31 @@ class MissionRepository:
             .where(MissionModel.id == mission_id)
             .values(status=status.value, updated_at=utc_now())
         )
+
+    async def try_start(
+        self,
+        mission_id: str,
+        runtime_id: str,
+        heartbeat: Optional[datetime] = None,
+    ) -> bool:
+        """Atomically transition a pending mission to running exactly once."""
+        heartbeat = heartbeat or utc_now()
+        result = await self.session.execute(
+            update(MissionModel)
+            .where(
+                MissionModel.id == mission_id,
+                MissionModel.status == MissionStatus.PENDING.value,
+            )
+            .values(
+                status=MissionStatus.RUNNING.value,
+                phase=MissionPhase.EXECUTE.value,
+                assigned_runtime_id=runtime_id,
+                last_heartbeat_at=heartbeat,
+                updated_at=heartbeat,
+            )
+        )
+        await self.session.flush()
+        return result.rowcount == 1
     
     async def increment_loop_iteration(self, mission_id: str) -> None:
         """Increment loop iteration count."""
@@ -123,6 +148,26 @@ class MissionRepository:
             )
         )
     
+    async def update_heartbeat_if_running(
+        self,
+        mission_id: str,
+        runtime_id: str,
+        heartbeat: Optional[datetime] = None,
+    ) -> bool:
+        """Refresh a live runtime heartbeat without touching another runtime's lease."""
+        heartbeat = heartbeat or utc_now()
+        result = await self.session.execute(
+            update(MissionModel)
+            .where(
+                MissionModel.id == mission_id,
+                MissionModel.status == MissionStatus.RUNNING.value,
+                MissionModel.assigned_runtime_id == runtime_id,
+            )
+            .values(last_heartbeat_at=heartbeat, updated_at=heartbeat)
+        )
+        await self.session.flush()
+        return result.rowcount == 1
+
     async def clear_runtime(self, mission_id: str) -> None:
         """Clear runtime from mission."""
         await self.session.execute(
@@ -174,19 +219,23 @@ class MissionRepository:
     async def find_recoverable_missions(
         self,
         recoverable_phases: List[str],
+        heartbeat_cutoff: Optional[datetime] = None,
     ) -> List[MissionModel]:
-        """Find missions in recoverable phases."""
-        # Find missions that are in recoverable phases and not already completed or failed
-        query = select(MissionModel).where(
-            and_(
-                MissionModel.phase.in_(recoverable_phases),
-                ~MissionModel.status.in_([
-                    MissionStatus.COMPLETED.value,
-                    MissionStatus.FAILED.value,
-                    MissionStatus.CANCELLED.value,
-                ])
+        """Find interrupted running missions whose heartbeat is stale."""
+        # Pending or paused missions are durable states. A recent heartbeat may
+        # belong to another live process, so only recover stale or heartbeat-less runs.
+        conditions = [
+            MissionModel.phase.in_(recoverable_phases),
+            MissionModel.status == MissionStatus.RUNNING.value,
+        ]
+        if heartbeat_cutoff is not None:
+            conditions.append(
+                or_(
+                    MissionModel.last_heartbeat_at.is_(None),
+                    MissionModel.last_heartbeat_at < heartbeat_cutoff,
+                )
             )
-        )
+        query = select(MissionModel).where(and_(*conditions))
         result = await self.session.execute(query)
         return result.scalars().all()
     

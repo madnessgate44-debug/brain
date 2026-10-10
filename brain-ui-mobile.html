@@ -717,9 +717,20 @@
         // ============================================================
         // STATE
         // ============================================================
+        const DEFAULT_API_BASE_URL = 'http://localhost:8000';
+        function normalizeApiBaseUrl(value) {
+            try {
+                const url = new URL(String(value || '').trim());
+                if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return '';
+                return url.toString().replace(/\/+$/, '');
+            } catch (_) {
+                return '';
+            }
+        }
+
         const State = {
             token: sessionStorage.getItem('brain_control_api_key') || '',
-            apiBaseUrl: localStorage.getItem('brain_api_base_url') || 'http://localhost:8000',
+            apiBaseUrl: normalizeApiBaseUrl(localStorage.getItem('brain_api_base_url')) || DEFAULT_API_BASE_URL,
             repo: Store.get('repo', 'madnessgate44-debug/brain'),
             connected: false,
             user: null,
@@ -747,9 +758,11 @@
             const icons = { success: 'check_circle', error: 'error', info: 'info' };
             el.innerHTML = `
                 <span class="material-symbols-outlined icon">${icons[type] || 'info'}</span>
-                <span class="msg">${msg}</span>
-                <button class="close" onclick="this.parentElement.remove()">✕</button>
+                <span class="msg"></span>
+                <button class="close" type="button">✕</button>
             `;
+            el.querySelector('.msg').textContent = String(msg ?? '');
+            el.querySelector('.close').addEventListener('click', () => el.remove());
             container.appendChild(el);
             setTimeout(() => { if (el.parentElement) el.remove(); }, 5000);
         }
@@ -759,7 +772,7 @@
         // ============================================================
         const BrainAPI = {
             async request(path, options = {}) {
-                const base = (State.apiBaseUrl || 'http://localhost:8000').replace(/\/+$/, '');
+                const base = (State.apiBaseUrl || DEFAULT_API_BASE_URL).replace(/\/+$/, '');
                 if (!State.token) throw new Error('Brain control API key is required.');
                 let response;
                 try {
@@ -834,11 +847,12 @@
             const apiUrl = document.getElementById('auth-api-url').value.trim();
             if (!key) { document.getElementById('auth-error').textContent = 'Brain control API key required.'; document.getElementById('auth-error').style.display = 'block'; return; }
             if (!repo) { document.getElementById('auth-error').textContent = 'Repository required.'; document.getElementById('auth-error').style.display = 'block'; return; }
-            if (!apiUrl) { document.getElementById('auth-error').textContent = 'Brain API URL required.'; document.getElementById('auth-error').style.display = 'block'; return; }
+            const normalizedApiUrl = normalizeApiBaseUrl(apiUrl);
+            if (!normalizedApiUrl) { document.getElementById('auth-error').textContent = 'Enter a valid HTTP(S) Brain API URL.'; document.getElementById('auth-error').style.display = 'block'; return; }
 
             State.token = key;
             State.repo = repo;
-            State.apiBaseUrl = apiUrl.replace(/\/+$/, '');
+            State.apiBaseUrl = normalizedApiUrl;
             try {
                 await BrainAPI.request('/missions?limit=1');
                 sessionStorage.setItem('brain_control_api_key', key);
@@ -964,13 +978,13 @@
                 if (path) {
                     const parent = path.split('/').slice(0, -1).join('/');
                     html +=
-                        `<button class="file-item folder" data-path="${parent}"><span class="icon">📁</span> ..</button>`;
+                        `<button class="file-item folder" data-path="${escapeHtml(parent)}"><span class="icon">📁</span> ..</button>`;
                 }
                 items.forEach(item => {
                     const icon = item.type === 'dir' ? '📁' : '📄';
                     const cls = item.type === 'dir' ? 'folder' : 'file';
                     html +=
-                        `<button class="file-item ${cls}" data-path="${item.path}" data-type="${item.type}"><span class="icon">${icon}</span> ${item.name}</button>`;
+                        `<button class="file-item ${cls}" data-path="${escapeHtml(item.path)}" data-type="${escapeHtml(item.type)}"><span class="icon">${icon}</span> ${escapeHtml(item.name)}</button>`;
                 });
 
                 if (!html) html =
@@ -992,7 +1006,7 @@
 
             } catch (e) {
                 explorer.innerHTML =
-                    `<div class="empty-state"><span class="material-symbols-outlined">error</span><p>${e.message}</p></div>`;
+                    `<div class="empty-state"><span class="material-symbols-outlined">error</span><p>${escapeHtml(e.message)}</p></div>`;
             }
         }
 
@@ -1066,7 +1080,7 @@
                     <div class="reason">${escapeHtml(a.reason || 'No reason provided')}</div>
                     <div class="actions">
                         <button class="btn btn-success btn-sm approve-btn" data-id="${escapeHtml(a.id || i)}">Approve</button>
-                        <button class="btn btn-danger btn-sm reject-btn" data-id="${a.id || i}">Reject</button>
+                        <button class="btn btn-danger btn-sm reject-btn" data-id="${escapeHtml(a.id || i)}">Reject</button>
                     </div>
                 </div>
             `).join('');
@@ -1126,7 +1140,12 @@
             if (pat) { State.token = pat;
                 GH.setToken(pat);
                 sessionStorage.setItem('brain_control_api_key', pat); }
-            if (apiUrl) { State.apiBaseUrl = apiUrl.replace(/\/+$/, ''); localStorage.setItem('brain_api_base_url', State.apiBaseUrl); }
+            if (apiUrl) {
+                const normalizedApiUrl = normalizeApiBaseUrl(apiUrl);
+                if (!normalizedApiUrl) { toast('Enter a valid HTTP(S) Brain API URL.', 'error'); return; }
+                State.apiBaseUrl = normalizedApiUrl;
+                localStorage.setItem('brain_api_base_url', State.apiBaseUrl);
+            }
             if (repo) { State.repo = repo;
                 GH.setRepo(repo);
                 Store.set('repo', repo); }

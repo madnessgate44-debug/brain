@@ -25,9 +25,16 @@ class GitHubCompanyTools:
         self.gateway = gateway or GitHubRepositoryGateway()
         self.verification_gateway = verification_gateway or self.gateway
         self.pull_request_gateway = pull_request_gateway or self.gateway
-        self.control_repository = (
-            control_repository or get_setting("BRAIN_CONTROL_REPOSITORY")
+        configured_control_repository = (
+            control_repository
+            or get_setting("BRAIN_CONTROL_REPOSITORY")
+            or os.getenv("GITHUB_REPOSITORY", "")
         )
+        if not configured_control_repository:
+            configured_control_repository = (
+                f"{get_setting('BRAIN_GITHUB_OWNER', 'madnessgate44-debug')}/brain"
+            )
+        self.control_repository = configured_control_repository.strip()
         self.poll_seconds = poll_seconds
         self.timeout_seconds = timeout_seconds
 
@@ -35,14 +42,26 @@ class GitHubCompanyTools:
         """Build a multi-pass source inventory; disclose every candidate not read."""
         snapshot = await self.gateway.inspect_repository(repository, max_files=1000)
         source_suffixes = (
-            ".tsx", ".ts", ".jsx", ".js", ".py", ".css", ".html", ".json",
-            ".md", ".yml", ".yaml", ".toml",
+            ".py", ".pyi", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx",
+            ".vue", ".svelte", ".html", ".css", ".scss", ".sass", ".less",
+            ".json", ".jsonc", ".md", ".mdx", ".yml", ".yaml", ".toml",
+            ".sh", ".bash", ".zsh", ".ps1", ".sql", ".xml", ".ini", ".cfg",
+            ".go", ".rs", ".java", ".kt", ".kts", ".swift", ".rb", ".php",
+            ".c", ".h", ".cc", ".cpp", ".hpp", ".cs", ".dart", ".ex", ".exs",
+            ".erl", ".hs", ".pl", ".r", ".scala", ".gradle",
         )
         root_files = {
             "README.md", "package.json", "pyproject.toml", "index.html",
             "vite.config.ts", "vite.config.js", "tsconfig.json", "server.ts",
             "server.js", "next.config.js", "next.config.ts", "pytest.ini",
             "vitest.config.ts", "jest.config.js", "playwright.config.ts",
+            ".env.example", "alembic.ini", "Dockerfile", "render.yaml",
+            "Procfile", "requirements.txt", "runtime.txt", "Makefile",
+            ".gitignore", ".gitattributes", ".editorconfig", ".dockerignore",
+            "Dockerfile.dev", "Dockerfile.prod", "Containerfile",
+            "Caddyfile", "nginx.conf", "uv.lock", "poetry.lock",
+            "Pipfile.lock", "package-lock.json", "pnpm-lock.yaml",
+            "yarn.lock", "bun.lock", "bun.lockb",
         }
         excluded_parts = {
             "node_modules", "dist", "build", "coverage", ".git", "generated",
@@ -52,10 +71,20 @@ class GitHubCompanyTools:
         for item in snapshot["files"]:
             path = item["path"]
             parts = {part.casefold() for part in path.split("/")}
-            in_scope_tree = path.startswith(("src/", "brain/", "tests/", "test/", "scripts/", ".github/workflows/"))
+            in_scope_tree = path.startswith((
+                "src/", "brain/", "tests/", "test/", "scripts/",
+                ".github/workflows/", "alembic/", "docs/",
+            ))
             test_tree = any(part in {"tests", "test", "__tests__"} for part in parts)
-            is_source = path.endswith(source_suffixes) and in_scope_tree
-            is_root_config = path in root_files or path.startswith(".github/workflows/")
+            is_source = path.casefold().endswith(source_suffixes) and (
+                in_scope_tree or "/" not in path
+            )
+            is_root_config = (
+                path in root_files
+                or path.startswith("Dockerfile.")
+                or path.startswith(".github/workflows/")
+                or path.startswith(".github/dependabot.")
+            )
             if parts.intersection(excluded_parts):
                 continue
             if is_source or is_root_config or test_tree:
@@ -129,9 +158,12 @@ class GitHubCompanyTools:
         return snapshot
 
     async def apply_change_set(
-        self, change_set: dict[str, Any], repository: str
+        self,
+        change_set: dict[str, Any],
+        repository: str,
+        expected_base_sha: str | None = None,
     ) -> dict[str, Any]:
-        """Create a unique branch and commit the model-proposed file changes."""
+        """Create a branch only if the inspected base commit is still current."""
         summary = change_set.get("summary", "Implement approved software requirements")
         if not isinstance(summary, str):
             summary = "Implement approved software requirements"
@@ -141,6 +173,7 @@ class GitHubCompanyTools:
             change_set=change_set,
             branch_name=branch,
             commit_message=f"Brain: {summary[:140]}",
+            expected_base_sha=expected_base_sha,
         )
         return result
 
@@ -153,7 +186,11 @@ class GitHubCompanyTools:
         if not branch.startswith("brain/"):
             raise GitHubGatewayError("Checks are allowed only for Brain-created branches.")
 
-        owner, name = self.control_repository.split("/", 1)
+        # The PAT that opens the verification issue must itself be restricted to
+        # the configured owner; do not bypass the gateway allowlist via raw REST calls.
+        owner, name = self.verification_gateway._validate_repository(
+            self.control_repository
+        )
         # The verification issue must be created with a PAT, not GITHUB_TOKEN:
         # GitHub suppresses follow-on workflow runs for events caused by GITHUB_TOKEN.
         trigger_gateway = self.verification_gateway
@@ -181,17 +218,48 @@ class GitHubCompanyTools:
             )
             for comment in comments:
                 body = comment.get("body", "")
+                # Issues are public in many deployments: never accept a result that
+                # an arbitrary commenter can forge before the Actions report arrives.
+                if (comment.get("user") or {}).get("login") != "github-actions[bot]":
+                    continue
                 if "## Brain remote test run" not in body:
                     continue
-                result_match = re.search(r"\*\*Result:\*\*\s*(PASS|FAIL)", body)
-                run_match = re.search(r"https://github\.com/[^\s]+/actions/runs/\d+", body)
-                if not result_match:
+
+                def report_field(label: str) -> str | None:
+                    prefix = f"**{label}:**"
+                    for line in body.splitlines():
+                        if line.startswith(prefix):
+                            return line[len(prefix):].strip()
+                    return None
+
+                if report_field("Target repository") != repository:
                     continue
-                result = result_match.group(1)
+                if report_field("Target branch") != branch:
+                    continue
+                reported_result = report_field("Result")
+                if reported_result not in {"PASS", "FAIL", "EXECUTION_ERROR"}:
+                    continue
+                run_prefix = f"https://github.com/{owner}/{name}/actions/runs/"
+                run_url = next(
+                    (
+                        part for part in body.split()
+                        if part.startswith(run_prefix)
+                        and part[len(run_prefix):].isdigit()
+                    ),
+                    None,
+                )
+                if not run_url:
+                    continue
+                if reported_result == "PASS" and (
+                    report_field("Exit code") != "0"
+                    or report_field("Workflow job") != "success"
+                ):
+                    continue
                 return {
                     "executed": True,
-                    "status": result,
-                    "run_url": run_match.group(0) if run_match else None,
+                    "status": "PASS" if reported_result == "PASS" else "FAIL",
+                    "reported_result": reported_result,
+                    "run_url": run_url,
                     "issue_url": issue.get("html_url"),
                     "report": body,
                     "branch": branch,

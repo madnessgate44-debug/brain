@@ -1,6 +1,6 @@
 """Event API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from brain.schemas.event import EventResponse
 from brain.services.event_service import EventService
@@ -16,8 +16,8 @@ router = APIRouter(
 @router.get("", response_model=list[EventResponse])
 async def list_events(
     mission_id: str,
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     service: EventService = Depends(get_event_service),
 ):
     """List mission events ordered by sequence number."""

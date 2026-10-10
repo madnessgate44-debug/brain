@@ -152,3 +152,116 @@ async def test_developer_blocks_before_model_when_existing_target_source_is_omit
 
     with pytest.raises(AgentOutputError, match="complete source contents are unavailable"):
         await runner.run("developer", f"Update only {path}.", evidence)
+
+
+
+@pytest.mark.parametrize(
+    "role_key",
+    ["code_reviewer", "qa_engineer", "security_auditor", "customer_advocate", "release_manager"],
+)
+@pytest.mark.asyncio
+async def test_release_gate_roles_block_before_model_when_diff_is_truncated(role_key):
+    from brain.company.roles import ROLE_BY_KEY
+
+    class NeverCalledProvider:
+        async def complete(self, system_prompt, user_prompt):
+            raise AssertionError("a gate must not approve incomplete diff evidence")
+
+    role = ROLE_BY_KEY[role_key]
+    evidence = {key: "available evidence" for key in role.required_inputs}
+    evidence["change_set"] = {
+        "summary": "Test change",
+        "files": [{"path": "src/change.py", "content": "pass\\n"}],
+    }
+    evidence["test_results"] = {"status": "PASS", "executed": True}
+    evidence["review_decision"] = {"status": "PASS"}
+    evidence["security_decision"] = {"status": "PASS"}
+    evidence["customer_review"] = {"status": "PASS"}
+    evidence["actual_diff"] = "d" * 80_000
+
+    with pytest.raises(AgentOutputError, match="complete change evidence is unavailable"):
+        await SpecialistAgentRunner(NeverCalledProvider()).run(
+            role_key, "Review this change", evidence
+        )
+
+
+@pytest.mark.asyncio
+async def test_reviewer_blocks_when_github_omits_a_changed_file_patch():
+    class NeverCalledProvider:
+        async def complete(self, system_prompt, user_prompt):
+            raise AssertionError("reviewer must not approve a placeholder patch")
+
+    evidence = {
+        "acceptance_criteria": ["AC-1"],
+        "architecture": "Small change",
+        "change_set": {
+            "summary": "Change file",
+            "files": [{"path": "src/change.py", "content": "pass\\n"}],
+        },
+        "changed_files": ["src/change.py"],
+        "actual_diff": "FILE: src/change.py\\n[Patch omitted by GitHub; inspect file content.]",
+    }
+
+    with pytest.raises(AgentOutputError, match="GitHub omitted one or more changed-file patches"):
+        await SpecialistAgentRunner(NeverCalledProvider()).run(
+            "code_reviewer", "Review this change", evidence
+        )
+
+
+
+def test_explicit_file_omitted_outside_bounded_file_index_is_reported_as_missing():
+    files = [{"path": f"src/file_{index}.py", "size": 10} for index in range(301)]
+    evidence = {
+        "file_plan": ["src/late.py"],
+        "repository_snapshot": {
+            "repository": "owner/repository",
+            "default_branch": "main",
+            "base_commit": "abc123",
+            "files": files,
+            "source_contents": {},
+            "source_manifest": {
+                "candidate_count": 302,
+                "read_count": 302,
+                "coverage_complete": True,
+                "model_context_omitted_paths": ["src/late.py"],
+            },
+        },
+    }
+
+    prepared = _prepare_prompt_evidence(
+        "developer",
+        "Edit src/late.py and preserve its complete original contents.",
+        evidence,
+    )
+
+    assert "src/late.py" in prepared["repository_snapshot"]["source_selection"]["omitted_explicit_paths"]
+
+
+
+def test_explicit_large_file_is_reported_when_source_selector_omits_it():
+    huge_content = "x" * 70_000
+    files = [{"path": f"src/file_{index}.py", "size": 10} for index in range(301)]
+    evidence = {
+        "file_plan": ["src/late_large.py"],
+        "repository_snapshot": {
+            "repository": "owner/repository",
+            "default_branch": "main",
+            "base_commit": "abc123",
+            "files": files,
+            "source_contents": {"src/late_large.py": huge_content},
+            "source_manifest": {
+                "candidate_count": 301,
+                "read_count": 301,
+                "coverage_complete": True,
+                "model_context_omitted_paths": [],
+            },
+        },
+    }
+
+    prepared = _prepare_prompt_evidence(
+        "developer",
+        "Edit src/late_large.py using its complete original contents.",
+        evidence,
+    )
+
+    assert "src/late_large.py" in prepared["repository_snapshot"]["source_selection"]["omitted_explicit_paths"]

@@ -18,7 +18,7 @@ def test_gateway_requires_configured_owner_allowlist():
         gateway._validate_repository("someone-else/project")
 
 
-@pytest.mark.parametrize("path", ["", "/etc/passwd", "../secret", "src/../secret", ".git/config", r"src\file.py"])
+@pytest.mark.parametrize("path", ["", "/etc/passwd", "../secret", "src/../secret", ".git", ".git/config", ".GIT/config", "src/.git/config", r"src\\file.py"])
 def test_gateway_rejects_unsafe_repository_paths(path):
     with pytest.raises(GitHubGatewayError, match="Unsafe repository path"):
         GitHubRepositoryGateway._validate_path(path)
@@ -90,3 +90,82 @@ async def test_gateway_write_preflight_reads_advertised_push_permission_without_
         "write_access": True,
         "permission_evidence": "confirmed_push",
     }
+
+
+
+@pytest.mark.asyncio
+async def test_gateway_refuses_change_set_when_inspected_base_is_stale():
+    calls = []
+
+    def handler(request):
+        calls.append((request.method, request.url.path))
+        if request.method == "GET" and request.url.path == "/repos/example-owner/project":
+            return httpx.Response(200, json={"default_branch": "main"}, request=request)
+        if request.method == "GET" and request.url.path.endswith("/git/ref/heads/main"):
+            return httpx.Response(
+                200,
+                json={"object": {"sha": "current-commit"}},
+                request=request,
+            )
+        raise AssertionError(f"Unexpected network request: {request.method} {request.url}")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        gateway = GitHubRepositoryGateway(
+            token="test-token",
+            allowed_owner="example-owner",
+            api_base_url="https://example.test",
+            client=client,
+        )
+        with pytest.raises(GitHubGatewayError, match="changed after repository inspection"):
+            await gateway.apply_change_set(
+                repository="example-owner/project",
+                change_set={"files": [{"path": "src/feature.py", "content": "pass\\n"}]},
+                branch_name="brain/test-change",
+                commit_message="test",
+                expected_base_sha="stale-commit",
+            )
+
+    assert len(calls) == 2
+    assert all(method == "GET" for method, _ in calls)
+
+
+
+@pytest.mark.asyncio
+async def test_gateway_rejects_duplicate_paths_before_network_call():
+    gateway = GitHubRepositoryGateway(
+        token="test-token",
+        allowed_owner="example-owner",
+        api_base_url="https://example.test",
+    )
+    with pytest.raises(GitHubGatewayError, match="Duplicate file path"):
+        await gateway.apply_change_set(
+            repository="example-owner/project",
+            change_set={"files": [
+                {"path": "src/feature.py", "content": "first"},
+                {"path": "src/feature.py", "content": "second"},
+            ]},
+            branch_name="brain/test-change",
+            commit_message="test",
+        )
+
+
+@pytest.mark.asyncio
+async def test_gateway_rejects_aggregate_size_over_limit_before_network_call():
+    gateway = GitHubRepositoryGateway(
+        token="test-token",
+        allowed_owner="example-owner",
+        api_base_url="https://example.test",
+    )
+    change_set = {
+        "files": [
+            {"path": f"src/file_{index}.py", "content": "x" * 100_000}
+            for index in range(23)
+        ]
+    }
+    with pytest.raises(GitHubGatewayError, match="aggregate limit"):
+        await gateway.apply_change_set(
+            repository="example-owner/project",
+            change_set=change_set,
+            branch_name="brain/test-change",
+            commit_message="test",
+        )

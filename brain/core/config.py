@@ -2,12 +2,13 @@
 
 from typing import Optional, List
 from pathlib import Path
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class SystemConfig(BaseSettings):
     """System configuration."""
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
     instance_id: str = Field(default="brain-instance-001")
     deployment_name: str = Field(default="development")
     environment: str = Field(default="development")
@@ -15,7 +16,8 @@ class SystemConfig(BaseSettings):
 
 class DatabaseConfig(BaseSettings):
     """Database configuration."""
-    sqlite_path: str = Field(default="./workspace/db/brain.db")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="DATABASE_", extra="ignore")
+    sqlite_path: str = Field(default="./workspace/db/brain.db", validation_alias=AliasChoices("DATABASE__SQLITE_PATH", "DATABASE_PATH", "DATABASE_SQLITE_PATH", "SQLITE_PATH"))
     busy_timeout: int = Field(default=30, gt=0)
     journal_mode: str = Field(default="WAL")
     foreign_keys: bool = Field(default=True)
@@ -31,6 +33,7 @@ class DatabaseConfig(BaseSettings):
 
 class WorkspaceConfig(BaseSettings):
     """Workspace configuration."""
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="WORKSPACE_", extra="ignore")
     root: str = Field(default="./workspace")
     config_dir: str = Field(default="config")
     db_dir: str = Field(default="db")
@@ -49,9 +52,10 @@ class WorkspaceConfig(BaseSettings):
 
 class LoggingConfig(BaseSettings):
     """Logging configuration."""
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
     log_level: str = Field(default="INFO")
     log_file: Optional[str] = Field(default="./workspace/logs/brain.log")
-    structured: bool = Field(default=False)
+    structured: bool = Field(default=False, validation_alias=AliasChoices("LOG_STRUCTURED", "STRUCTURED"))
     
     @field_validator("log_file")
     @classmethod
@@ -65,19 +69,30 @@ class LoggingConfig(BaseSettings):
 
 class RecoveryConfig(BaseSettings):
     """Recovery configuration."""
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="RECOVERY_", extra="ignore")
     auto_recover: bool = Field(default=True)
     recoverable_phases: List[str] = Field(default=["EXECUTE", "VALIDATE", "REPAIR", "WAITING_FOR_APPROVAL"])
     orphan_detection_grace_period_seconds: int = Field(default=300, gt=0)
 
+    @field_validator("recoverable_phases", mode="before")
+    @classmethod
+    def parse_recoverable_phases(cls, value):
+        """Accept the comma-separated format documented in .env.example."""
+        if isinstance(value, str):
+            return [phase.strip() for phase in value.split(",") if phase.strip()]
+        return value
+
 
 class ConcurrencyConfig(BaseSettings):
     """Concurrency configuration."""
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="CONCURRENCY_", extra="ignore")
     max_active_missions: int = Field(default=10, gt=0)
     heartbeat_interval_seconds: int = Field(default=30, gt=0)
 
 
 class MissionDefaultsConfig(BaseSettings):
     """Mission defaults configuration."""
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="MISSION_DEFAULTS_", extra="ignore")
     priority: str = Field(default="MEDIUM")
     risk_level: str = Field(default="LOW")
     max_loop_iterations: int = Field(default=10, gt=0)

@@ -1,5 +1,6 @@
 """Artifact service."""
 
+import json
 import logging
 from typing import List, Optional
 
@@ -28,7 +29,7 @@ class ArtifactService:
             relative_path=data.relative_path,
             mime_type=data.mime_type,
             size_bytes=data.size_bytes,
-            metadata_json=str(data.metadata) if data.metadata else None,
+            metadata_json=json.dumps(data.metadata, ensure_ascii=False) if data.metadata else None,
         )
         
         logger.info(

@@ -12,15 +12,25 @@ class FakeGateway:
         self.name = name
         self.calls = []
 
+    def _validate_repository(self, repository):
+        if repository != "owner/brain":
+            raise RuntimeError("repository owner is not allowed")
+        return ("owner", "brain")
+
     async def _request(self, method, path, **kwargs):
         self.calls.append((method, path, kwargs))
         if method == "POST" and path.endswith("/issues"):
             return {"number": 42, "html_url": "https://github.com/owner/brain/issues/42"}
         if method == "GET" and path.endswith("/issues/42/comments"):
             return [{
+                "user": {"login": "github-actions[bot]"},
                 "body": (
                     "## Brain remote test run\n\n"
+                    "**Target repository:** owner/brain\n"
+                    "**Target branch:** brain/test-branch\n"
                     "**Result:** PASS\n"
+                    "**Exit code:** 0\n"
+                    "**Workflow job:** success\n"
                     "Workflow run: https://github.com/owner/brain/actions/runs/123"
                 )
             }]
@@ -47,6 +57,49 @@ async def test_verification_issue_uses_separate_pat_gateway():
     assert result["run_url"] == "https://github.com/owner/brain/actions/runs/123"
     assert len(write_gateway.calls) == 0
     assert [call[0] for call in trigger_gateway.calls] == ["POST", "GET"]
+
+
+@pytest.mark.asyncio
+async def test_verification_ignores_forged_or_mismatched_result_comments():
+    class ForgedThenTrustedGateway(FakeGateway):
+        async def _request(self, method, path, **kwargs):
+            self.calls.append((method, path, kwargs))
+            if method == "POST" and path.endswith("/issues"):
+                return {"number": 42, "html_url": "https://github.com/owner/brain/issues/42"}
+            if method == "GET" and path.endswith("/issues/42/comments"):
+                def report(user, target):
+                    return {
+                        "user": {"login": user},
+                        "body": "\n".join([
+                            "## Brain remote test run",
+                            f"**Target repository:** {target}",
+                            "**Target branch:** brain/test-branch",
+                            "**Result:** PASS",
+                            "**Exit code:** 0",
+                            "**Workflow job:** success",
+                            "Workflow run: https://github.com/owner/brain/actions/runs/123",
+                        ]),
+                    }
+                return [
+                    report("untrusted-user", "owner/brain"),
+                    report("github-actions[bot]", "owner/other-repo"),
+                    report("github-actions[bot]", "owner/brain"),
+                ]
+            raise AssertionError(f"Unexpected request: {method} {path}")
+
+    gateway = ForgedThenTrustedGateway("pat")
+    tools = GitHubCompanyTools(
+        gateway=gateway,
+        verification_gateway=gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=1,
+    )
+
+    result = await tools.run_checks("owner/brain", "brain/test-branch")
+
+    assert result["status"] == "PASS"
+    assert result["run_url"] == "https://github.com/owner/brain/actions/runs/123"
 
 
 @pytest.mark.asyncio
@@ -111,14 +164,29 @@ async def test_inspection_reads_all_in_scope_source_and_test_files_and_reports_c
     paths = (
         [f"src/components/Component{i}.tsx" for i in range(45)]
         + [f"src/services/__tests__/service{i}.test.ts" for i in range(8)]
-        + ["package.json", "README.md", "dist/bundle.js", "node_modules/pkg/index.js"]
+        + [
+            "package.json", "README.md", "brain-app.html", "brain-ui-mobile.html",
+            "alembic/versions/001_initial_schema.py", "docs/operations.md",
+            "scripts/deploy.sh", "src/db/schema.sql", "src/UPPER.PY",
+            ".gitignore", "Dockerfile.prod", "uv.lock",
+            ".github/workflows/ci.yml", "render.yaml",
+            "dist/bundle.js", "node_modules/pkg/index.js",
+        ]
     )
     gateway = FakeInspectionGateway(paths)
     tools = GitHubCompanyTools(gateway=gateway)
 
     snapshot = await tools.inspect_repository("owner/amina")
 
-    expected = [path for path in paths if path.startswith("src/") or path in {"package.json", "README.md"}]
+    expected = [
+        path for path in paths
+        if path.startswith(("src/", "alembic/", "docs/", "scripts/", ".github/workflows/"))
+        or path in {
+            "package.json", "README.md", "brain-app.html",
+            "brain-ui-mobile.html", "render.yaml", ".gitignore",
+            "Dockerfile.prod", "uv.lock",
+        }
+    ]
     assert set(gateway.read_paths) == set(expected)
     assert snapshot["source_files_read"] == len(expected)
     assert snapshot["source_manifest"]["candidate_count"] == len(expected)
@@ -190,3 +258,68 @@ async def test_inspection_reads_source_files_with_bounded_concurrency():
     assert snapshot["source_files_read"] == len(paths)
     assert set(gateway.read_paths) == set(paths)
     assert 1 < gateway.max_active_reads <= 8
+
+@pytest.mark.asyncio
+async def test_verification_runner_bootstrap_error_is_reported_as_terminal_failure():
+    class ExecutionErrorGateway(FakeGateway):
+        async def _request(self, method, path, **kwargs):
+            self.calls.append((method, path, kwargs))
+            if method == "POST" and path.endswith("/issues"):
+                return {"number": 43, "html_url": "https://github.com/owner/brain/issues/43"}
+            if method == "GET" and path.endswith("/issues/43/comments"):
+                return [{
+                    "user": {"login": "github-actions[bot]"},
+                    "body": (
+                        "## Brain remote test run\n\n"
+                        "**Target repository:** owner/brain\n"
+                        "**Target branch:** brain/test-branch\n"
+                        "**Result:** EXECUTION_ERROR\n"
+                        "Workflow run: https://github.com/owner/brain/actions/runs/124"
+                    )
+                }]
+            raise AssertionError(f"Unexpected request: {method} {path}")
+
+    trigger_gateway = ExecutionErrorGateway("pat")
+    tools = GitHubCompanyTools(
+        gateway=FakeGateway("actions-token"),
+        verification_gateway=trigger_gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=1,
+    )
+
+    result = await tools.run_checks("owner/brain", "brain/test-branch")
+
+    assert result["executed"] is True
+    assert result["status"] == "FAIL"
+    assert result["reported_result"] == "EXECUTION_ERROR"
+    assert result["run_url"] == "https://github.com/owner/brain/actions/runs/124"
+
+
+
+def test_company_tools_defaults_control_repository_from_owner(monkeypatch):
+    monkeypatch.setenv("BRAIN_CONTROL_REPOSITORY", "")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "")
+    monkeypatch.setenv("BRAIN_GITHUB_OWNER", "example-owner")
+
+    tools = GitHubCompanyTools(gateway=object())
+
+    assert tools.control_repository == "example-owner/brain"
+
+
+
+@pytest.mark.asyncio
+async def test_verification_issue_respects_control_repository_owner_allowlist():
+    trigger_gateway = FakeGateway("pat")
+    tools = GitHubCompanyTools(
+        gateway=FakeGateway("write"),
+        verification_gateway=trigger_gateway,
+        control_repository="other-owner/brain",
+        poll_seconds=0,
+        timeout_seconds=1,
+    )
+
+    with pytest.raises(RuntimeError, match="repository owner is not allowed"):
+        await tools.run_checks("owner/brain", "brain/test-branch")
+
+    assert trigger_gateway.calls == []

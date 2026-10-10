@@ -167,6 +167,14 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
         if op not in SUPPORTED_ACTIONS:
             raise BrowserPolicyError(f"action {index} has unsupported op")
         action = dict(raw)
+        if "timeout_ms" in action and (
+            isinstance(action["timeout_ms"], bool)
+            or not isinstance(action["timeout_ms"], int)
+            or not 1 <= action["timeout_ms"] <= 20_000
+        ):
+            raise BrowserPolicyError(
+                f"action {index} timeout_ms must be an integer between 1 and 20000"
+            )
         if op == "navigate":
             if not isinstance(action.get("url"), str) or len(action["url"]) > 2048:
                 raise BrowserPolicyError(f"action {index} requires a valid url string")
@@ -182,12 +190,15 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
         if op == "type":
             if not isinstance(action.get("text"), str) or len(action["text"]) > 20_000:
                 raise BrowserPolicyError(f"action {index} requires text no longer than 20000 characters")
+            if "clear" in action and not isinstance(action["clear"], bool):
+                raise BrowserPolicyError(f"action {index} clear must be a boolean")
         if op == "select" and (
             not isinstance(action.get("value"), str) or len(action["value"]) > 5000
         ):
             raise BrowserPolicyError(f"action {index} requires a select value no longer than 5000 characters")
         if op == "scroll" and (
             action.get("direction", "down") not in {"up", "down", "left", "right"}
+            or isinstance(action.get("amount", 600), bool)
             or not isinstance(action.get("amount", 600), int)
             or not 1 <= action.get("amount", 600) <= 5000
         ):
@@ -202,7 +213,7 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
             raise BrowserPolicyError(f"action {index} has invalid wait state")
         if op in {"inspect", "extract_links"}:
             max_chars = action.get("max_chars", 5000)
-            if not isinstance(max_chars, int) or not 1 <= max_chars <= MAX_TEXT_CHARS:
+            if isinstance(max_chars, bool) or not isinstance(max_chars, int) or not 1 <= max_chars <= MAX_TEXT_CHARS:
                 raise BrowserPolicyError(f"action {index} max_chars must be between 1 and {MAX_TEXT_CHARS}")
         validated.append(action)
     return validated
@@ -372,7 +383,7 @@ class BrowserWorker:
         if op == "navigate":
             if not is_allowed_url(action["url"], self.allowed_domains):
                 raise BrowserPolicyError("navigation URL is outside the configured public-domain allowlist")
-            response = await page.goto(action["url"], wait_until="domcontentloaded", timeout=20_000)
+            response = await page.goto(action["url"], wait_until="domcontentloaded", timeout=action.get("timeout_ms", 20_000))
             self._assert_current_page_allowed(page)
             return {
                 "url": page.url,
@@ -410,15 +421,15 @@ class BrowserWorker:
         if op in MUTATING_ACTIONS or op in {"wait_for", "screenshot", "hover", "scroll", "go_back", "go_forward", "reload"}:
             self._assert_current_page_allowed(page)
         if op == "go_back":
-            response = await page.go_back(wait_until="domcontentloaded", timeout=20_000)
+            response = await page.go_back(wait_until="domcontentloaded", timeout=action.get("timeout_ms", 20_000))
             self._assert_current_page_allowed(page)
             return {"url": page.url, "title": await page.title(), "http_status": getattr(response, "status", None)}
         if op == "go_forward":
-            response = await page.go_forward(wait_until="domcontentloaded", timeout=20_000)
+            response = await page.go_forward(wait_until="domcontentloaded", timeout=action.get("timeout_ms", 20_000))
             self._assert_current_page_allowed(page)
             return {"url": page.url, "title": await page.title(), "http_status": getattr(response, "status", None)}
         if op == "reload":
-            response = await page.reload(wait_until="domcontentloaded", timeout=20_000)
+            response = await page.reload(wait_until="domcontentloaded", timeout=action.get("timeout_ms", 20_000))
             self._assert_current_page_allowed(page)
             return {"url": page.url, "title": await page.title(), "http_status": getattr(response, "status", None)}
         if op == "scroll":

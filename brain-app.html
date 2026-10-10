@@ -445,7 +445,7 @@
         </div>
         <div class="settings-group">
             <label>🌐 Brain API Base URL</label>
-            <input type="text" id="settingsModel" placeholder="Model name" value="gemini-flash-latest">
+            <input type="text" id="settingsModel" placeholder="https://your-brain-api.example" value="http://localhost:8000">
         </div>
         <div class="settings-group">
             <label>📁 Repository</label>
@@ -467,9 +467,20 @@
     // ============================================================
     // STATE — PERSISTED IN localStorage
     // ============================================================
+    const DEFAULT_API_BASE_URL = 'http://localhost:8000';
+    function normalizeApiBaseUrl(value) {
+        try {
+            const url = new URL(String(value || '').trim());
+            if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return '';
+            return url.toString().replace(/\/+$/, '');
+        } catch (_) {
+            return '';
+        }
+    }
+
     const State = {
         apiKey: sessionStorage.getItem('brain_control_api_key') || '',
-        model: localStorage.getItem('brain_api_base_url') || 'http://localhost:8000',
+        model: normalizeApiBaseUrl(localStorage.getItem('brain_api_base_url')) || DEFAULT_API_BASE_URL,
         provider: 'brain',
         repo: localStorage.getItem('brain_repo') || 'madnessgate44-debug/brain',
         missions: [],
@@ -508,7 +519,9 @@
         if (type === 'success') el.style.borderLeftColor = '#10b981';
         else if (type === 'error') el.style.borderLeftColor = '#ef4444';
         el.innerHTML =
-            `<span style="color:${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3d8bff'}">●</span><span style="flex:1;font-size:0.75rem;">${msg}</span><button style="background:none;border:none;color:#4e5d78;cursor:pointer;font-size:16px;padding:4px;" onclick="this.parentElement.remove()">✕</button>`;
+            `<span style="color:${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3d8bff'}">●</span><span class="toast-message" style="flex:1;font-size:0.75rem;"></span><button class="toast-close" style="background:none;border:none;color:#4e5d78;cursor:pointer;font-size:16px;padding:4px;" type="button">✕</button>`;
+        el.querySelector('.toast-message').textContent = String(msg ?? '');
+        el.querySelector('.toast-close').addEventListener('click', () => el.remove());
         container.appendChild(el);
         setTimeout(() => { if (el.parentElement) el.remove(); }, 5000);
     }
@@ -517,7 +530,7 @@
     // GITHUB API — READ/WRITE MISSIONS
     // ============================================================
     async function brainRequest(path, options = {}) {
-        const base = (State.model || 'http://localhost:8000').replace(/\/+$/, '');
+        const base = (State.model || DEFAULT_API_BASE_URL).replace(/\/+$/, '');
         if (!State.apiKey) throw new Error('Enter the Brain control API key in Settings.');
         let response;
         try {
@@ -571,7 +584,7 @@
     async function callGemini(messages) {
         const payload = await brainRequest('/chat', {
             method: 'POST',
-            body: { messages: messages.map(m => ({ role: m.role, content: m.content })) }
+            body: { messages: messages.slice(-16).map(m => ({ role: m.role, content: m.content })) }
         });
         return payload.reply || '';
     }
@@ -699,8 +712,10 @@
     });
 
     document.getElementById('saveSettings').addEventListener('click', () => {
+        const baseUrl = normalizeApiBaseUrl(document.getElementById('modelInput').value.trim());
+        if (!baseUrl) { toast('Enter a valid HTTP(S) Brain API base URL.', 'error'); return; }
         State.apiKey = document.getElementById('apiKeyInput').value.trim();
-        State.model = document.getElementById('modelInput').value.trim() || 'http://localhost:8000';
+        State.model = baseUrl;
         saveSettings();
         document.getElementById('settingsApiKey').value = State.apiKey;
         document.getElementById('settingsModel').value = State.model;
@@ -710,8 +725,10 @@
     });
 
     document.getElementById('saveAllSettings').addEventListener('click', () => {
+        const baseUrl = normalizeApiBaseUrl(document.getElementById('settingsModel').value.trim());
+        if (!baseUrl) { toast('Enter a valid HTTP(S) Brain API base URL.', 'error'); return; }
         State.apiKey = document.getElementById('settingsApiKey').value.trim();
-        State.model = document.getElementById('settingsModel').value.trim() || 'http://localhost:8000';
+        State.model = baseUrl;
         State.provider = document.getElementById('providerSelect').value;
         State.repo = document.getElementById('settingsRepo').value.trim() || 'madnessgate44-debug/brain';
         saveSettings();
@@ -723,13 +740,13 @@
 
     document.getElementById('testConnection').addEventListener('click', async () => {
         const key = document.getElementById('apiKeyInput').value.trim() || State.apiKey;
-        const baseUrl = document.getElementById('modelInput').value.trim() || State.model;
+        const baseUrl = normalizeApiBaseUrl(document.getElementById('modelInput').value.trim() || State.model);
         if (!key) { toast('Enter the Brain control API key first.', 'error'); return; }
-        if (!baseUrl) { toast('Enter the Brain API base URL first.', 'error'); return; }
+        if (!baseUrl) { toast('Enter a valid HTTP(S) Brain API base URL.', 'error'); return; }
         const previousKey = State.apiKey;
         const previousBaseUrl = State.model;
         State.apiKey = key;
-        State.model = baseUrl.replace(/\/+$/, '');
+        State.model = baseUrl;
         toast('Testing connection...', 'info');
         try {
             const result = await callGemini([{ role: 'user', content: 'Reply with exactly: OK' }]);

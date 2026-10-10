@@ -45,12 +45,28 @@ def validate_stage_entry(role_key: str, evidence: dict[str, Any]) -> None:
 def evaluate_release_gate(evidence: dict[str, Any]) -> GateDecision:
     """Require explicit positive decisions and real QA evidence before release."""
     blockers: list[str] = []
+    required_reviewers = {
+        "review_decision": "code_reviewer",
+        "security_decision": "security_auditor",
+        "customer_review": "customer_advocate",
+    }
     for key in MANDATORY_RELEASE_GATES:
         value = evidence.get(key)
         if value is None or value == "":
             blockers.append(f"Missing required gate evidence: {key}")
             continue
-        if isinstance(value, dict):
+        if key in required_reviewers:
+            if not isinstance(value, dict):
+                blockers.append(f"{key} must include a structured independent reviewer decision")
+                continue
+            status = str(value.get("status", "")).strip().upper()
+            if status not in {"PASS", "APPROVED"}:
+                blockers.append(f"{key} did not pass")
+            if value.get("reviewer_role") != required_reviewers[key]:
+                blockers.append(
+                    f"{key} must be recorded by independent role {required_reviewers[key]}"
+                )
+        elif isinstance(value, dict):
             status = str(value.get("status", "")).strip().upper()
             if status not in {"PASS", "APPROVED"}:
                 blockers.append(f"{key} did not pass")
@@ -61,8 +77,15 @@ def evaluate_release_gate(evidence: dict[str, Any]) -> GateDecision:
             blockers.append(f"{key} has no recognized decision format")
 
     test_results = evidence.get("test_results")
-    if isinstance(test_results, dict) and test_results.get("executed") is not True:
-        blockers.append("QA evidence does not confirm tests were actually executed")
+    if not isinstance(test_results, dict):
+        blockers.append("QA evidence must be a structured result from the real check runner")
+    else:
+        if test_results.get("executed") is not True:
+            blockers.append("QA evidence does not confirm tests were actually executed")
+        if str(test_results.get("status", "")).strip().upper() != "PASS":
+            blockers.append("QA execution result did not pass")
+        if not isinstance(test_results.get("run_url"), str) or not test_results["run_url"].startswith("https://"):
+            blockers.append("QA evidence is missing a verifiable HTTPS workflow run URL")
 
     review = evidence.get("review_decision")
     if isinstance(review, dict) and review.get("reviewer_role") == "developer":

@@ -27,11 +27,13 @@ class MissionService:
         event_repo: EventRepository,
         artifact_store: ArtifactStore,
         session_factory: async_sessionmaker[AsyncSession],
+        heartbeat_interval_seconds: float = 30.0,
     ):
         self.mission_repo = mission_repo
         self.event_repo = event_repo
         self.artifact_store = artifact_store
         self.session_factory = session_factory
+        self.heartbeat_interval_seconds = max(0.1, float(heartbeat_interval_seconds))
 
     async def create_mission(self, data: MissionCreate) -> MissionResponse:
         """Create a new mission."""
@@ -53,7 +55,7 @@ class MissionService:
             message=f"Mission '{data.title}' created",
             phase=MissionPhase.INTAKE.value,
             severity="INFO",
-            payload_json=str({"title": data.title, "objective": data.objective}),
+            payload_json=json.dumps({"title": data.title, "objective": data.objective}, ensure_ascii=False),
         )
         self.artifact_store.ensure_mission_dir(mission.id)
 
@@ -94,22 +96,36 @@ class MissionService:
         mission = await self.mission_repo.get_by_id(mission_id)
         if not mission:
             raise ValueError(f"Mission {mission_id} not found")
-        if mission.status in [MissionStatus.RUNNING.value, MissionStatus.COMPLETED.value]:
-            raise RuntimeError(f"Mission {mission_id} is already {mission.status}")
-        if mission.status == MissionStatus.FAILED.value:
-            raise RuntimeError(f"Mission {mission_id} has failed and cannot be started")
+        if mission.status != MissionStatus.PENDING.value:
+            raise RuntimeError(
+                f"Mission {mission_id} cannot be started from status {mission.status}; "
+                "only PENDING missions can start. Paused missions require explicit resume support."
+            )
+        if mission.approval_state in {
+            "PENDING", "REJECTED", "EXPIRED",
+        }:
+            raise RuntimeError(
+                f"Mission {mission_id} cannot start while approval_state is "
+                f"{mission.approval_state}; a pending approval must be approved first, "
+                "and rejected or expired approvals must be resolved before execution."
+            )
 
         runtime_id = generate_runtime_id()
-        await self.mission_repo.update_phase(mission_id, MissionPhase.EXECUTE)
-        await self.mission_repo.update_status(mission_id, MissionStatus.RUNNING)
-        await self.mission_repo.attach_runtime(mission_id, runtime_id, utc_now())
+        heartbeat = utc_now()
+        if not await self.mission_repo.try_start(mission_id, runtime_id, heartbeat):
+            current = await self.mission_repo.get_by_id(mission_id)
+            if current is None:
+                raise ValueError(f"Mission {mission_id} not found")
+            raise RuntimeError(
+                f"Mission {mission_id} could not be started because its status changed to {current.status}"
+            )
         await self.event_repo.append_event(
             mission_id=mission_id,
             event_type="mission_started",
             message=f"Mission started with runtime {runtime_id}",
             phase=MissionPhase.EXECUTE.value,
             severity="INFO",
-            payload_json=str({"runtime_id": runtime_id}),
+            payload_json=json.dumps({"runtime_id": runtime_id}),
         )
 
         # Persist the running state before the independent background session reads it.
@@ -121,6 +137,7 @@ class MissionService:
             session_factory=self.session_factory,
             artifact_store=self.artifact_store,
             max_iterations=mission.max_loop_iterations,
+            heartbeat_interval_seconds=self.heartbeat_interval_seconds,
         )
         runtime_registry.register(runtime)
         await runtime_registry.start(mission_id)

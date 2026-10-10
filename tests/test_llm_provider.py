@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 
@@ -68,6 +70,7 @@ async def test_provider_stops_after_three_transient_server_errors(monkeypatch):
 async def test_provider_falls_back_to_native_gemini_immediately_after_compatibility_429(monkeypatch):
     compatibility_calls = 0
     native_calls = 0
+    compatibility_payloads = []
 
     async def no_sleep(_delay):
         return None
@@ -76,8 +79,9 @@ async def test_provider_falls_back_to_native_gemini_immediately_after_compatibil
         nonlocal compatibility_calls, native_calls
         if request.url.path.endswith(":generateContent"):
             native_calls += 1
-            payload = request.read().decode("utf-8")
+            payload = json.loads(request.read().decode("utf-8"))
             assert "systemInstruction" in payload
+            assert "generationConfig" not in payload
             return httpx.Response(
                 200,
                 json={
@@ -88,6 +92,7 @@ async def test_provider_falls_back_to_native_gemini_immediately_after_compatibil
                 request=request,
             )
         compatibility_calls += 1
+        compatibility_payloads.append(json.loads(request.read().decode("utf-8")))
         return httpx.Response(
             429,
             headers={"Retry-After": "0"},
@@ -108,6 +113,7 @@ async def test_provider_falls_back_to_native_gemini_immediately_after_compatibil
     assert result == "native Gemini result"
     assert compatibility_calls == 1
     assert native_calls == 1
+    assert "temperature" not in compatibility_payloads[0]
 
 
 @pytest.mark.asyncio
