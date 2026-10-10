@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from brain.api.routes import health, missions, approvals, artifacts, events, company_workflows, browser, browser_planning, chat
+from brain.api.routes import (
+    health, missions, approvals, artifacts, events, company_workflows, browser, browser_planning, chat,
+)
 from brain.core.config import load_config
 from brain.core.logging import setup_logging
 from brain.db.session import DatabaseSessionManager
