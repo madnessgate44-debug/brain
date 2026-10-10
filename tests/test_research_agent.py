@@ -265,3 +265,25 @@ def test_mission_discovery_adds_bounded_targeted_query():
         if len(words) >= 5:
             break
     assert words == ["browser", "extensions", "hosting", "limits"]
+
+
+@pytest.mark.asyncio
+async def test_agent_includes_public_source_evidence_without_claiming_code_audit():
+    class FakeDiscovery:
+        token = ""
+        async def search(self, max_candidates=30):
+            return []
+
+    class FakeEvidenceCollector:
+        async def collect(self, candidates, mission):
+            return {
+                "repository_documentation": [{"repository": "acme/browser", "source_url": "https://github.com/acme/browser", "source_type": "public README", "excerpt": "Uses Playwright", "evidence_boundary": "README only"}],
+                "repository_documentation_count": 1,
+                "repository_documentation_errors": 0,
+                "job_market": {"status": "completed", "source_url": "https://remotive.com/api/remote-jobs", "sample_count": 1, "jobs": [{"title": "Browser Automation Engineer", "company": "Example", "url": "https://example.com/job", "tags": ["Playwright", "Python"], "description_excerpt": "Build browser automation"}], "limitation": "sample only"},
+            }
+
+    report = await ResearchAndDevelopmentAgent(discovery=FakeDiscovery(), evidence_collector=FakeEvidenceCollector()).run(mission="Build Tomatom")
+    assert report["evidence"]["repository_documentation_count"] == 1
+    assert report["evidence"]["job_market"]["jobs"][0]["tags"] == ["Playwright", "Python"]
+    assert report["research_scope"]["source_code"] == "not audited; no third-party code executed"
