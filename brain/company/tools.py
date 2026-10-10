@@ -198,34 +198,42 @@ class GitHubCompanyTools:
                     continue
                 if "## Brain remote test run" not in body:
                     continue
-                target_match = re.search(r"(?m)^\\*\\*Target repository:\\*\\*\\s*(.+?)\\s*$", body)
-                branch_match = re.search(r"(?m)^\\*\\*Target branch:\\*\\*\\s*(.+?)\\s*$", body)
-                result_match = re.search(
-                    r"(?m)^\\*\\*Result:\\*\\*\\s*(PASS|FAIL|EXECUTION_ERROR)\\s*$", body
+
+                def report_field(label: str) -> str | None:
+                    prefix = f"**{label}:**"
+                    for line in body.splitlines():
+                        if line.startswith(prefix):
+                            return line[len(prefix):].strip()
+                    return None
+
+                if report_field("Target repository") != repository:
+                    continue
+                if report_field("Target branch") != branch:
+                    continue
+                reported_result = report_field("Result")
+                if reported_result not in {"PASS", "FAIL", "EXECUTION_ERROR"}:
+                    continue
+                run_prefix = f"https://github.com/{owner}/{name}/actions/runs/"
+                run_url = next(
+                    (
+                        part for part in body.split()
+                        if part.startswith(run_prefix)
+                        and part[len(run_prefix):].isdigit()
+                    ),
+                    None,
                 )
-                if not target_match or target_match.group(1) != repository:
+                if not run_url:
                     continue
-                if not branch_match or branch_match.group(1) != branch:
-                    continue
-                if not result_match:
-                    continue
-                run_match = re.search(
-                    rf"https://github\\.com/{re.escape(owner)}/{re.escape(name)}/actions/runs/\\d+",
-                    body,
-                )
-                if not run_match:
-                    continue
-                reported_result = result_match.group(1)
                 if reported_result == "PASS" and (
-                    not re.search(r"(?m)^\\*\\*Exit code:\\*\\*\\s*0\\s*$", body)
-                    or not re.search(r"(?m)^\\*\\*Workflow job:\\*\\*\\s*success\\s*$", body)
+                    report_field("Exit code") != "0"
+                    or report_field("Workflow job") != "success"
                 ):
                     continue
                 return {
                     "executed": True,
                     "status": "PASS" if reported_result == "PASS" else "FAIL",
                     "reported_result": reported_result,
-                    "run_url": run_match.group(0),
+                    "run_url": run_url,
                     "issue_url": issue.get("html_url"),
                     "report": body,
                     "branch": branch,
