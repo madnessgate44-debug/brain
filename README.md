@@ -155,7 +155,7 @@ Brain provides an authenticated `POST /chat` endpoint for ordinary model convers
 It uses the configured model provider directly and does not create a mission, enqueue a workflow,
 or write to a repository.
 
-- Header: `X-Brain-API-Key: <BRAIN_CONTROL_API_KEY>`
+- Header: `X-Brain-API-Key: <BRAIN_CONTROL_API_KEY>` (configured key must be at least 24 characters)
 - JSON body: `{"messages":[{"role":"user","content":"Reply with exactly BRAIN_CHAT_OK"}]}`
 - Supported message roles: `user` and `assistant`; the final message must be from the user.
 - Conversation limit: 16 messages, up to 6,000 characters per message.
