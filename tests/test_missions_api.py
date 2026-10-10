@@ -9,10 +9,11 @@ from brain.api.app import create_app
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
     """Create a test client with application startup and shutdown enabled."""
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "test-control-key-for-unit-tests-123")
     app = create_app()
-    with TestClient(app) as test_client:
+    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as test_client:
         yield test_client
 
 
@@ -123,3 +124,17 @@ def test_shutdown_cancels_active_mission_runtime(monkeypatch):
         assert mission_id in registry.list_active()
 
     assert registry.list_active() == []
+
+
+def test_mission_api_rejects_requests_without_control_key(monkeypatch):
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "test-control-key-for-unit-tests-123")
+    with TestClient(create_app()) as unauthenticated_client:
+        response = unauthenticated_client.get("/missions")
+    assert response.status_code == 401
+
+
+def test_mission_api_fails_closed_when_control_key_is_missing(monkeypatch):
+    monkeypatch.delenv("BRAIN_CONTROL_API_KEY", raising=False)
+    with TestClient(create_app()) as client:
+        response = client.get("/missions", headers={"X-Brain-API-Key": "x" * 32})
+    assert response.status_code == 503
