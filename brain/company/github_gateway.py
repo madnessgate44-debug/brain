@@ -154,6 +154,7 @@ class GitHubRepositoryGateway:
         change_set: dict[str, Any],
         branch_name: str,
         commit_message: str,
+        expected_base_sha: str | None = None,
     ) -> dict[str, Any]:
         """Commit a bounded file change set on a new branch; never update default branch."""
         owner, name = self._validate_repository(repository)
@@ -183,6 +184,12 @@ class GitHubRepositoryGateway:
             "GET", f"{base}/git/ref/heads/{quote(default_branch, safe='')}"
         )
         base_sha = base_ref["object"]["sha"]
+        if expected_base_sha and base_sha != expected_base_sha:
+            raise GitHubGatewayError(
+                "Default branch changed after repository inspection; refusing to apply "
+                f"a change set based on stale commit {expected_base_sha}. Current base is {base_sha}. "
+                "Re-inspect the repository and regenerate the change set."
+            )
         base_commit = await self._request("GET", f"{base}/git/commits/{base_sha}")
         base_tree_sha = base_commit["tree"]["sha"]
 
