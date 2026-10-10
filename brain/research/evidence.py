@@ -99,23 +99,37 @@ def _result_url(raw: str) -> str:
 
 
 def _mission_queries(mission: str) -> list[str]:
+    """Create topic-focused web searches; ignore narrative boilerplate and project names."""
+    normalized = mission.casefold()
+    if any(term in normalized for term in ("browser", "playwright", "chromium", "puppeteer", "extension")):
+        return [
+            "open source browser automation Playwright Chromium agent",
+            "browser extension automation agent Chrome Firefox permissions",
+            "GitHub Actions free hosting persistent browser automation limits",
+            "browser automation engineer Playwright Python job skills",
+        ]
     words = re.findall(r"[A-Za-z0-9+#.]{3,}", mission)
-    stop = {"the", "and", "for", "with", "from", "that", "this", "brain", "tomatom", "into", "free"}
-    unique = []
+    stop = {
+        "the", "and", "for", "with", "from", "that", "this", "brain", "tomatom",
+        "into", "free", "design", "first", "platform", "investigate", "relevant",
+        "open", "source", "repositories", "repository", "support", "control", "return",
+        "evidence", "linked", "recommendation", "roadmap", "build", "operate", "needed",
+        "requirements", "mission", "research", "browser", "automation",
+    }
+    unique: list[str] = []
     for word in words:
         if word.casefold() not in stop and word.casefold() not in {x.casefold() for x in unique}:
             unique.append(word)
-        if len(unique) >= 7:
+        if len(unique) >= 4:
             break
-    queries = []
-    if unique:
-        queries.append(" ".join(unique))
+    queries = [" ".join(unique)] if unique else []
     queries.extend([
-        "browser automation Playwright Chromium extensions security",
-        "free hosting GitHub Actions minutes persistent browser sessions",
-        "browser automation engineer Playwright job skills",
+        "open source AI agent web research evidence",
+        "GitHub Actions free hosting persistence limits",
+        "AI agent automation engineer job skills",
     ])
     return queries[:4]
+
 from typing import Any
 
 import httpx
