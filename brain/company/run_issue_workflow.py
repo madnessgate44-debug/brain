@@ -54,34 +54,27 @@ def request_from_issue() -> tuple[str, str, int]:
     return repository, objective, int(issue.get("number", 0))
 
 
-async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[str, Any] | None = None) -> dict[str, Any]:
+async def build_gateway(
+    repository: str,
+    owner: str,
+    primary_token: str,
+    actions_token: str,
+    capability_plan: Any,
+    events: list[dict[str, Any]] | None = None,
+) -> GitHubRepositoryGateway:
+    """Resolve a credential against the target repo using only mission-required capabilities."""
     events = events if events is not None else []
-    started = datetime.now(timezone.utc).isoformat()
-    repository, objective, issue_number = request_from_issue()
-    mission = {"repository": repository, "objective": objective, "issue_number": issue_number}
-    plan = plan_capabilities(objective)
-    mission["capability_plan"] = {"mode": plan.mode, "required_capabilities": list(plan.required_capabilities), "rationale": plan.rationale}
-    if mission_context is not None:
-        mission_context.update(mission)
-    events.append({"timestamp": started, "stage": "capability_planning", "status": "PASS", "detail": json.dumps(mission["capability_plan"])})
-    if not os.environ.get("BRAIN_AI_API_KEY"):
-        raise RuntimeError("BRAIN_AI_API_KEY is not configured; model invocation is required.")
-    candidates = []
-    primary = os.environ.get("BRAIN_GITHUB_TOKEN", "").strip()
-    actions = os.environ.get("BRAIN_GITHUB_ACTIONS_TOKEN", "").strip()
-    if primary:
-        candidates.append(("BRAIN_GITHUB_TOKEN", primary))
-    if actions and actions not in [token for _, token in candidates]:
-        candidates.append(("BRAIN_GITHUB_ACTIONS_TOKEN", actions))
-    gateway = None
-    failures = []
+    candidates: list[tuple[str, str]] = []
+    if primary_token.strip():
+        candidates.append(("BRAIN_GITHUB_TOKEN", primary_token.strip()))
+    if actions_token.strip() and actions_token.strip() not in [token for _, token in candidates]:
+        candidates.append(("BRAIN_GITHUB_ACTIONS_TOKEN", actions_token.strip()))
+
+    failures: list[str] = []
     for label, token in candidates:
-        candidate = GitHubRepositoryGateway(
-            token=token,
-            allowed_owner=os.environ.get("BRAIN_GITHUB_OWNER", "madnessgate44-debug"),
-        )
+        candidate = GitHubRepositoryGateway(token=token, allowed_owner=owner)
         try:
-            if plan.mode == "mutating":
+            if "repository:write" in capability_plan.required_capabilities:
                 permission_result = await candidate.verify_write_access(repository)
                 if permission_result.get("write_access") is True:
                     detail = f"{label} confirmed push permission for target repository {repository}."
@@ -94,17 +87,38 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
                 snapshot = await candidate.inspect_repository(repository, max_files=1)
                 detail = f"{label} passed target repository read preflight; default branch={snapshot.get('default_branch')}."
             events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "credential_preflight", "status": "PASS", "detail": detail})
-            gateway = candidate
-            break
+            return candidate
         except Exception as exc:
             detail = f"{label} rejected for {repository}: {type(exc).__name__}: {exc}"
             failures.append(detail)
             events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "credential_preflight", "status": "FAIL", "detail": detail})
-    if gateway is None:
-        raise RuntimeError(
-            f"No configured credential satisfied {plan.required_capabilities} for target {repository}. "
-            + ("No GitHub credential is configured." if not candidates else "Attempts: " + " | ".join(failures))
-        )
+
+    details = "No GitHub credential is configured." if not candidates else "Attempts: " + " | ".join(failures)
+    raise RuntimeError(
+        f"No configured credential satisfied {capability_plan.required_capabilities} for target {repository}. {details}"
+    )
+
+
+async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    events = events if events is not None else []
+    started = datetime.now(timezone.utc).isoformat()
+    repository, objective, issue_number = request_from_issue()
+    mission = {"repository": repository, "objective": objective, "issue_number": issue_number}
+    plan = plan_capabilities(objective)
+    mission["capability_plan"] = {"mode": plan.mode, "required_capabilities": list(plan.required_capabilities), "rationale": plan.rationale}
+    if mission_context is not None:
+        mission_context.update(mission)
+    events.append({"timestamp": started, "stage": "capability_planning", "status": "PASS", "detail": json.dumps(mission["capability_plan"])})
+    if not os.environ.get("BRAIN_AI_API_KEY"):
+        raise RuntimeError("BRAIN_AI_API_KEY is not configured; model invocation is required.")
+    gateway = await build_gateway(
+        repository=repository,
+        owner=os.environ.get("BRAIN_GITHUB_OWNER", "madnessgate44-debug"),
+        primary_token=os.environ.get("BRAIN_GITHUB_TOKEN", ""),
+        actions_token=os.environ.get("BRAIN_GITHUB_ACTIONS_TOKEN", ""),
+        capability_plan=plan,
+        events=events,
+    )
     tools = GitHubCompanyTools(
         gateway=gateway,
         control_repository=os.environ.get("BRAIN_CONTROL_REPOSITORY", "madnessgate44-debug/brain"),
