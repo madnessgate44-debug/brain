@@ -47,6 +47,7 @@ async def test_provider_calls_configured_compatible_endpoint():
     assert requests[0].headers["Authorization"] == "Bearer test-key"
     body = json.loads(requests[0].content)
     assert body["model"] == "test-model"
+    assert body["temperature"] == 0.1
 
 
 @pytest.mark.asyncio
