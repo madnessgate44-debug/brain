@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_desktop_interface_uses_brain_api_instead_of_direct_provider_or_github_writes():
     html = (ROOT / "brain-app.html").read_text(encoding="utf-8")
     assert "brainRequest('/chat'" in html
+    assert "messages.slice(-16).map" in html
     assert "brainRequest('/missions'" in html
     assert "brainRequest('/company-workflows'" in html
     assert '<input type="text" id="settingsModel" placeholder="https://your-brain-api.example" value="http://localhost:8000">' in html
