@@ -127,3 +127,45 @@ async def test_gateway_refuses_change_set_when_inspected_base_is_stale():
 
     assert len(calls) == 2
     assert all(method == "GET" for method, _ in calls)
+
+
+
+@pytest.mark.asyncio
+async def test_gateway_rejects_duplicate_paths_before_network_call():
+    gateway = GitHubRepositoryGateway(
+        token="test-token",
+        allowed_owner="example-owner",
+        api_base_url="https://example.test",
+    )
+    with pytest.raises(GitHubGatewayError, match="Duplicate file path"):
+        await gateway.apply_change_set(
+            repository="example-owner/project",
+            change_set={"files": [
+                {"path": "src/feature.py", "content": "first"},
+                {"path": "src/feature.py", "content": "second"},
+            ]},
+            branch_name="brain/test-change",
+            commit_message="test",
+        )
+
+
+@pytest.mark.asyncio
+async def test_gateway_rejects_aggregate_size_over_limit_before_network_call():
+    gateway = GitHubRepositoryGateway(
+        token="test-token",
+        allowed_owner="example-owner",
+        api_base_url="https://example.test",
+    )
+    change_set = {
+        "files": [
+            {"path": f"src/file_{index}.py", "content": "x" * 100_000}
+            for index in range(23)
+        ]
+    }
+    with pytest.raises(GitHubGatewayError, match="aggregate limit"):
+        await gateway.apply_change_set(
+            repository="example-owner/project",
+            change_set=change_set,
+            branch_name="brain/test-change",
+            commit_message="test",
+        )
