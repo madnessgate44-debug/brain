@@ -8,6 +8,8 @@ import pytest
 
 from brain.research.agent import ResearchAndDevelopmentAgent, render_markdown
 from brain.research.discovery import DiscoveryError, GitHubRepositoryDiscovery, heuristic_score
+from brain.research.evidence import ResearchEvidenceCollector
+import brain.research.evidence as evidence_module
 
 
 def repo(name, **overrides):
@@ -302,3 +304,42 @@ async def test_agent_includes_public_source_evidence_without_claiming_code_audit
     markdown = render_markdown(report)
     assert "[acme/browser]" in markdown
     assert "[Browser Automation Engineer]" in markdown
+
+
+@pytest.mark.asyncio
+async def test_public_web_research_searches_and_fetches_pages(monkeypatch):
+    monkeypatch.setattr(evidence_module, "_public_http_url", lambda url: url.startswith("https://"))
+    calls = []
+    def handler(request):
+        calls.append(str(request.url))
+        if request.url.host == "html.duckduckgo.com":
+            return httpx.Response(200, text='<a class="result__a" href="https://example.com/docs">Browser documentation</a>')
+        return httpx.Response(200, headers={"content-type": "text/html"}, text='<html><nav>Navigation</nav><main><h1>Playwright browser automation</h1><p>Supports browser contexts and tabs.</p><script>ignore me</script></main></html>')
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=False)
+    collector = ResearchEvidenceCollector(max_web_pages=1)
+    try:
+        result = await collector._web_research(client, "Tomatom browser automation extensions")
+    finally:
+        await client.aclose()
+    assert result["status"] == "completed"
+    assert result["pages_fetched"] == 1
+    assert result["sources"][0]["url"] == "https://example.com/docs"
+    assert "Playwright browser automation" in result["sources"][0]["excerpt"]
+    assert "ignore me" not in result["sources"][0]["excerpt"]
+    assert len(calls) == 2
+
+
+def test_web_report_contains_source_links_and_browsing_status():
+    report = {
+        "generated_at": "2026-10-10T00:00:00+00:00", "mission": "Research browser tools",
+        "candidate_count": 0, "private_candidate_count": 0, "model_assessment_status": "not_configured",
+        "candidates": [], "research_scope": {"general_web_browsing": "completed"},
+        "evidence": {"repository_documentation_count": 0, "job_market": {"status": "unavailable"},
+            "web_research": {"status": "completed", "pages_fetched": 1,
+                "sources": [{"title": "Docs", "url": "https://example.com/docs", "query": "browser tools", "status": "fetched", "excerpt": "Tab and extension support"}],
+                "limitations": ["bounded sample"]}},
+    }
+    markdown = render_markdown(report)
+    assert "General web research status: completed" in markdown
+    assert "[Docs](https://example.com/docs)" in markdown
+    assert "Tab and extension support" in markdown
