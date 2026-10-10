@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from brain.research.agent import ResearchAndDevelopmentAgent, render_markdown
+from brain.research.agent import ResearchAndDevelopmentAgent, mission_relevance, render_markdown
 from brain.research.discovery import DiscoveryError, GitHubRepositoryDiscovery, heuristic_score
 from brain.research.evidence import ResearchEvidenceCollector
 import brain.research.evidence as evidence_module
@@ -113,6 +113,24 @@ def test_heuristic_score_rewards_recent_activity_and_identified_license():
         "license": "NOASSERTION",
     }
     assert heuristic_score(recent, now) > heuristic_score(old_unlicensed, now)
+
+
+def test_mission_relevance_prioritizes_browser_automation_and_extensions():
+    mission = "Build browser automation with extensions, security, GitHub Actions, and persistence."
+    relevant = {
+        "full_name": "acme/browser-extension-agent",
+        "description": "Browser automation and Playwright extension with security isolation and persistent GitHub Actions runner support",
+        "topics": ["browser-automation", "extension"],
+    }
+    irrelevant = {
+        "full_name": "acme/interactive-diagrams",
+        "description": "Interactive diagrams and visual planning for teams",
+        "topics": ["design"],
+    }
+    relevant_score, relevant_matches = mission_relevance(relevant, mission)
+    irrelevant_score, _ = mission_relevance(irrelevant, mission)
+    assert relevant_score > irrelevant_score
+    assert {"browser", "automation", "extensions", "security", "hosting", "persistence"}.issubset(set(relevant_matches))
 
 
 @pytest.mark.asyncio
@@ -232,10 +250,15 @@ def test_markdown_report_warns_that_discovery_is_not_a_security_audit():
         "private_candidate_count": 0,
         "model_assessment_status": "not_configured",
         "candidates": [],
+        "recommendation_summary": "Prioritize mission-fit candidates.",
+        "roadmap": ["Inspect source and license.", "Test in isolation."],
     }
     markdown = render_markdown(report)
     assert "No candidate code was executed" in markdown
     assert "not an approval to import or execute code" in markdown
+    assert "Recommendation and roadmap" in markdown
+    assert "Prioritize mission-fit candidates." in markdown
+    assert "Inspect source and license." in markdown
 
 
 @pytest.mark.asyncio
@@ -276,8 +299,10 @@ async def test_mission_discovery_adds_bounded_targeted_query():
     finally:
         await client.aclose()
 
-    assert len(seen_queries) == len(discovery.queries) + 1
-    assert "browser extensions hosting limits in:name,description" in seen_queries[0]
+    assert len(seen_queries) == 4
+    assert seen_queries[0] == "browser automation in:name,description pushed:>=2026-04-13 archived:false"
+    assert seen_queries[1] == "browser extension in:name,description pushed:>=2026-04-13 archived:false"
+    assert seen_queries[2] == "Playwright agent in:name,description pushed:>=2026-04-13 archived:false"
     assert "Tomatom" not in seen_queries[0]
 
 
@@ -304,6 +329,50 @@ async def test_agent_includes_public_source_evidence_without_claiming_code_audit
     markdown = render_markdown(report)
     assert "[acme/browser]" in markdown
     assert "[Browser Automation Engineer]" in markdown
+
+
+def test_mission_web_queries_ignore_narrative_boilerplate():
+    queries = evidence_module._mission_queries(
+        "Design Tomatom, a free-first browser automation platform. Investigate browser extensions, security, and GitHub Actions persistence."
+    )
+    assert queries[0] == "open source browser automation Playwright Chromium agent"
+    assert all("design first" not in query.casefold() for query in queries)
+
+
+@pytest.mark.asyncio
+async def test_job_market_filter_drops_unrelated_results():
+    seen_queries = []
+
+    def handler(request):
+        seen_queries.append(request.url.params.get("search"))
+        return httpx.Response(200, json={"jobs": [
+            {
+                "title": "Frontend Web Application Developer",
+                "company_name": "Example A",
+                "url": "https://example.com/frontend",
+                "tags": ["React", "CSS"],
+                "description": "Build responsive frontend interfaces.",
+            },
+            {
+                "title": "Browser Automation Engineer",
+                "company_name": "Example B",
+                "url": "https://example.com/browser",
+                "tags": ["Playwright", "Python"],
+                "description": "Build reliable browser automation and test workflows.",
+            },
+        ]})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        result = await ResearchEvidenceCollector()._jobs(
+            client,
+            "Build Tomatom browser automation, extensions, and Playwright support.",
+        )
+    finally:
+        await client.aclose()
+    assert seen_queries == ["browser automation playwright"]
+    assert result["sample_count"] == 1
+    assert result["jobs"][0]["company"] == "Example B"
 
 
 @pytest.mark.asyncio

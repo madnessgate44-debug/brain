@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
@@ -12,6 +13,40 @@ from brain.research.evidence import ResearchEvidenceCollector
 
 class TextProvider(Protocol):
     async def complete(self, system_prompt: str, user_prompt: str) -> str: ...
+
+
+_MISSION_GROUPS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
+    ("browser", 30, ("browser", "browsers", "web", "playwright", "chromium", "puppeteer", "selenium")),
+    ("automation", 15, ("automation", "automate", "automated", "agent", "agents", "computer", "rpa")),
+    ("extensions", 15, ("extension", "extensions", "chrome", "firefox", "addon", "addons")),
+    ("security", 10, ("security", "sandbox", "ssrf", "permission", "permissions", "isolation")),
+    ("hosting", 10, ("hosting", "host", "deployment", "serverless", "actions", "runner", "cloud")),
+    ("persistence", 10, ("persistence", "persistent", "database", "sqlite", "state", "recovery", "artifact")),
+    ("research", 10, ("research", "search", "scrape", "crawling", "retrieval", "crawl", "fetch")),
+)
+
+
+def mission_relevance(candidate: dict[str, Any], mission: str) -> tuple[int, list[str]]:
+    """Estimate mission fit from public metadata; this is not a code-quality verdict."""
+    mission_tokens = set(re.findall(r"[a-z0-9]+", mission.casefold()))
+    candidate_text = " ".join([
+        str(candidate.get("full_name", "")),
+        str(candidate.get("description", "")),
+        " ".join(str(topic) for topic in candidate.get("topics", []) if isinstance(topic, str)),
+    ]).casefold()
+    candidate_tokens = set(re.findall(r"[a-z0-9]+", candidate_text))
+    active_groups = [
+        (name, weight, terms)
+        for name, weight, terms in _MISSION_GROUPS
+        if any(term in mission_tokens for term in terms)
+    ]
+    matches: list[str] = []
+    score = 0
+    for name, weight, terms in active_groups:
+        if any(term in candidate_tokens for term in terms):
+            matches.append(name)
+            score += weight
+    return min(100, score), matches
 
 
 class ResearchAndDevelopmentAgent:
@@ -37,22 +72,28 @@ class ResearchAndDevelopmentAgent:
         ranked: list[dict[str, Any]] = []
         for candidate in candidates:
             score = heuristic_score(candidate, self.now)
+            relevance_score, relevance_matches = mission_relevance(candidate, mission)
             license_id = str(candidate.get("license") or "NOASSERTION").upper()
             license_status = (
                 "review_required"
                 if license_id in {"NOASSERTION", "NONE", "OTHER", "UNKNOWN"}
                 else "identified_not_legal_advice"
             )
+            recommendation = (
+                "low_mission_fit"
+                if relevance_score < 25
+                else "investigate"
+                if score >= 65 and license_status != "review_required"
+                else "review_before_import"
+            )
             ranked.append({
                 **candidate,
                 "heuristic_score": score,
+                "mission_relevance_score": relevance_score,
+                "mission_relevance_matches": relevance_matches,
                 "license_status": license_status,
-                "recommendation": (
-                    "investigate"
-                    if score >= 65 and license_status != "review_required"
-                    else "review_before_import"
-                ),
-                "evaluation_basis": "repository metadata only",
+                "recommendation": recommendation,
+                "evaluation_basis": "public repository metadata and mission-term overlap only",
                 "model_assessment": None,
             })
 
@@ -75,6 +116,7 @@ class ResearchAndDevelopmentAgent:
 
         ranked.sort(
             key=lambda item: (
+                item["mission_relevance_score"],
                 item["model_assessment"]["relevance"]
                 if item.get("model_assessment") else 0,
                 item["heuristic_score"],
@@ -136,6 +178,22 @@ class ResearchAndDevelopmentAgent:
                 "credentials_exposed_to_candidates": False,
             },
             "candidates": ranked,
+            "recommendation_summary": (
+                "Prioritize candidates with the strongest mission-term overlap, then inspect their source code, dependency chain, security controls, and license before adoption. Metadata and README evidence are not proof of correctness or safety."
+                if ranked else
+                "No repository candidates were found; refine the mission-specific searches before making adoption decisions."
+            ),
+            "roadmap": [
+                "Shortlist the highest mission-fit repositories and inspect their source, dependencies, maintenance activity, and license.",
+                "Compare browser control, extension permissions, navigation/network isolation, and failure recovery against Brain's acceptance criteria.",
+                "Prototype one isolated capability at a time; do not execute third-party code in the research runner.",
+                "Run end-to-end tests on public test pages and record screenshots, action results, and failure cases.",
+                "Measure GitHub Actions execution limits and artifact retention; treat runner state as ephemeral and preserve important reports explicitly.",
+            ] if any(term in mission.casefold() for term in ("browser", "playwright", "chromium", "extension", "automation")) else [
+                "Review the highest mission-fit candidates and source evidence.",
+                "Inspect source, dependencies, maintenance, security controls, and license before adoption.",
+                "Validate promising options with a small isolated test and record evidence before changing Brain.",
+            ],
             "evidence": evidence,
         }
 
@@ -284,6 +342,20 @@ def render_markdown(report: dict[str, Any]) -> str:
     if isinstance(job_market, dict) and job_market.get("limitation"):
         lines.append(f"- Job sample limitation: {job_market['limitation']}")
     lines.append("")
+    lines.extend([
+        "",
+        "## Recommendation and roadmap",
+        "",
+        str(report.get("recommendation_summary", "No mission-specific recommendation was generated.")),
+        "",
+        "### Next steps",
+        "",
+    ])
+    roadmap = report.get("roadmap", [])
+    if roadmap:
+        lines.extend(f"{index}. {step}" for index, step in enumerate(roadmap, start=1))
+    else:
+        lines.append("No roadmap steps were generated.")
     lines.extend(["", "## Candidate shortlist", ""])
     candidates = report.get("candidates", [])
     if not candidates:
@@ -295,7 +367,9 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.extend([
             f"### [{name}]({url})",
             f"- Visibility: {visibility}",
-            f"- Heuristic score: {item.get('heuristic_score', 0)}/100",
+            f"- Mission fit: {item.get('mission_relevance_score', 0)}/100 "
+            f"(matched: {', '.join(item.get('mission_relevance_matches', [])) or 'no mission terms'})",
+            f"- Metadata quality score: {item.get('heuristic_score', 0)}/100",
             f"- Stars: {item.get('stars', 0)}; language: {item.get('language') or 'unknown'}",
             f"- License identifier: {item.get('license', 'NOASSERTION')} "
             f"({item.get('license_status', 'review_required')})",
