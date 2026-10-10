@@ -182,7 +182,7 @@ class ResearchEvidenceCollector:
                     readmes.append(result)
 
             web_result = await self._web_research(client, mission)
-            job_result = await self._jobs(client)
+            job_result = await self._jobs(client, mission)
         return {
             "repository_documentation": readmes,
             "repository_documentation_count": len(readmes),
@@ -305,10 +305,20 @@ class ResearchEvidenceCollector:
             "evidence_boundary": "README text only; source implementation and security not audited",
         }
 
-    async def _jobs(self, client: httpx.AsyncClient) -> dict[str, Any]:
-        # A public job-board endpoint, no API key. Results are evidence samples, not a labor-market census.
+    async def _jobs(self, client: httpx.AsyncClient, mission: str) -> dict[str, Any]:
+        # A public job-board endpoint, no API key. Results are samples, not a labor-market census.
+        mission_text = mission.casefold()
+        browser_mission = any(term in mission_text for term in ("browser", "playwright", "chromium", "puppeteer", "extension"))
+        query = (
+            "browser automation playwright"
+            if browser_mission
+            else " ".join(
+                word for word in re.findall(r"[a-z0-9+#.]{3,}", mission_text)
+                if word not in {"the", "and", "for", "with", "from", "this", "that", "brain", "tomatom", "mission", "research", "free", "build", "design", "return", "roadmap"}
+            )[:4]
+        ) or "AI automation"
         try:
-            response = await client.get(REMOTIVE_API, params={"search": "browser automation playwright"})
+            response = await client.get(REMOTIVE_API, params={"search": query})
             response.raise_for_status()
             payload = response.json()
             jobs = payload.get("jobs", []) if isinstance(payload, dict) else []
@@ -325,30 +335,41 @@ class ResearchEvidenceCollector:
                     if not isinstance(title, str) or not isinstance(company, str):
                         continue
                     tags = job.get("tags", [])
+                    description = _plain_text(job.get("description"), 1400)
+                    normalized_tags = [_plain_text(tag, 80) for tag in tags[:20] if isinstance(tag, str)] if isinstance(tags, list) else []
+                    if browser_mission:
+                        searchable = " ".join([title, " ".join(normalized_tags), description]).casefold()
+                        high_signal = ("playwright", "selenium", "puppeteer", "browser automation", "test automation", "qa automation", "web scraping", "rpa")
+                        if not any(term in searchable for term in high_signal):
+                            continue
                     items.append({
                         "title": _plain_text(title, 180),
                         "company": _plain_text(company, 120),
                         "url": url,
                         "published_at": job.get("publication_date") if isinstance(job.get("publication_date"), str) else None,
-                        "tags": [_plain_text(tag, 80) for tag in tags[:20] if isinstance(tag, str)] if isinstance(tags, list) else [],
-                        "description_excerpt": _plain_text(job.get("description"), 1400),
+                        "tags": normalized_tags,
+                        "description_excerpt": description,
                         "source": "Remotive public job-board API",
                     })
                     if len(items) >= self.max_jobs:
                         break
             return {
-                "status": "completed",
+                "status": "completed" if items else "completed_no_relevant_matches",
                 "source_url": REMOTIVE_API,
-                "query": "browser automation playwright",
+                "query": query,
                 "sample_count": len(items),
                 "jobs": items,
-                "limitation": "Search sample only; not a comprehensive job-market survey. Listings may expire.",
+                "limitation": (
+                    "Search sample only; not a comprehensive job-market survey. Listings may expire."
+                    if items else
+                    "No relevant listings survived the topic filter; no job-market conclusion should be drawn."
+                ),
             }
         except (httpx.HTTPError, ValueError, TypeError):
             return {
                 "status": "unavailable",
                 "source_url": REMOTIVE_API,
-                "query": "browser automation playwright",
+                "query": query,
                 "sample_count": 0,
                 "jobs": [],
                 "limitation": "Public job-board request failed; no job-market conclusions should be drawn.",
