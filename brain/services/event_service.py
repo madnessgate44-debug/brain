@@ -1,5 +1,6 @@
 """Event service."""
 
+import json
 import logging
 from typing import List, Optional
 
@@ -38,6 +39,6 @@ class EventService:
             message=data.message,
             severity=data.severity,
             phase=data.phase,
-            payload_json=str(data.payload) if data.payload else None,
+            payload_json=json.dumps(data.payload, ensure_ascii=False) if data.payload else None,
         )
         return EventResponse(**event.to_dict())
