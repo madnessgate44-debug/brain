@@ -394,7 +394,7 @@ class MissionRuntime:
             diagnostic_files = []
             try:
                 json_bytes = json.dumps(diagnostic, ensure_ascii=False, indent=2, default=str).encode("utf-8")
-                markdown_bytes = ("\\n".join(markdown_lines) + "\\n").encode("utf-8")
+                markdown_bytes = ("\n".join(markdown_lines) + "\n").encode("utf-8")
                 for logical_name, content_bytes, mime_type in [
                     ("failure-diagnostic.json", json_bytes, "application/json"),
                     ("failure-report.md", markdown_bytes, "text/markdown"),
