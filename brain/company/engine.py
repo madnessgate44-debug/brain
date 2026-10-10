@@ -246,6 +246,12 @@ class CompanyWorkflowEngine:
 
         repository_snapshot = await self.tools.inspect_repository(repository)
         model_snapshot = _compact_repository_snapshot(repository_snapshot, user_request)
+        manifest = model_snapshot.get("source_manifest", {})
+        if not isinstance(manifest, dict) or manifest.get("coverage_complete") is not True:
+            raise CompanyWorkflowBlocked(
+                "Repository inspection is incomplete; refusing to generate or write changes. "
+                "Resolve unreadable files, aggregate-budget omissions, or truncated Git trees first."
+            )
         evidence: dict[str, Any] = {
             **(initial_evidence or {}),
             "user_request": user_request,
