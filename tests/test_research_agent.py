@@ -132,13 +132,27 @@ def test_mission_relevance_prioritizes_browser_automation_and_extensions():
         "description": "Agent skills for writing Chinese web novels and long-form fiction",
         "topics": ["writing", "fiction"],
     }
+    false_browser_automation = {
+        "full_name": "MundaPlus/Ash-and-Gears",
+        "description": "Post-apocalyptic colony sim with progressive automation. Plays in the browser on PC and phone.",
+        "topics": ["game", "simulation"],
+    }
+    extension_only = {
+        "full_name": "extension-js/examples",
+        "description": "Browser extension examples and templates for common patterns.",
+        "topics": ["chrome-extension", "firefox-extension"],
+    }
     relevant_score, relevant_matches = mission_relevance(relevant, mission)
     irrelevant_score, _ = mission_relevance(irrelevant, mission)
     false_positive_score, false_positive_matches = mission_relevance(false_positive, mission)
+    false_browser_score, _ = mission_relevance(false_browser_automation, mission)
+    extension_score, _ = mission_relevance(extension_only, mission)
     assert relevant_score > irrelevant_score
     assert {"browser", "automation", "extensions", "security", "hosting", "persistence"}.issubset(set(relevant_matches))
     assert irrelevant_score == 0
     assert false_positive_score == 0
+    assert false_browser_score <= 35
+    assert extension_score <= 35
     assert "browser" not in false_positive_matches
     assert "automation" not in false_positive_matches
 
