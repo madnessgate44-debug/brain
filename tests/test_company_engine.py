@@ -2,7 +2,7 @@
 
 import pytest
 
-from brain.company.engine import CompanyWorkflowBlocked, CompanyWorkflowEngine
+from brain.company.engine import CompanyWorkflowBlocked, CompanyWorkflowEngine, validate_change_set
 
 
 class FakeAgentRunner:
@@ -103,6 +103,34 @@ class FakeTools:
             "state": "open",
             "merged": False,
         }
+
+
+def test_validate_change_set_rejects_unsafe_and_duplicate_paths():
+    errors = validate_change_set({
+        "files": [
+            {"path": "../outside.py", "content": "pass"},
+            {"path": "brain/safe.py", "content": "pass"},
+            {"path": "brain/safe.py", "content": "again"},
+            {"path": "brain\\\\unsafe.py", "content": "pass"},
+        ]
+    })
+    assert any("unsafe" in error for error in errors)
+    assert any("duplicate file path" in error for error in errors)
+
+
+def test_validate_change_set_enforces_file_count_and_size_limits():
+    too_many = {"files": [{"path": f"src/file_{i}.py", "content": "x"} for i in range(31)]}
+    oversized = {"files": [{"path": "src/large.py", "content": "x" * 200_001}]}
+    assert any("between 1 and 30 files" in error for error in validate_change_set(too_many))
+    assert any("200,000-byte" in error for error in validate_change_set(oversized))
+
+
+def test_validate_change_set_rejects_non_text_content_and_empty_patch():
+    assert validate_change_set({"files": []})
+    assert any(
+        "must be text" in error
+        for error in validate_change_set({"files": [{"path": "src/file.py", "content": None}]})
+    )
 
 
 class InvalidFirstChangeSetRunner(FakeAgentRunner):
