@@ -27,6 +27,12 @@ Configure the following secrets in your GitHub repository Actions settings or lo
 2. **Targeting**: Optionally include `repository: owner/repository` and `branch: branch-name` in the issue body. If omitted, Brain tests itself.
 3. **Execution**: GitHub Actions automatically checks out the target repository with read-only permissions, runs its test/build suite (Python or Node.js), comments PASS/FAIL on the issue, and uploads the full report as a workflow artifact.
 
+### Internal verification issue and PR permissions
+
+- The company workflow creates a bot-authored `/brain test` issue to verify its own branch. The fixed runner accepts that issue only when it carries the internal marker `brain-internal-verification: true`; all targets remain restricted to repositories owned by the configured owner and checks remain fixed test/build commands.
+- For automatic pull-request creation using `github.token`, open **Repository Settings → Actions → General → Workflow permissions** and enable **Allow GitHub Actions to create and approve pull requests**. The workflow already requests `pull-requests: write`; that YAML permission alone does not override the repository setting.
+- Alternative: configure `BRAIN_GITHUB_TOKEN` as a fine-grained PAT for this repository with **Contents: Read and write**, **Issues: Read and write**, and **Pull requests: Read and write**. Keep it in GitHub Actions Secrets; never paste the token into an issue or chat. The preflight must select that token before the AI workflow starts.
+
 ## 4. `/brain ai-check` Preflight
 
 - The AI provider secret check preflight workflow (`.github/workflows/ai-provider-secret-check.yml`) verifies that AI credentials and repository push/write permissions are correctly configured and valid prior to initiating autonomous company workflows or model calls.
