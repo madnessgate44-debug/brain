@@ -29,9 +29,9 @@ def plan_capabilities(objective: str) -> CapabilityPlan:
     objective_text = objective or ""
     # Explicitly negated actions describe constraints, not requested mutations.
     objective_text = re.sub(
-        r"\\b(?:do not|don't|never|no need to)\\s+(?:[a-z]+\\s+){0,2}"
+        r"\b(?:do not|don't|never|no need to)\s+(?:[a-z]+\s+){0,2}"
         r"(?:fix|implement|edit|modify|change|create|add|remove|delete|refactor|repair|"
-        r"build|commit|push|deploy|merge|write|update|rewrite|patch|apply)\\b",
+        r"build|commit|push|deploy|merge|write|update|rewrite|patch|apply)\b",
         " ",
         objective_text,
         flags=re.IGNORECASE,
