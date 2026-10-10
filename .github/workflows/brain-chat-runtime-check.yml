@@ -73,14 +73,15 @@ jobs:
                   failure_code = "ProviderConfigurationMissing"
                   raise RuntimeError(failure_code)
               with TestClient(create_app()) as client:
-                  before = client.get("/missions")
+                  auth_headers = {"X-Brain-API-Key": os.environ["BRAIN_CONTROL_API_KEY"]}
+                  before = client.get("/missions", headers=auth_headers)
                   if before.status_code != 200:
                       failure_code = "MissionBaselineHTTP" + str(before.status_code)
                       raise RuntimeError(failure_code)
                   mission_count_before = before.json().get("total")
                   response = client.post(
                       "/chat",
-                      headers={"X-Brain-API-Key": os.environ["BRAIN_CONTROL_API_KEY"]},
+                      headers=auth_headers,
                       json={"messages": [{"role": "user", "content": "Reply with exactly BRAIN_CHAT_OK"}]},
                   )
                   if response.status_code != 200:
@@ -90,7 +91,7 @@ jobs:
                   if "BRAIN_CHAT_OK" not in reply:
                       failure_code = "ModelResponseValidationFailed"
                       raise RuntimeError(failure_code)
-                  after = client.get("/missions")
+                  after = client.get("/missions", headers=auth_headers)
                   if after.status_code != 200 or after.json().get("total") != mission_count_before:
                       failure_code = "ChatUnexpectedlyChangedMissionState"
                       raise RuntimeError(failure_code)
