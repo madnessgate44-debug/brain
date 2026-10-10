@@ -180,7 +180,8 @@ jobs:
                 repo: context.repo.repo,
                 commit_sha: ref.data.object.sha
               });
-              if ((commit.data.message || '').includes('run=' + context.runId)) {
+              const leaseRun = ((commit.data.message || '').match(/(?:^|\\s)run=(\\d+)(?:\\s|$)/) || [])[1];
+              if (leaseRun === String(context.runId)) {
                 await github.rest.git.deleteRef({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
