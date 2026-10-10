@@ -17,7 +17,7 @@ class SystemConfig(BaseSettings):
 class DatabaseConfig(BaseSettings):
     """Database configuration."""
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="DATABASE_", extra="ignore")
-    sqlite_path: str = Field(default="./workspace/db/brain.db", validation_alias=AliasChoices("DATABASE_PATH", "DATABASE_SQLITE_PATH", "SQLITE_PATH"))
+    sqlite_path: str = Field(default="./workspace/db/brain.db", validation_alias=AliasChoices("DATABASE__SQLITE_PATH", "DATABASE_PATH", "DATABASE_SQLITE_PATH", "SQLITE_PATH"))
     busy_timeout: int = Field(default=30, gt=0)
     journal_mode: str = Field(default="WAL")
     foreign_keys: bool = Field(default=True)
