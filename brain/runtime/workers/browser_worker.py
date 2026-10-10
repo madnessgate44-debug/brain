@@ -240,6 +240,10 @@ class BrowserWorker:
             for index, action in enumerate(validated):
                 try:
                     op = action["op"]
+                    if op in {"new_tab", "list_tabs", "switch_tab", "close_tab"} and is_restricted_consumer_ai_url(page.url):
+                        raise BrowserPolicyError(
+                            "Automated interaction with consumer ChatGPT/Gemini chat pages is disabled."
+                        )
                     if op == "new_tab":
                         self._assert_current_page_allowed(page)
                         context = page.context
@@ -255,6 +259,10 @@ class BrowserWorker:
                         if tab_index >= len(pages):
                             raise BrowserPolicyError("tab index does not exist")
                         target = pages[tab_index]
+                        if is_restricted_consumer_ai_url(target.url):
+                            raise BrowserPolicyError(
+                                "Automated interaction with consumer ChatGPT/Gemini chat pages is disabled."
+                            )
                         self._assert_current_page_allowed(target)
                         page = target
                         result = {"index": tab_index, "url": page.url, "title": await page.title()}
@@ -340,7 +348,7 @@ class BrowserWorker:
         skipped = 0
         for index, candidate in enumerate(list(context.pages)):
             url = candidate.url
-            if url != "about:blank" and not is_allowed_url(url, self.allowed_domains):
+            if is_restricted_consumer_ai_url(url) or (url != "about:blank" and not is_allowed_url(url, self.allowed_domains)):
                 skipped += 1
                 continue
             visible.append({"index": index, "url": url, "title": await candidate.title()})
