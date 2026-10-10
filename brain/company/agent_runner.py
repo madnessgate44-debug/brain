@@ -1,6 +1,7 @@
 """Role-scoped execution for Brain's software-company workflow."""
 
 import json
+import re
 from typing import Any
 
 from brain.company.llm_provider import OpenAICompatibleProvider
