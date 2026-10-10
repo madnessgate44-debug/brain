@@ -93,7 +93,7 @@ class FakeTools:
         return {
             "branch": "brain/feature-test",
             "diff": "diff --git a/brain/feature.py b/brain/feature.py\n+pass",
-            "changed_files": ["brain/feature.py"],
+            "changed_files": [item["path"] for item in change_set["files"]],
         }
 
     async def run_checks(self, repository, branch):
