@@ -1,5 +1,7 @@
 """Approval API tests."""
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -72,6 +74,16 @@ def test_respond_to_approval(client):
     approval = response.json()
     assert approval["status"] == "APPROVED"
     assert approval["response_note"] == "Plan looks good"
+
+    events_response = client.get(f"/missions/{mission_id}/events")
+    assert events_response.status_code == 200
+    events_by_type = {
+        item["event_type"]: item for item in events_response.json()
+    }
+    requested_payload = json.loads(events_by_type["approval_requested"]["payload_json"])
+    responded_payload = json.loads(events_by_type["approval_responded"]["payload_json"])
+    assert requested_payload["approval_id"] == approval_id
+    assert responded_payload["approved"] is True
 
 
 def test_list_pending_approvals(client):
