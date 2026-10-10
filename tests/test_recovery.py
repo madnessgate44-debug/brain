@@ -136,7 +136,7 @@ async def test_live_runtime_refreshes_heartbeat_for_orphan_detection(db_manager,
         runtime_id="runtime_heartbeat_test",
         session_factory=db_manager.get_session_factory(),
         artifact_store=ArtifactStore(str(tmp_path / "workspace")),
-        heartbeat_interval_seconds=0.01,
+        heartbeat_interval_seconds=0.1,
     )
     heartbeat_task = asyncio.create_task(runtime._heartbeat_loop())
     try:
