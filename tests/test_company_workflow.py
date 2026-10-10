@@ -59,3 +59,24 @@ def test_release_passes_only_when_all_mandatory_gates_pass_with_evidence():
     decision = evaluate_release_gate(evidence)
     assert decision.passed is True
     assert decision.blockers == ()
+
+
+
+@pytest.mark.parametrize(
+    "test_results",
+    [
+        "PASS",
+        {"status": "PASS", "executed": True},
+        {"status": "FAIL", "executed": True, "run_url": "https://example.test/run/1"},
+    ],
+)
+def test_release_rejects_unverifiable_or_nonpassing_test_results(test_results):
+    decision = evaluate_release_gate({
+        "review_decision": {"status": "PASS", "reviewer_role": "code_reviewer"},
+        "test_results": test_results,
+        "security_decision": {"status": "PASS"},
+        "customer_review": {"status": "PASS"},
+    })
+
+    assert decision.passed is False
+    assert any("QA" in blocker for blocker in decision.blockers)
