@@ -35,7 +35,7 @@ def test_natural_language_plan_endpoint_returns_plan_without_executing(monkeypat
 
     monkeypatch.setattr("brain.api.routes.browser_planning.BrowserPlanner.plan", fake_plan)
     app = create_app()
-    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "x" * 32}) as client:
         response = client.post(
             "/browser/plan",
             headers={"X-Brain-API-Key": "x" * 32},
@@ -49,7 +49,7 @@ def test_natural_language_plan_endpoint_returns_plan_without_executing(monkeypat
 def test_browser_endpoint_is_disabled_without_control_key(monkeypatch):
     monkeypatch.delenv("BRAIN_CONTROL_API_KEY", raising=False)
     app = create_app()
-    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "x" * 32}) as client:
         response = client.post("/browser/tasks", json=_payload())
     assert response.status_code == 503
     assert "BRAIN_CONTROL_API_KEY" in response.json()["detail"]
@@ -58,7 +58,7 @@ def test_browser_endpoint_is_disabled_without_control_key(monkeypatch):
 def test_browser_endpoint_rejects_wrong_control_key(monkeypatch):
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "x" * 32)
     app = create_app()
-    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "x" * 32}) as client:
         response = client.post(
             "/browser/tasks",
             headers={"X-Brain-API-Key": "wrong"},
@@ -70,7 +70,7 @@ def test_browser_endpoint_rejects_wrong_control_key(monkeypatch):
 def test_browser_endpoint_rejects_weak_control_key_before_creating_mission(monkeypatch):
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "too-short")
     app = create_app()
-    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "x" * 32}) as client:
         response = client.post(
             "/browser/tasks",
             headers={"X-Brain-API-Key": "too-short"},
@@ -82,7 +82,7 @@ def test_browser_endpoint_rejects_weak_control_key_before_creating_mission(monke
 def test_browser_endpoint_requires_approval_for_mutating_actions(monkeypatch):
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "x" * 32)
     app = create_app()
-    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "x" * 32}) as client:
         response = client.post(
             "/browser/tasks",
             headers={"X-Brain-API-Key": "x" * 32},
@@ -111,7 +111,7 @@ def test_browser_mission_runs_through_mission_runtime_and_records_report(monkeyp
         fake_execute,
     )
     app = create_app()
-    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "x" * 32}) as client:
         response = client.post(
             "/browser/tasks",
             headers={"X-Brain-API-Key": "x" * 32},
@@ -152,7 +152,7 @@ def test_unsigned_browser_metadata_cannot_execute(monkeypatch):
         should_not_execute,
     )
     app = create_app()
-    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "x" * 32}) as client:
         created = client.post(
             "/missions",
             json={
