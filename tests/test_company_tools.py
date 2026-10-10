@@ -23,7 +23,7 @@ class FakeGateway:
                     "## Brain remote test run\n\n"
                     "**Target repository:** owner/project\n"
                     "**Target branch:** `brain/test-branch`\n"
-                    "**Result:** PASS\\n"
+                    "**Result:** PASS\n"
                     "Workflow run: https://github.com/owner/brain/actions/runs/123"
                 )
             }]
