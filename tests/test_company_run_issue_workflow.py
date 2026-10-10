@@ -198,3 +198,29 @@ def test_pull_request_gateway_uses_fallback_when_no_primary_pat_exists(monkeypat
     )
 
     assert gateway is fallback
+
+
+
+def test_build_audit_source_chunks_compactly_preserves_paths_and_line_numbers():
+    chunks = workflow.build_audit_source_chunks({
+        "src/a.ts": "const a = 1;\nconst b = 2;\n",
+        "src/b.ts": "export const c = 3;\n",
+    }, max_chars=80)
+
+    rendered = "\n".join(chunk["text"] for chunk in chunks)
+    assert "FILE: src/a.ts" in rendered
+    assert "FILE: src/b.ts" in rendered
+    assert "L1: const a = 1;" in rendered
+    assert "L2: const b = 2;" in rendered
+    assert len(chunks) > 1
+    assert all(len(chunk["text"]) <= 80 for chunk in chunks)
+
+
+def test_build_audit_source_chunks_marks_truncated_long_lines():
+    chunks = workflow.build_audit_source_chunks(
+        {"src/large.ts": "x" * 100},
+        max_chars=200,
+        max_line_chars=20,
+    )
+
+    assert "[LINE TRUNCATED FOR PROMPT SIZE]" in chunks[0]["text"]
