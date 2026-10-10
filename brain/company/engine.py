@@ -35,6 +35,21 @@ class CompanyWorkflowBlocked(RuntimeError):
     """Raised when a workflow cannot safely advance to the next stage."""
 
 
+
+
+
+def _gate_summary(output: dict[str, Any], decision_field: str) -> str:
+    """Return compact, non-content-bearing diagnostics for a blocked specialist gate."""
+    decision = output.get("deliverables", {}).get(decision_field, "<missing>")
+    decision = " ".join(str(decision).split())[:40]
+    return (
+        f"role_status={str(output.get('status', '<missing>')).upper()}, "
+        f"decision={decision!r}, findings={len(output.get('findings', []))}, "
+        f"blockers={len(output.get('blockers', []))}, "
+        f"evidence_needed={len(output.get('evidence_needed', []))}"
+    )
+
+
 class CompanyWorkflowEngine:
     """Run specialist roles in order, with bounded repair and evidence-based release."""
 
@@ -112,7 +127,11 @@ class CompanyWorkflowEngine:
             if review_output["status"] == "PASS" and str(review_decision).upper() in {"PASS", "APPROVED"}:
                 break
             if cycle >= self.max_repair_cycles:
-                raise CompanyWorkflowBlocked("Independent code review failed after repair limit.")
+                raise CompanyWorkflowBlocked(
+                    "Independent code review failed after repair limit ("
+                    + _gate_summary(review_output, "review_decision")
+                    + ")."
+                )
 
             repair_evidence = {
                 **evidence,
@@ -156,7 +175,11 @@ class CompanyWorkflowEngine:
         if security_output["status"] != "PASS" or str(
             security_output.get("deliverables", {}).get("security_decision", "")
         ).upper() not in {"PASS", "APPROVED"}:
-            raise CompanyWorkflowBlocked("Security audit did not pass.")
+            raise CompanyWorkflowBlocked(
+                "Security audit did not pass ("
+                + _gate_summary(security_output, "security_decision")
+                + ")."
+            )
 
         customer_output = await self.agent_runner.run("customer_advocate", user_request, evidence)
         outputs["customer_advocate"] = customer_output
@@ -164,7 +187,11 @@ class CompanyWorkflowEngine:
         if customer_output["status"] != "PASS" or str(
             customer_output.get("deliverables", {}).get("customer_review", "")
         ).upper() not in {"PASS", "APPROVED"}:
-            raise CompanyWorkflowBlocked("Customer review did not pass.")
+            raise CompanyWorkflowBlocked(
+                "Customer review did not pass ("
+                + _gate_summary(customer_output, "customer_review")
+                + ")."
+            )
 
         # Release decision is evidence-based and remains a recommendation, not an auto-merge.
         evidence["review_decision"] = {
