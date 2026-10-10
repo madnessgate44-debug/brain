@@ -582,7 +582,7 @@
     async function callGemini(messages) {
         const payload = await brainRequest('/chat', {
             method: 'POST',
-            body: { messages: messages.map(m => ({ role: m.role, content: m.content })) }
+            body: { messages: messages.slice(-16).map(m => ({ role: m.role, content: m.content })) }
         });
         return payload.reply || '';
     }
