@@ -25,13 +25,25 @@ _MUTATION_INTENT = re.compile(
     r"target|repository|source|main|necessary|recommended|reported|remaining)\s+){0,3}"
     r"(?:files?|code|repository|feature|functionality|bug|issues?|defects?|errors?|"
     r"problems?|fixes?|changes?|patches?|branch|pull requests?|prs?|commits?|"
+    r"|\\bcreate\\s+exactly\\b"
     r"implementation|app|application|them|it)\b"
     r"|\b(?:open|create)\s+(?:a\s+)?(?:pull request|pr|branch|commit|file)\b"
-    # Explicit "create exactly <path>" requests are affirmative file mutations.
-    r"|\bcreate\s+exactly\b"
     r"|\b(?:commit|push)\s+(?:the\s+)?(?:changes?|files?|code|branch|commit)\b"
     r"|\b(?:deploy|merge)\s+(?:the\s+)?(?:app|application|changes?|branch|pull request|pr|release)\b"
-    r"|\bmake\s+(?:the\s+)?changes?\b",
+    r"|\bmake\s+(?:the\s+)?changes?\b"
+    # Product-improvement missions may describe an outcome rather than a file
+    # operation (for example, "make Brain more reliable"). Treat those direct
+    # imperatives as mutation intent; negated constraints are removed above.
+    r"|\b(?:improve|improves|improved|improving|enhance|enhances|enhanced|enhancing|"
+    r"harden|hardens|hardened|hardening|strengthen|strengthens|strengthened|strengthening|"
+    r"optimize|optimizes|optimized|optimizing|optimise|optimises|optimised|optimising|"
+    r"upgrade|upgrades|upgraded|upgrading)\s+(?:(?:the|current|existing|brain|brain's|"
+    r"system|workflow|agent|tool|repository|orchestration)\s+){0,3}"
+    r"(?:brain|system|workflow|agent|tool|repository|orchestration|reliability|recovery|"
+    r"checkpoint|diagnostics|reporting|capabilities|contracts|skills|tests|code)\b"
+    r"|\bmake\s+(?:brain|the\s+brain|the\s+system|the\s+workflow|the\s+agent)\s+"
+    r"(?:(?:materially|significantly|substantially)\s+)?(?:more\s+)?"
+    r"(?:reliable|robust|secure|resilient|effective|capable)\b",
     re.IGNORECASE,
 )
 
