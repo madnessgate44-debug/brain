@@ -100,53 +100,110 @@ def build_bootstrap_failure_report(
 
 
 def render_failure_markdown(report: Mapping[str, Any]) -> str:
-    runtime = report.get("runtime", {})
-    failure = report.get("failure", {})
-    impact = report.get("impact", {})
-    recovery = report.get("recovery", {})
+    """Render readable Markdown for either fallback diagnostics or mission results."""
+    status = str(report.get("status") or "FAILED")
+    runtime = report.get("runtime") if isinstance(report.get("runtime"), dict) else {}
+    failure = report.get("failure") if isinstance(report.get("failure"), dict) else {}
+    impact = report.get("impact") if isinstance(report.get("impact"), dict) else {}
+    recovery = report.get("recovery") if isinstance(report.get("recovery"), dict) else {}
+
+    def display(value: Any) -> str:
+        if value is None:
+            return "UNKNOWN"
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+        return str(value)
+
+    repository = runtime.get("repository") or report.get("repository") or ""
+    commit_sha = runtime.get("commit_sha") or report.get("commit_sha") or report.get("head_sha") or ""
+    base_commit = report.get("base_commit") or ""
+    branch = report.get("branch") or runtime.get("ref_name") or ""
+    ref = runtime.get("ref") or ""
+    run_id = runtime.get("run_id") or report.get("run_id") or ""
+    run_attempt = runtime.get("run_attempt") or report.get("run_attempt") or ""
+    run_url = runtime.get("workflow_run_url") or report.get("workflow_run_url") or ""
+    workflow = runtime.get("workflow") or report.get("workflow") or ""
+    event_name = runtime.get("event_name") or report.get("event_name") or ""
+    event_action = runtime.get("event_action", report.get("event_action"))
+    issue_number = runtime.get("issue_number", report.get("issue_number"))
+
+    mutation_status = impact.get(
+        "repository_mutation_status",
+        report.get("mutation_status", "UNKNOWN (not provided in this report)"),
+    )
+    test_results = report.get("test_results", report.get("tests", report.get("checks")))
+    tests_status = impact.get("tests_status", report.get("tests_status"))
+    if tests_status is None and isinstance(test_results, dict):
+        tests_status = test_results.get("status")
+    if tests_status is None:
+        tests_status = "UNKNOWN (not provided in this report)"
+
+    stage_outcomes = report.get("stage_outcomes", report.get("step_outcomes", {}))
     failed_steps = report.get("failed_steps", [])
-    if failed_steps:
-        failed_text = "\n".join(
-            f"- {item.get('step', 'unknown')}: {item.get('outcome', 'unknown')}"
-            for item in failed_steps
-        )
-    else:
-        failed_text = "- No failed step outcome was captured; inspect the complete Actions logs."
-
-    outcomes = report.get(
-        "step_outcomes",
-        report.get("stage_outcomes", {}),
-    )
-    if isinstance(outcomes, dict):
+    if isinstance(stage_outcomes, dict):
         outcome_text = "\n".join(
-            f"- {step}: {outcome}" for step, outcome in outcomes.items()
-        ) or "- No step outcomes captured."
+            "- " + str(step) + ": " + display(outcome).replace("\n", "\n  ")
+            for step, outcome in stage_outcomes.items()
+        ) or "- No stage outcomes captured."
     else:
-        outcome_text = str(outcomes)
+        outcome_text = display(stage_outcomes) if stage_outcomes else "- No stage outcomes captured."
 
-    return (
-        "# Brain execution failure report\n\n"
-        f"- Status: {report.get('status', 'FAILED')}\n"
-        f"- Failure type: {failure.get('type', 'WorkflowBootstrapFailure')}\n"
-        f"- Repository: {runtime.get('repository', '')}\n"
-        f"- Commit SHA: {runtime.get('commit_sha', '')}\n"
-        f"- Ref: {runtime.get('ref', '')} ({runtime.get('ref_name', '')})\n"
-        f"- Workflow run: {runtime.get('run_id', '')} attempt {runtime.get('run_attempt', '')}\n"
-        f"- Run URL: {runtime.get('workflow_run_url', '')}\n"
-        f"- Workflow/event/action: {runtime.get('workflow', '')} / "
-        f"{runtime.get('event_name', '')} / {runtime.get('event_action')}\n"
-        f"- Initiating issue: {runtime.get('issue_number')}\n"
-        f"- Mutation status: {impact.get('repository_mutation_status', 'UNKNOWN')}\n"
-        f"- Tests status: {impact.get('tests_status', 'UNKNOWN')}\n\n"
-        "## Step outcomes\n"
-        f"{outcome_text}\n\n"
-        "## Failed steps\n"
-        f"{failed_text}\n\n"
-        "## Failure detail\n"
-        f"{failure.get('message', '')}\n\n"
-        "## Next action\n"
-        f"{recovery.get('next_step', '')}\n"
+    title = (
+        "# Brain mission report"
+        if status.upper() in {"PASS", "SUCCESS", "COMPLETED", "READY_FOR_HUMAN_APPROVAL"}
+        else "# Brain execution report"
     )
+    lines = [
+        title,
+        "",
+        "- Status: " + status,
+        "- Repository: " + display(repository),
+        "- Commit SHA: " + display(commit_sha),
+        "- Base commit: " + display(base_commit),
+        "- Branch/ref: " + display(branch or ref),
+        "- Workflow run: " + display(run_id) + " attempt " + display(run_attempt),
+        "- Run URL: " + display(run_url),
+        "- Workflow/event/action: " + display(workflow) + " / " + display(event_name) + " / " + display(event_action),
+        "- Initiating issue: " + display(issue_number),
+        "- Mutation status: " + display(mutation_status),
+        "- Tests status: " + display(tests_status),
+    ]
+
+    summary = report.get("report") or report.get("summary") or report.get("objective")
+    if summary:
+        lines.extend(["", "## Summary", display(summary)])
+
+    if stage_outcomes:
+        lines.extend(["", "## Stage outcomes", outcome_text])
+
+    if test_results is not None:
+        lines.extend(["", "## Test results", display(test_results)])
+
+    pull_request = report.get("pull_request")
+    if pull_request:
+        lines.extend(["", "## Pull request", display(pull_request)])
+
+    post_pr_verification = report.get("post_pr_verification")
+    if post_pr_verification:
+        lines.extend(["", "## Post-PR verification", display(post_pr_verification)])
+
+    failure_message = failure.get("message") or report.get("failure_message")
+    if failure_message:
+        lines.extend([
+            "",
+            "## Failure detail",
+            "Failure type: " + display(failure.get("type") or report.get("failure_type")),
+            display(failure_message),
+        ])
+
+    if failed_steps:
+        lines.extend(["", "## Failed steps", display(failed_steps)])
+
+    next_action = recovery.get("next_step") or report.get("next_action")
+    if next_action:
+        lines.extend(["", "## Next action", display(next_action)])
+
+    return "\n".join(lines) + "\n"
 
 
 def is_structurally_valid_report(parsed: Any) -> bool:
