@@ -277,6 +277,8 @@ def build_pull_request_gateway(
 async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[str, Any] | None = None) -> dict[str, Any]:
     events = events if events is not None else []
     started = datetime.now(timezone.utc).isoformat()
+    checkpoint_path = Path(os.environ.get("BRAIN_COMPANY_CHECKPOINT_PATH", "brain-company-checkpoint.json"))
+    checkpoint_path.unlink(missing_ok=True)
     repository, objective, issue_number = request_from_issue()
     mission = {"repository": repository, "objective": objective, "issue_number": issue_number}
     plan = plan_capabilities(objective)
