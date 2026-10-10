@@ -72,6 +72,21 @@ def mission_relevance(candidate: dict[str, Any], mission: str) -> tuple[int, lis
     )
     if not has_core_browser_signal:
         score = min(score, 35)
+
+    # Repository names like "browser-automation/status" often describe an
+    # uptime dashboard, not an automation tool. Keep those from dominating the
+    # shortlist solely because their metadata repeats the mission's keywords.
+    identity = " ".join([
+        str(candidate.get("full_name", "")),
+        str(candidate.get("description", "")),
+    ]).casefold()
+    is_status_project = (
+        "status page" in identity
+        or "uptime monitor" in identity
+        or bool(re.search(r"(?:^|[/_ -])status(?:$|[/_ -])", str(candidate.get("full_name", "")).casefold()))
+    )
+    if is_status_project:
+        score = min(score, 10)
     return min(100, score), matches
 
 class ResearchAndDevelopmentAgent:
