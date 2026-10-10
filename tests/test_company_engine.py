@@ -77,6 +77,7 @@ class FakeTools:
         return {
             "repository": repository,
             "default_branch": "main",
+            "base_commit": "abc123",
             "files": [{"path": "README.md", "size": 100}],
             "source_contents": {"README.md": "Existing project"},
         }
