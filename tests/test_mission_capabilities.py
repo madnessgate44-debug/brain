@@ -20,6 +20,15 @@ def test_read_only_is_the_default_when_no_mutation_is_requested():
     assert plan.mode == "read_only"
 
 
+def test_explicit_markdown_file_creation_is_mutating_even_without_pr_phrase():
+    objective = """Documentation-only. Create exactly \`docs/BRAIN_E2E_DISPATCH_ACCEPTANCE.md\`
+with exactly three lines. Do not modify workflow code, secrets, or deployment settings."""
+    plan = plan_capabilities(objective)
+    assert plan.mode == "mutating"
+    assert "repository:write" in plan.required_capabilities
+    assert "pull_request:create" in plan.required_capabilities
+
+
 def test_multiline_read_only_audit_constraints_do_not_trigger_write_mode():
     objective = """Perform a READ-ONLY, evidence-based audit of the repository and report findings.
 Required work: inspect source files, run safe non-mutating checks, and recommend remediations.
