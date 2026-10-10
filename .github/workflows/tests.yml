@@ -2,7 +2,7 @@ name: Brain tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, "brain/**"]
   pull_request:
   workflow_dispatch:
 
