@@ -8,7 +8,7 @@ from brain.api.app import create_app
 def test_company_workflow_endpoint_is_disabled_without_control_key(monkeypatch):
     monkeypatch.delenv("BRAIN_CONTROL_API_KEY", raising=False)
     app = create_app()
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         response = client.post(
             "/company-workflows",
             json={
@@ -24,7 +24,7 @@ def test_company_workflow_endpoint_is_disabled_without_control_key(monkeypatch):
 def test_company_workflow_endpoint_rejects_wrong_control_key(monkeypatch):
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "expected-secret")
     app = create_app()
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         response = client.post(
             "/company-workflows",
             headers={"X-Brain-API-Key": "wrong-secret"},
