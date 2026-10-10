@@ -51,6 +51,11 @@ def _compact_source_manifest(manifest: Any) -> dict[str, Any]:
         "aggregate_byte_limit": manifest.get("aggregate_byte_limit"),
         "failed_path_count": len(failed_paths) if isinstance(failed_paths, dict) else None,
         "omitted_path_count": len(omitted) if isinstance(omitted, list) else None,
+        "model_context_omitted_paths": (
+            manifest.get("model_context_omitted_paths", [])[:_SOURCE_INDEX_LIMIT]
+            if isinstance(manifest.get("model_context_omitted_paths", []), list)
+            else []
+        ),
         "candidate_paths": candidates[:_SOURCE_INDEX_LIMIT] if isinstance(candidates, list) else [],
         "read_paths": read_paths[:_SOURCE_INDEX_LIMIT] if isinstance(read_paths, list) else [],
     }
@@ -163,14 +168,23 @@ def _prepare_prompt_evidence(
                 "selected_chars": sum(len(content) for content in selected.values()),
                 "budget_chars": budget,
                 "omitted_explicit_paths": sorted(
-                    path
-                    for path in explicit_context_paths
-                    if path in {
-                        item.get("path")
-                        for item in files
-                        if isinstance(item, dict) and isinstance(item.get("path"), str)
+                    {
+                        path
+                        for path in explicit_context_paths
+                        if path in {
+                            item.get("path")
+                            for item in files
+                            if isinstance(item, dict) and isinstance(item.get("path"), str)
+                        }
+                        and path not in selected
                     }
-                    and path not in selected
+                    | (
+                        explicit_context_paths
+                        & set(
+                            item for item in manifest.get("model_context_omitted_paths", [])
+                            if isinstance(item, str)
+                        )
+                    )
                 ),
                 "note": "Only complete files selected by task relevance are supplied; use the manifest to identify omitted context.",
             }
