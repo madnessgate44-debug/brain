@@ -241,7 +241,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         if not snapshot.get("source_contents"):
             raise RuntimeError("Repository inspection returned no readable source files.")
 
-        def make_chunks(source_contents: dict[str, str], max_chars: int = 220000) -> list[dict[str, str]]:
+        def make_chunks(source_contents: dict[str, str], max_chars: int = 130000) -> list[dict[str, str]]:
             chunks: list[dict[str, str]] = []
             current: list[str] = []
             current_size = 0
@@ -297,7 +297,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
                 raise RuntimeError(f"Evidence extraction returned empty output for {chunk['chunk_id']}.")
             evidence_summaries.append({"chunk_id": chunk["chunk_id"], "analysis": summary})
             if chunk is not chunks[-1]:
-                await asyncio.sleep(3)
+                await asyncio.sleep(8)
             events.append({
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "stage": "audit_evidence_pass",
