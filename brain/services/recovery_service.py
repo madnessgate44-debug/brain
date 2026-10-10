@@ -103,15 +103,16 @@ class RecoveryService:
                 )
                 
             elif phase in [MissionPhase.EXECUTE.value, MissionPhase.VALIDATE.value, MissionPhase.REPAIR.value]:
-                # Reset to pending/running state, clear stale runtime
+                # Checkpoint resume is not implemented. Never make an interrupted
+                # mission restartable by replaying side effects from the beginning.
                 await mission_repo.update_status(
                     mission_id,
-                    MissionStatus.PENDING
+                    MissionStatus.PAUSED
                 )
                 await mission_repo.clear_runtime(mission_id)
                 await mission_repo.update_recovery_state(
                     mission_id,
-                    f"recovered_from_{phase}_pending_restart"
+                    f"recovery_requires_manual_review_from_{phase}"
                 )
                 
             else:
@@ -125,13 +126,23 @@ class RecoveryService:
                     f"recovery_failed_unknown_phase_{phase}"
                 )
             
-            # Emit recovery_completed event
+            # Emit an explicit warning when the mission cannot safely resume.
+            active_interruption = phase in {
+                MissionPhase.EXECUTE.value,
+                MissionPhase.VALIDATE.value,
+                MissionPhase.REPAIR.value,
+            }
             await event_repo.append_event(
                 mission_id=mission_id,
                 event_type="recovery_completed",
-                message=f"Recovery completed for mission in phase {phase}",
+                message=(
+                    f"Mission paused for manual review after interruption in {phase}; "
+                    "automatic checkpoint resume is not implemented."
+                    if active_interruption
+                    else f"Recovery completed for mission in phase {phase}"
+                ),
                 phase=phase,
-                severity="INFO",
+                severity="WARN" if active_interruption else "INFO",
             )
             
             logger.info(
