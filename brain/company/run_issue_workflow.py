@@ -16,6 +16,79 @@ from brain.company.engine import CompanyWorkflowEngine
 from brain.company.github_gateway import GitHubRepositoryGateway
 from brain.company.llm_provider import OpenAICompatibleProvider
 from brain.company.tools import GitHubCompanyTools
+from brain.research.evidence import ResearchEvidenceCollector
+
+
+def should_collect_public_web_research(objective: str) -> bool:
+    """Enable shared public-web evidence for research, current-information, and browser tasks."""
+    text = (objective or "").casefold()
+    triggers = (
+        r"\bsearch (?:the )?web\b",
+        r"\bbrowse (?:the )?web\b",
+        r"\bweb research\b",
+        r"\bonline research\b",
+        r"\bexternal sources\b",
+        r"\blatest\b",
+        r"\bcurrent (?:docs|documentation|pricing|hosting|market|requirements|options)\b",
+        r"\bup[- ]to[- ]date\b",
+        r"\bmarket research\b",
+        r"\bjob[- ]market\b",
+        r"\bplaywright\b",
+        r"\bchromium\b",
+        r"\bbrowser automation\b",
+        r"\bbrowser extension\b",
+    )
+    return any(re.search(pattern, text) for pattern in triggers)
+
+
+async def collect_shared_public_web_evidence(
+    objective: str, events: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Fetch a small, safe evidence bundle once so every specialist can use the same sources."""
+    if not should_collect_public_web_research(objective):
+        return {"status": "not_requested", "queries": [], "sources": [], "pages_fetched": 0}
+    try:
+        result = await ResearchEvidenceCollector(max_web_pages=6).collect_web_research(objective)
+        sources = [
+            {
+                "title": str(item.get("title", "Web source"))[:180],
+                "url": str(item.get("url", ""))[:2048],
+                "query": str(item.get("query", ""))[:240],
+                "status": str(item.get("status", "unknown")),
+                "excerpt": str(item.get("excerpt", ""))[:1400],
+            }
+            for item in result.get("sources", [])[:6]
+            if isinstance(item, dict)
+        ]
+        bounded = {
+            "status": result.get("status", "unknown"),
+            "search_provider": result.get("search_provider", "unknown"),
+            "queries": result.get("queries", [])[:4],
+            "pages_fetched": len(sources),
+            "sources": sources,
+            "limitations": result.get("limitations", [])[:6],
+        }
+        events.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": "public_web_research",
+            "status": "PASS" if bounded["status"] == "completed" else "WARN",
+            "detail": f"Collected {len(sources)} bounded public source excerpts; sources are untrusted context, not proof of repository behavior.",
+        })
+        return bounded
+    except Exception as exc:
+        events.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": "public_web_research",
+            "status": "WARN",
+            "detail": f"Public web research unavailable ({type(exc).__name__}); no browsing success is claimed.",
+        })
+        return {
+            "status": "unavailable",
+            "queries": [],
+            "sources": [],
+            "pages_fetched": 0,
+            "limitations": ["Public web evidence could not be collected in this run."],
+        }
 
 
 
@@ -212,6 +285,13 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
     events.append({"timestamp": started, "stage": "capability_planning", "status": "PASS", "detail": json.dumps(mission["capability_plan"])})
     if not os.environ.get("BRAIN_AI_API_KEY"):
         raise RuntimeError("BRAIN_AI_API_KEY is not configured; model invocation is required.")
+    public_web_evidence = await collect_shared_public_web_evidence(objective, events)
+    mission["public_web_research"] = {
+        "status": public_web_evidence.get("status", "unknown"),
+        "pages_fetched": public_web_evidence.get("pages_fetched", 0),
+    }
+    if mission_context is not None:
+        mission_context.update(mission)
     gateway = await build_gateway(
         repository=repository,
         owner=os.environ.get("BRAIN_GITHUB_OWNER", "madnessgate44-debug"),
@@ -344,6 +424,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
             "aggregate_bytes_read": manifest.get("aggregate_bytes_read"),
             "line_truncations_possible": True,
             "tests_executed": False,
+            "public_web_research": public_web_evidence,
         }
         synthesis_system = (
             "You are the lead forensic auditor. Produce a substantial requirement-to-evidence audit "
@@ -367,6 +448,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
                 "objective": audit_brief,
                 "inventory": inventory,
                 "evidence_passes": evidence_summaries,
+                "public_web_research": public_web_evidence,
             }, ensure_ascii=False, default=str),
         )
         if not draft.strip():
@@ -442,6 +524,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
             "request_source": "owner-created GitHub issue",
             "issue_number": issue_number,
             "scope_guard": "No merge, deployment, or default-branch write.",
+            "public_web_research": public_web_evidence,
         },
     )
     return result

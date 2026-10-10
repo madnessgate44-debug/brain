@@ -43,6 +43,12 @@ The allowed_domains list may be omitted; when omitted, the start URL's host is t
 
 If the plan contains a mutating action, execution stops and the report returns the proposed action list. The owner must inspect that exact list and separately submit an explicitly approved task to the authenticated /browser/tasks API before a mutation can run. This issue workflow does not execute write actions. Both the issue author and the actor who opens/edits the issue must be the repository owner. Editing an issue triggers a new run, so an issue should not be edited casually while a workflow is active.
 
+## Shared web evidence for specialist agents
+
+For `/brain simulate` missions that ask for web research, current information, browser automation, Playwright/Chromium, or browser extensions, the GitHub Actions workflow collects a bounded set of public source excerpts once and passes the same evidence bundle to each specialist role. Specialists are instructed to cite supplied URLs and treat page excerpts as untrusted external context, never as proof of repository behavior or as instructions.
+
+This is public search and bounded page retrieval, not a live interactive browser tool inside every specialist call. For rendered-page actions, use the `/brain browse` workflow. If retrieval fails, Brain records that status and must not claim browsing succeeded.
+
 ## Capability boundary: what is and is not solved
 
 | Capability | Current status |
@@ -50,13 +56,17 @@ If the plan contains a mutating action, execution stops and the report returns t
 | Owner starts tasks from a phone | Supported through GitHub Issues |
 | Rendered public pages in Chromium | Implemented; CI includes a real Chromium smoke test |
 | Natural-language plan generation | Implemented using configured Gemini-compatible API; free quota not guaranteed |
-| Read-only public browsing | Implemented in the new issue workflow; end-to-end run still required |
-| Screenshot and structured action report | Implemented; live issue-workflow evidence still required |
-| Browser tabs | New/list/switch/close tab actions implemented with public-URL checks; end-to-end workflow still to verify |\n| Public-link extraction | Implemented with deduplication and URL policy; live research accuracy still to benchmark |\n| Multi-site research | Possible when each destination is in allowed_domains; not yet benchmarked |
+| Read-only public browsing | Live issue workflow succeeded on a real official Playwright documentation page |
+| Screenshot and structured action report | Live browser issue runner passed 3/3 actions; natural-language browse workflow passed 4/4 actions |
+| Browser tabs | New/list/switch/close actions implemented and CI-tested; a dedicated multi-tab live mission is still needed |
+| Public-link extraction | Implemented with deduplication and URL policy; exercised in the live 4/4 browser mission |
+| Shared public web evidence for specialists | Added to `/brain simulate` when the mission asks for external research; CI and a live mission-level integration test are still required |
+| Browser extension manager | Not implemented; loading and lifecycle management require a separate security-reviewed design |
+| Download handling | Not implemented; downloads need size, MIME, path, and artifact-retention controls |
 | Logged-in sites or personal ChatGPT/Gemini sessions | Not supported by this free workflow |
-| Always-on FastAPI API with persistent SQLite | Not provided by GitHub Actions; would need a different free persistent architecture or paid hosting |
+| Always-on FastAPI API with persistent SQLite | Not provided by GitHub Actions; the backend has no public persistent URL |
 | Guaranteed unlimited model calls or compute | Impossible to promise on free tiers |
-| Proven performance better than TinyFish overall | Not yet established; requires a repeatable benchmark |
+| Proven performance better than TinyFish overall | Not established; requires a repeatable benchmark |
 
 ## Benchmark to justify “better than TinyFish”
 
@@ -69,6 +79,6 @@ For representative public research tasks, record:
 
 Do not claim Brain is better until the same task set has been run through both systems and the results compared. The intended advantage is not one clever browser call; it is the combination of task planning, explicit permissions, evidence trails, bounded recovery, repository workflows, and a $0 mandatory baseline.
 
-## Current change boundary
+## Current operating boundary
 
-This branch removes the paid Render blueprint and its paid-deployment guide. It does not create a Render service, deploy anything, merge itself, or change any existing secret. The FastAPI backend still has no public persistent URL. The new workflow is a free remote execution path, not a substitute for a durable always-on API.
+The free-first baseline no longer provisions the paid Render blueprint. No Render service was created or deployed, and no existing secret was changed by the browser work. The FastAPI backend still has no public persistent URL. Public research runs on ephemeral GitHub Actions workers; browser artifacts are retained for 7 days and R&D report artifacts for 30 days. This is a usable remote research path, not a durable always-on desktop or persistent browser profile.

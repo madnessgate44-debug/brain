@@ -184,6 +184,57 @@ def test_pull_request_gateway_uses_credential_scoped_to_target_repository(
     assert gateway.token == expected_token
 
 
+def test_web_research_is_requested_for_external_research_missions():
+    assert workflow.should_collect_public_web_research("Research the latest Playwright browser documentation.")
+    assert workflow.should_collect_public_web_research("Compare current hosting prices and persistence limits.")
+    assert not workflow.should_collect_public_web_research("Fix the typo in README and run the existing tests.")
+
+
+@pytest.mark.asyncio
+async def test_shared_public_web_evidence_is_bounded_and_logged(monkeypatch):
+    class FakeCollector:
+        def __init__(self, max_web_pages=8):
+            assert max_web_pages == 6
+
+        async def collect_web_research(self, mission):
+            return {
+                "status": "completed",
+                "search_provider": "fake",
+                "queries": ["browser docs"],
+                "sources": [
+                    {
+                        "title": "Official docs",
+                        "url": "https://docs.example.com/",
+                        "query": "browser docs",
+                        "status": "fetched",
+                        "excerpt": "Evidence " * 300,
+                    }
+                ],
+                "limitations": ["sample only"],
+            }
+
+    monkeypatch.setattr(workflow, "ResearchEvidenceCollector", FakeCollector)
+    events = []
+    result = await workflow.collect_shared_public_web_evidence(
+        "Research the latest Playwright browser documentation.", events
+    )
+    assert result["status"] == "completed"
+    assert result["pages_fetched"] == 1
+    assert len(result["sources"][0]["excerpt"]) == 1400
+    assert events[-1]["stage"] == "public_web_research"
+    assert events[-1]["status"] == "PASS"
+
+
+@pytest.mark.asyncio
+async def test_shared_public_web_evidence_is_not_requested_for_ordinary_code_tasks():
+    events = []
+    result = await workflow.collect_shared_public_web_evidence(
+        "Fix the typo in README and run the existing tests.", events
+    )
+    assert result["status"] == "not_requested"
+    assert events == []
+
+
 def test_pull_request_gateway_uses_fallback_when_no_primary_pat_exists(monkeypatch):
     monkeypatch.setattr(workflow, "GitHubRepositoryGateway", FakeGateway)
     fallback = FakeGateway("fallback-actions", "owner")
