@@ -14,8 +14,8 @@ class CapabilityPlan:
 
 
 _WRITE_ACTION = re.compile(
-    r"\\b(fix|implement|edit|modify|change|create|add|remove|delete|refactor|repair|"
-    r"build|commit|push|deploy|merge|write|update|rewrite|patch|apply)\\b",
+    r"\b(fix|implement|edit|modify|change|create|add|remove|delete|refactor|repair|"
+    r"build|commit|push|deploy|merge|write|update|rewrite|patch|apply)\b",
     re.IGNORECASE,
 )
 
