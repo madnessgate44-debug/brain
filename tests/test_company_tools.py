@@ -83,3 +83,63 @@ async def test_pull_request_uses_separate_pat_gateway():
     assert result["url"] == "https://github.com/owner/brain/pull/999"
     assert len(pull_request_gateway.calls) == 1
     assert len(write_gateway.calls) == 0
+
+
+class FakeInspectionGateway:
+    def __init__(self, paths):
+        self.paths = paths
+        self.read_paths = []
+
+    async def inspect_repository(self, repository, max_files=80):
+        return {
+            "repository": repository,
+            "default_branch": "main",
+            "base_commit": "abc123",
+            "files": [{"path": path, "size": 100} for path in self.paths],
+            "truncated": False,
+        }
+
+    async def read_file(self, repository, path, max_bytes=200_000):
+        self.read_paths.append(path)
+        return f"// source for {path}\n"
+
+
+@pytest.mark.asyncio
+async def test_inspection_reads_all_in_scope_source_and_test_files_and_reports_coverage():
+    paths = (
+        [f"src/components/Component{i}.tsx" for i in range(45)]
+        + [f"src/services/__tests__/service{i}.test.ts" for i in range(8)]
+        + ["package.json", "README.md", "dist/bundle.js", "node_modules/pkg/index.js"]
+    )
+    gateway = FakeInspectionGateway(paths)
+    tools = GitHubCompanyTools(gateway=gateway)
+
+    snapshot = await tools.inspect_repository("owner/amina")
+
+    expected = [path for path in paths if path.startswith("src/") or path in {"package.json", "README.md"}]
+    assert set(gateway.read_paths) == set(expected)
+    assert snapshot["source_files_read"] == len(expected)
+    assert snapshot["source_manifest"]["candidate_count"] == len(expected)
+    assert snapshot["source_manifest"]["read_count"] == len(expected)
+    assert snapshot["source_manifest"]["coverage_complete"] is True
+    assert snapshot["source_manifest"]["omitted_by_aggregate_budget"] == []
+    assert snapshot["source_manifest"]["tree_truncated"] is False
+
+
+@pytest.mark.asyncio
+async def test_inspection_marks_aggregate_budget_omissions_instead_of_claiming_complete():
+    class LargeInspectionGateway(FakeInspectionGateway):
+        async def read_file(self, repository, path, max_bytes=200_000):
+            self.read_paths.append(path)
+            return "x" * min(max_bytes, 29_000)
+
+    paths = [f"src/file{i}.ts" for i in range(60)]
+    gateway = LargeInspectionGateway(paths)
+    tools = GitHubCompanyTools(gateway=gateway)
+
+    snapshot = await tools.inspect_repository("owner/amina")
+
+    manifest = snapshot["source_manifest"]
+    assert manifest["read_count"] < manifest["candidate_count"]
+    assert manifest["omitted_by_aggregate_budget"]
+    assert manifest["coverage_complete"] is False
