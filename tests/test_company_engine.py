@@ -174,3 +174,52 @@ async def test_customer_gate_failure_reports_decision_and_counts():
         match=r"Customer review did not pass .*decision='NEEDS_WORK'.*findings=1, blockers=2, evidence_needed=1",
     ):
         await engine.run("Create a documentation-only report", "owner/repository")
+
+
+@pytest.mark.asyncio
+async def test_engine_bounds_repository_source_context_before_model_calls():
+    class CapturingRunner(FakeAgentRunner):
+        def __init__(self):
+            super().__init__()
+            self.first_evidence = None
+
+        async def run(self, role_key, user_request, evidence):
+            if self.first_evidence is None:
+                self.first_evidence = evidence
+            return await super().run(role_key, user_request, evidence)
+
+    class LargeRepositoryTools(FakeTools):
+        async def inspect_repository(self, repository):
+            return {
+                "repository": repository,
+                "default_branch": "main",
+                "base_commit": "abc123",
+                "files": [{"path": f"src/module_{i}.py", "size": 9000} for i in range(80)],
+                "source_contents": {
+                    **{"README.md": "readme evidence " * 1000},
+                    **{f"src/module_{i}.py": f"source evidence {i} " * 1000 for i in range(80)},
+                    "docs/BRAIN_RUNTIME_VERIFICATION.md": "target file context",
+                },
+                "source_manifest": {
+                    "candidate_count": 81,
+                    "read_count": 81,
+                    "coverage_complete": True,
+                    "failed_paths": {},
+                    "omitted_by_aggregate_budget": [],
+                    "aggregate_bytes_read": 900000,
+                },
+            }
+
+    runner = CapturingRunner()
+    engine = CompanyWorkflowEngine(runner, LargeRepositoryTools())
+    await engine.run(
+        "Create docs/BRAIN_RUNTIME_VERIFICATION.md with verified runtime evidence",
+        "owner/repository",
+    )
+    snapshot = runner.first_evidence["repository_snapshot"]
+    assert len(snapshot["source_contents"]) <= 20
+    assert sum(map(len, snapshot["source_contents"].values())) <= 41_000
+    assert "docs/BRAIN_RUNTIME_VERIFICATION.md" in snapshot["source_contents"]
+    assert len(snapshot["files"]) <= 300
+    assert snapshot["source_manifest"]["model_context_char_limit"] == 40_000
+    assert len(snapshot["source_manifest"]["model_context_omitted_or_truncated_paths"]) > 0
