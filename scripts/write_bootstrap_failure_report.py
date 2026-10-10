@@ -160,10 +160,10 @@ def ensure_failure_reports(
             content = report_path.read_text(encoding="utf-8")
             if content.strip():
                 parsed = json.loads(content)
-                if isinstance(parsed, dict):
+                if isinstance(parsed, dict) and isinstance(parsed.get("status"), str) and parsed.get("status"):
                     json_valid = True
                     report_data = parsed
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             pass
 
     if md_path.exists() and json_valid:
