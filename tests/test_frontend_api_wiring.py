@@ -12,6 +12,8 @@ def test_desktop_interface_uses_brain_api_instead_of_direct_provider_or_github_w
     assert "brainRequest('/company-workflows'" in html
     assert '<input type="text" id="settingsModel" placeholder="https://your-brain-api.example" value="http://localhost:8000">' in html
     assert "gemini-flash-latest" not in html
+    assert "el.querySelector('.toast-message').textContent" in html
+    assert "${msg}</span>" not in html
     assert "normalizeApiBaseUrl(localStorage.getItem('brain_api_base_url'))" in html
     assert "Enter a valid HTTP(S) Brain API base URL." in html
     assert "generativelanguage.googleapis.com" not in html
@@ -20,6 +22,8 @@ def test_desktop_interface_uses_brain_api_instead_of_direct_provider_or_github_w
     assert "sessionStorage.setItem('brain_control_api_key'" in html
     assert "normalizeApiBaseUrl(localStorage.getItem('brain_api_base_url'))" in html
     assert "Enter a valid HTTP(S) Brain API URL." in html
+    assert "el.querySelector('.msg').textContent" in html
+    assert "${msg}</span>" not in html
     test_handler = html[html.index("document.getElementById('testConnection').addEventListener"):]
     assert "document.getElementById('modelInput').value.trim() || State.model" in test_handler
     assert "State.apiKey = key;" in test_handler
