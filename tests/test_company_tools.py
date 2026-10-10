@@ -32,10 +32,10 @@ class FakeGateway:
         }
         self.author_login = author_login
         self.comment_body = (
-            "## Brain remote test run\\n\\n"
-            f"**Target repository:** {target_repository}\\n"
-            f"**Target branch:** {target_branch}\\n"
-            f"**Result:** {reported_result}\\n"
+            "## Brain remote test run\n\n"
+            f"**Target repository:** {target_repository}\n"
+            f"**Target branch:** {target_branch}\n"
+            f"**Result:** {reported_result}\n"
             f"Workflow run: {run_url}"
         )
 
