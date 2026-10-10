@@ -609,11 +609,14 @@
     function addMessage(role, content) {
         const div = document.createElement('div');
         div.className = `msg ${role}`;
-        const time = new Date().toLocaleTimeString();
-        div.innerHTML = `
-            <div class="bubble">${content.replace(/\n/g, '<br>')}</div>
-            <div class="time">${time}</div>
-        `;
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = content;
+        bubble.style.whiteSpace = 'pre-wrap';
+        const time = document.createElement('div');
+        time.className = 'time';
+        time.textContent = new Date().toLocaleTimeString();
+        div.append(bubble, time);
         chatMessages.appendChild(div);
         chatMessages.scrollTop = chatMessages.scrollHeight;
         State.messages.push({ role, content });
