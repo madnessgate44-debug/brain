@@ -111,14 +111,26 @@ async def test_inspection_reads_all_in_scope_source_and_test_files_and_reports_c
     paths = (
         [f"src/components/Component{i}.tsx" for i in range(45)]
         + [f"src/services/__tests__/service{i}.test.ts" for i in range(8)]
-        + ["package.json", "README.md", "dist/bundle.js", "node_modules/pkg/index.js"]
+        + [
+            "package.json", "README.md", "brain-app.html", "brain-ui-mobile.html",
+            "alembic/versions/001_initial_schema.py", "docs/operations.md",
+            ".github/workflows/ci.yml", "render.yaml",
+            "dist/bundle.js", "node_modules/pkg/index.js",
+        ]
     )
     gateway = FakeInspectionGateway(paths)
     tools = GitHubCompanyTools(gateway=gateway)
 
     snapshot = await tools.inspect_repository("owner/amina")
 
-    expected = [path for path in paths if path.startswith("src/") or path in {"package.json", "README.md"}]
+    expected = [
+        path for path in paths
+        if path.startswith(("src/", "alembic/", "docs/", ".github/workflows/"))
+        or path in {
+            "package.json", "README.md", "brain-app.html",
+            "brain-ui-mobile.html", "render.yaml",
+        }
+    ]
     assert set(gateway.read_paths) == set(expected)
     assert snapshot["source_files_read"] == len(expected)
     assert snapshot["source_manifest"]["candidate_count"] == len(expected)
