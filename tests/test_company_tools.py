@@ -8,9 +8,18 @@ from brain.company.tools import GitHubCompanyTools
 
 
 class FakeGateway:
-    def __init__(self, name):
+    def __init__(self, name, run_data=None, author_login="github-actions[bot]"):
         self.name = name
         self.calls = []
+        self.run_data = run_data or {
+            "status": "completed",
+            "event": "issues",
+            "path": ".github/workflows/brain-task-runner.yml",
+            "head_repository": {"full_name": "owner/brain"},
+            "head_branch": "brain/test-branch",
+            "conclusion": "success",
+        }
+        self.author_login = author_login
 
     async def _request(self, method, path, **kwargs):
         self.calls.append((method, path, kwargs))
@@ -18,12 +27,15 @@ class FakeGateway:
             return {"number": 42, "html_url": "https://github.com/owner/brain/issues/42"}
         if method == "GET" and path.endswith("/issues/42/comments"):
             return [{
+                "user": {"login": self.author_login},
                 "body": (
                     "## Brain remote test run\n\n"
                     "**Result:** PASS\n"
                     "Workflow run: https://github.com/owner/brain/actions/runs/123"
                 )
             }]
+        if method == "GET" and "/actions/runs/123" in path:
+            return self.run_data
         raise AssertionError(f"Unexpected request: {method} {path}")
 
 
@@ -46,7 +58,131 @@ async def test_verification_issue_uses_separate_pat_gateway():
     assert result["status"] == "PASS"
     assert result["run_url"] == "https://github.com/owner/brain/actions/runs/123"
     assert len(write_gateway.calls) == 0
-    assert [call[0] for call in trigger_gateway.calls] == ["POST", "GET"]
+    assert [call[0] for call in trigger_gateway.calls] == ["POST", "GET", "GET"]
+
+
+@pytest.mark.asyncio
+async def test_run_checks_rejects_non_bot_comment():
+    trigger_gateway = FakeGateway("pat", author_login="malicious-user")
+    tools = GitHubCompanyTools(
+        verification_gateway=trigger_gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=0.1,
+    )
+
+    with pytest.raises(TimeoutError):
+        await tools.run_checks("owner/brain", "brain/test-branch")
+
+
+@pytest.mark.asyncio
+async def test_run_checks_rejects_wrong_target_repository():
+    run_data = {
+        "status": "completed",
+        "event": "issues",
+        "path": ".github/workflows/brain-task-runner.yml",
+        "head_repository": {"full_name": "owner/other-repo"},
+        "head_branch": "brain/test-branch",
+        "conclusion": "success",
+    }
+    trigger_gateway = FakeGateway("pat", run_data=run_data)
+    tools = GitHubCompanyTools(
+        verification_gateway=trigger_gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=0.1,
+    )
+
+    with pytest.raises(TimeoutError):
+        await tools.run_checks("owner/brain", "brain/test-branch")
+
+
+@pytest.mark.asyncio
+async def test_run_checks_rejects_wrong_target_branch():
+    run_data = {
+        "status": "completed",
+        "event": "issues",
+        "path": ".github/workflows/brain-task-runner.yml",
+        "head_repository": {"full_name": "owner/brain"},
+        "head_branch": "brain/wrong-branch",
+        "conclusion": "success",
+    }
+    trigger_gateway = FakeGateway("pat", run_data=run_data)
+    tools = GitHubCompanyTools(
+        verification_gateway=trigger_gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=0.1,
+    )
+
+    with pytest.raises(TimeoutError):
+        await tools.run_checks("owner/brain", "brain/test-branch")
+
+
+@pytest.mark.asyncio
+async def test_run_checks_rejects_wrong_workflow():
+    run_data = {
+        "status": "completed",
+        "event": "issues",
+        "path": ".github/workflows/wrong-workflow.yml",
+        "head_repository": {"full_name": "owner/brain"},
+        "head_branch": "brain/test-branch",
+        "conclusion": "success",
+    }
+    trigger_gateway = FakeGateway("pat", run_data=run_data)
+    tools = GitHubCompanyTools(
+        verification_gateway=trigger_gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=0.1,
+    )
+
+    with pytest.raises(TimeoutError):
+        await tools.run_checks("owner/brain", "brain/test-branch")
+
+
+@pytest.mark.asyncio
+async def test_run_checks_rejects_inprogress_run():
+    run_data = {
+        "status": "in_progress",
+        "event": "issues",
+        "path": ".github/workflows/brain-task-runner.yml",
+        "head_repository": {"full_name": "owner/brain"},
+        "head_branch": "brain/test-branch",
+        "conclusion": None,
+    }
+    trigger_gateway = FakeGateway("pat", run_data=run_data)
+    tools = GitHubCompanyTools(
+        verification_gateway=trigger_gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=0.1,
+    )
+
+    with pytest.raises(TimeoutError):
+        await tools.run_checks("owner/brain", "brain/test-branch")
+
+
+@pytest.mark.asyncio
+async def test_run_checks_rejects_mismatched_conclusion():
+    run_data = {
+        "status": "completed",
+        "event": "issues",
+        "path": ".github/workflows/brain-task-runner.yml",
+        "head_repository": {"full_name": "owner/brain"},
+        "head_branch": "brain/test-branch",
+        "conclusion": "failure",
+    }
+    trigger_gateway = FakeGateway("pat", run_data=run_data)
+    tools = GitHubCompanyTools(
+        verification_gateway=trigger_gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=0.1,
+    )
+
+    with pytest.raises(TimeoutError):
+        await tools.run_checks("owner/brain", "brain/test-branch")
 
 
 @pytest.mark.asyncio

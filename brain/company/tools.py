@@ -145,7 +145,7 @@ class GitHubCompanyTools:
         return result
 
     async def run_checks(self, repository: str, branch: str) -> dict[str, Any]:
-        """Trigger the fixed Brain Actions runner and wait for its recorded result."""
+        """Trigger the fixed Brain Actions runner and strictly validate remote test run evidence."""
         if not self.control_repository or "/" not in self.control_repository:
             raise GitHubGatewayError(
                 "BRAIN_CONTROL_REPOSITORY must identify the repository hosting Brain's task runner."
@@ -154,8 +154,6 @@ class GitHubCompanyTools:
             raise GitHubGatewayError("Checks are allowed only for Brain-created branches.")
 
         owner, name = self.control_repository.split("/", 1)
-        # The verification issue must be created with a PAT, not GITHUB_TOKEN:
-        # GitHub suppresses follow-on workflow runs for events caused by GITHUB_TOKEN.
         trigger_gateway = self.verification_gateway
         issue = await trigger_gateway._request(
             "POST",
@@ -173,6 +171,8 @@ class GitHubCompanyTools:
         )
         issue_number = issue["number"]
         deadline = asyncio.get_running_loop().time() + self.timeout_seconds
+        expected_workflow_path = ".github/workflows/brain-task-runner.yml"
+
         while asyncio.get_running_loop().time() < deadline:
             comments = await trigger_gateway._request(
                 "GET",
@@ -183,20 +183,71 @@ class GitHubCompanyTools:
                 body = comment.get("body", "")
                 if "## Brain remote test run" not in body:
                     continue
-                result_match = re.search(r"\*\*Result:\*\*\s*(PASS|FAIL)", body)
-                run_match = re.search(r"https://github\.com/[^\s]+/actions/runs/\d+", body)
-                if not result_match:
+
+                # 1. Verify comment author must be trusted GitHub Actions bot
+                user_info = comment.get("user") or {}
+                author_login = (user_info.get("login") or "").casefold()
+                if author_login != "github-actions[bot]".casefold():
                     continue
-                result = result_match.group(1)
+
+                result_match = re.search(r"\*\*Result:\*\*\s*(PASS|FAIL)", body)
+                run_match = re.search(r"https://github\.com/([^/]+/[^/]+)/actions/runs/(\d+)", body)
+                if not result_match or not run_match:
+                    continue
+
+                reported_result = result_match.group(1)
+                run_url = run_match.group(0)
+                run_id = run_match.group(2)
+
+                # 2. Inspect the actual GitHub Actions run via REST API against control repo
+                try:
+                    run_data = await trigger_gateway._request(
+                        "GET",
+                        f"/repos/{owner}/{name}/actions/runs/{run_id}",
+                    )
+                except Exception:
+                    continue
+
+                # 3. Validate run attributes strictly
+                if not isinstance(run_data, dict):
+                    continue
+
+                if run_data.get("status") != "completed":
+                    continue
+
+                if run_data.get("event") != "issues":
+                    continue
+
+                path_val = run_data.get("path") or run_data.get("workflow_file_path") or ""
+                if not path_val.endswith("brain-task-runner.yml"):
+                    continue
+
+                # Validate target repository matching head_repository or head_branch metadata if present
+                head_repo = run_data.get("head_repository") or {}
+                head_repo_full = head_repo.get("full_name")
+                if head_repo_full and head_repo_full.casefold() != repository.casefold():
+                    continue
+
+                head_branch = run_data.get("head_branch") or run_data.get("branch")
+                if head_branch and head_branch != branch:
+                    continue
+
+                conclusion = run_data.get("conclusion")
+                if reported_result == "PASS" and conclusion != "success":
+                    continue
+                if reported_result == "FAIL" and conclusion == "success":
+                    continue
+
                 return {
                     "executed": True,
-                    "status": result,
-                    "run_url": run_match.group(0) if run_match else None,
+                    "status": reported_result,
+                    "run_url": run_url,
                     "issue_url": issue.get("html_url"),
                     "report": body,
                     "branch": branch,
                     "repository": repository,
                 }
+
             await asyncio.sleep(self.poll_seconds)
         raise TimeoutError(
             f"Timed out waiting for GitHub Actions verification for issue #{issue_number}."
