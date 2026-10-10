@@ -1,7 +1,7 @@
 """Mission API endpoints."""
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from brain.domain.enums import MissionStatus
 from brain.schemas.mission import (
@@ -36,8 +36,8 @@ async def create_mission(
 
 @router.get("", response_model=MissionListResponse)
 async def list_missions(
-    limit: int = 20,
-    offset: int = 0,
+    limit: int = Query(default=20, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     status_filter: Optional[MissionStatus] = None,
     service: MissionService = Depends(get_mission_service),
 ):
