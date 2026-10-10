@@ -1,5 +1,6 @@
 """Structured logging configuration."""
 
+import json
 import logging
 import sys
 from pathlib import Path
@@ -35,7 +36,7 @@ class StructuredFormatter(logging.Formatter):
         if record.exc_info:
             log_data["exception"] = self.formatException(record.exc_info)
         
-        return str(log_data)
+        return json.dumps(log_data, ensure_ascii=False, default=str)
 
 
 def setup_logging(config: Config) -> None:
