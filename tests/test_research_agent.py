@@ -276,8 +276,10 @@ async def test_mission_discovery_adds_bounded_targeted_query():
     finally:
         await client.aclose()
 
-    assert len(seen_queries) == len(discovery.queries) + 1
-    assert "browser extensions hosting limits in:name,description" in seen_queries[0]
+    assert len(seen_queries) == 4
+    assert seen_queries[0] == "browser automation in:name,description pushed:>=2026-04-13 archived:false"
+    assert seen_queries[1] == "browser extension in:name,description pushed:>=2026-04-13 archived:false"
+    assert seen_queries[2] == "Playwright agent in:name,description pushed:>=2026-04-13 archived:false"
     assert "Tomatom" not in seen_queries[0]
 
 
