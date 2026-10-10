@@ -102,7 +102,7 @@ jobs:
               with open('brain-company-result.json', 'w', encoding='utf-8') as handle:
                   json.dump(report, handle, ensure_ascii=False, indent=2)
               with open('brain-company-result.md', 'w', encoding='utf-8') as handle:
-                  handle.write('# Brain execution failure report\\n\\n**Status: FAILED — workflow bootstrap did not produce a mission report.**\\n\\n## Workflow context\\n\\n' + json.dumps(report['runtime'], indent=2) + '\\n\\n## Step outcomes\\n\\n' + json.dumps(report['step_outcomes'], indent=2) + '\\n\\n## Failure interpretation\\n\\n' + report['failure']['message'] + '\\n\\n## Next action\\n\\n' + report['recovery']['next_step'] + '\\n')
+                  handle.write('# Brain execution failure report\n\n**Status: FAILED — workflow bootstrap did not produce a mission report.**\n\n## Workflow context\n\n' + json.dumps(report['runtime'], indent=2) + '\n\n## Step outcomes\n\n' + json.dumps(report['step_outcomes'], indent=2) + '\n\n## Failure interpretation\n\n' + report['failure']['message'] + '\n\n## Next action\n\n' + report['recovery']['next_step'] + '\n')
           PY
       - name: Upload execution report
         if: always()
