@@ -80,7 +80,10 @@ def test_respond_to_approval(client):
         json={"approved": False, "response_note": "conflicting second response"},
     )
     assert repeated_response.status_code == 409
-    assert client.get(f"/approvals?status_filter=APPROVED").json()[0]["status"] == "APPROVED"
+    assert any(
+        item["id"] == approval_id and item["status"] == "APPROVED"
+        for item in client.get("/approvals?status_filter=APPROVED").json()
+    )
 
     events_response = client.get(f"/missions/{mission_id}/events")
     assert events_response.status_code == 200
