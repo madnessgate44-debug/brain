@@ -1,6 +1,6 @@
 """Prompt-budget regression tests for role-specific repository evidence."""
 
-from brain.company.agent_runner import _prepare_prompt_evidence, _select_source_contents
+from brain.company.agent_runner import AgentOutputError, SpecialistAgentRunner, _prepare_prompt_evidence, _select_source_contents
 
 
 def _snapshot(source_contents):
@@ -128,3 +128,25 @@ def test_existing_explicit_file_omitted_by_budget_is_reported_to_developer():
     )
     selection = prepared["repository_snapshot"]["source_selection"]
     assert path in selection["omitted_explicit_paths"]
+
+
+@pytest.mark.asyncio
+async def test_developer_blocks_before_model_when_existing_target_source_is_omitted():
+    path = "src/large_module.py"
+
+    class NeverCalledProvider:
+        async def complete(self, system_prompt, user_prompt):
+            raise AssertionError("developer must not be called without the complete target file")
+
+    evidence = {
+        "product_brief": "A small change",
+        "acceptance_criteria": ["AC-1"],
+        "screen_specification": "No UI changes",
+        "architecture": "Update one source file",
+        "file_plan": [path],
+        "repository_snapshot": _snapshot({path: "x" * 70000}),
+    }
+    runner = SpecialistAgentRunner(NeverCalledProvider())
+
+    with pytest.raises(AgentOutputError, match="complete source contents are unavailable"):
+        await runner.run("developer", f"Update only {path}.", evidence)
