@@ -9,6 +9,113 @@ import asyncio
 import base64
 import html
 import re
+
+from html.parser import HTMLParser
+from urllib.parse import parse_qs, urlparse
+import ipaddress
+import socket
+
+
+SEARCH_URL = "https://html.duckduckgo.com/html/"
+
+
+class _SearchResultParser(HTMLParser):
+    """Extract only links marked as DuckDuckGo result links."""
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list[dict[str, str]] = []
+        self._active: dict[str, str] | None = None
+        self._text: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attrs_map = dict(attrs)
+        classes = (attrs_map.get("class") or "").split()
+        if tag == "a" and "result__a" in classes:
+            self._active = {"href": attrs_map.get("href") or ""}
+            self._text = []
+
+    def handle_data(self, data: str) -> None:
+        if self._active is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a" and self._active is not None:
+            self._active["title"] = _plain_text(" ".join(self._text), 240)
+            if self._active["href"] and self._active["title"]:
+                self.links.append(self._active)
+            self._active = None
+            self._text = []
+
+
+class _PageTextParser(HTMLParser):
+    """Extract readable text while ignoring scripts, styles, and navigation boilerplate."""
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() in {"script", "style", "noscript", "svg", "nav", "footer"}:
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in {"script", "style", "noscript", "svg", "nav", "footer"} and self._skip_depth:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self._skip_depth:
+            clean = _plain_text(data, 3000)
+            if clean:
+                self.parts.append(clean)
+
+
+def _public_http_url(value: str) -> bool:
+    try:
+        parsed = urlparse(value)
+        host = parsed.hostname
+        if parsed.scheme not in {"http", "https"} or not host or parsed.username or parsed.password:
+            return False
+        if parsed.port not in {None, 80, 443}:
+            return False
+        try:
+            address = ipaddress.ip_address(host)
+            return address.is_global
+        except ValueError:
+            if host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
+                return False
+            records = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
+            addresses = {ipaddress.ip_address(item[4][0]) for item in records}
+            return bool(addresses) and all(address.is_global for address in addresses)
+    except (ValueError, OSError, socket.gaierror):
+        return False
+
+
+def _result_url(raw: str) -> str:
+    parsed = urlparse(raw)
+    if parsed.hostname and parsed.hostname.endswith("duckduckgo.com"):
+        target = parse_qs(parsed.query).get("uddg", [""])[0]
+        return target
+    return raw
+
+
+def _mission_queries(mission: str) -> list[str]:
+    words = re.findall(r"[A-Za-z0-9+#.]{3,}", mission)
+    stop = {"the", "and", "for", "with", "from", "that", "this", "brain", "tomatom", "into", "free"}
+    unique = []
+    for word in words:
+        if word.casefold() not in stop and word.casefold() not in {x.casefold() for x in unique}:
+            unique.append(word)
+        if len(unique) >= 7:
+            break
+    queries = []
+    if unique:
+        queries.append(" ".join(unique))
+    queries.extend([
+        "browser automation Playwright Chromium extensions security",
+        "free hosting GitHub Actions minutes persistent browser sessions",
+        "browser automation engineer Playwright job skills",
+    ])
+    return queries[:4]
 from typing import Any
 
 import httpx
@@ -34,10 +141,11 @@ def _plain_text(value: Any, limit: int = 1200) -> str:
 class ResearchEvidenceCollector:
     """Collect bounded, public, link-backed evidence for candidate repositories and job skills."""
 
-    def __init__(self, timeout_seconds: float = 12.0, max_readmes: int = 8, max_jobs: int = 10):
+    def __init__(self, timeout_seconds: float = 12.0, max_readmes: int = 8, max_jobs: int = 10, max_web_pages: int = 8):
         self.timeout_seconds = timeout_seconds
         self.max_readmes = min(8, max(1, max_readmes))
         self.max_jobs = min(10, max(1, max_jobs))
+        self.max_web_pages = min(8, max(1, max_web_pages))
 
     async def collect(self, candidates: list[dict[str, Any]], mission: str) -> dict[str, Any]:
         headers = {
@@ -59,12 +167,14 @@ class ResearchEvidenceCollector:
                 elif result:
                     readmes.append(result)
 
+            web_result = await self._web_research(client, mission)
             job_result = await self._jobs(client)
         return {
             "repository_documentation": readmes,
             "repository_documentation_count": len(readmes),
             "repository_documentation_errors": readme_errors,
             "job_market": job_result,
+            "web_research": web_result,
             "policy": {
                 "public_sources_only": True,
                 "third_party_code_executed": False,
@@ -72,6 +182,83 @@ class ResearchEvidenceCollector:
                 "external_model_received_job_descriptions": False,
             },
             "mission": mission[:4000],
+        }
+
+
+    async def _web_research(self, client: httpx.AsyncClient, mission: str) -> dict[str, Any]:
+        """Search public web pages and retrieve bounded text excerpts; never execute page scripts."""
+        searches: list[dict[str, str]] = []
+        errors: list[str] = []
+        seen: set[str] = set()
+        for query in _mission_queries(mission):
+            try:
+                response = await client.get(SEARCH_URL, params={"q": query}, headers={"User-Agent": "Mozilla/5.0 Brain-RD/1.0"})
+                response.raise_for_status()
+                parser = _SearchResultParser()
+                parser.feed(response.text[:1_000_000])
+                for link in parser.links:
+                    url = _result_url(link["href"])
+                    if not _public_http_url(url) or url in seen:
+                        continue
+                    seen.add(url)
+                    searches.append({"title": link["title"], "url": url, "query": query})
+                    if len(searches) >= self.max_web_pages:
+                        break
+            except (httpx.HTTPError, ValueError):
+                errors.append("Search request failed for one query.")
+            if len(searches) >= self.max_web_pages:
+                break
+
+        pages = await asyncio.gather(
+            *(self._fetch_public_page(client, item) for item in searches),
+            return_exceptions=True,
+        )
+        evidence = []
+        fetch_errors = 0
+        for result in pages:
+            if isinstance(result, Exception):
+                fetch_errors += 1
+            elif result:
+                evidence.append(result)
+        return {
+            "status": "completed" if evidence else "unavailable",
+            "search_provider": "DuckDuckGo HTML search",
+            "queries": _mission_queries(mission),
+            "result_count": len(searches),
+            "pages_fetched": len(evidence),
+            "fetch_errors": fetch_errors,
+            "search_errors": errors,
+            "sources": evidence,
+            "limitations": [
+                "Search results are a bounded sample, not exhaustive coverage.",
+                "Page scripts are not executed and forms are not submitted.",
+                "Only bounded text excerpts are retained; source claims require independent verification.",
+                "Some sites block automated retrieval or return incomplete content.",
+            ],
+        }
+
+    async def _fetch_public_page(self, client: httpx.AsyncClient, item: dict[str, str]) -> dict[str, Any] | None:
+        url = item["url"]
+        if not _public_http_url(url):
+            return None
+        response = await client.get(url, headers={"User-Agent": "Mozilla/5.0 Brain-RD/1.0"}, follow_redirects=False)
+        if response.is_redirect:
+            return {
+                "title": item["title"], "url": url, "query": item["query"],
+                "status": "redirect_not_followed", "excerpt": "",
+            }
+        response.raise_for_status()
+        content_type = response.headers.get("content-type", "").lower()
+        if "text/html" not in content_type and "text/plain" not in content_type:
+            return None
+        parser = _PageTextParser()
+        parser.feed(response.text[:1_000_000])
+        excerpt = _plain_text(" ".join(parser.parts), 3500)
+        if not excerpt:
+            return None
+        return {
+            "title": item["title"], "url": url, "query": item["query"],
+            "status": "fetched", "excerpt": excerpt,
         }
 
     async def _readme(self, client: httpx.AsyncClient, candidate: dict[str, Any]) -> dict[str, Any] | None:
