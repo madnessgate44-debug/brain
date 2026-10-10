@@ -256,6 +256,10 @@ def _validate_specialist_output(raw: str, role: Any) -> dict[str, Any]:
     for key in ("findings", "blockers", "evidence_needed"):
         if not isinstance(result.get(key), list):
             raise AgentOutputError(f"Specialist field '{key}' must be an array.")
+    if result["status"] == "PASS" and result["blockers"]:
+        raise AgentOutputError("Specialist cannot return PASS while blockers remain.")
+    if result["status"] == "PASS" and result["evidence_needed"]:
+        raise AgentOutputError("Specialist cannot return PASS while required evidence is missing.")
     for key in role.deliverables:
         if key not in _DECISION_VALUES:
             continue
