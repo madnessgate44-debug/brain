@@ -499,3 +499,41 @@ def test_malformed_and_incomplete_json_repair_variants(tmp_path):
         assert markdown_path.read_text(encoding="utf-8") == existing_md
         repaired = json.loads(json_path.read_text(encoding="utf-8"))
         assert repaired["status"] == "FAILED"
+
+
+def test_missing_markdown_from_valid_mission_report_preserves_pass_and_evidence(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    mission_report = {
+        "status": "PASS",
+        "repository": "madnessgate44-debug/brain",
+        "base_commit": "base-sha-123",
+        "commit_sha": "head-sha-456",
+        "branch": "brain/mission-report",
+        "stage_outcomes": {"developer": "PASS", "qa": "PASS"},
+        "test_results": {"status": "PASS", "executed": True, "count": 240},
+        "pull_request": {"url": "https://github.com/madnessgate44-debug/brain/pull/999"},
+        "post_pr_verification": {"status": "PASS", "head_stable": True},
+        "report": "All acceptance criteria satisfied with verified evidence.",
+    }
+    original_json = json.dumps(mission_report)
+    json_path.write_text(original_json, encoding="utf-8")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert json_path.read_text(encoding="utf-8") == original_json
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "# Brain mission report" in markdown
+    assert "- Status: PASS" in markdown
+    assert "Base commit: base-sha-123" in markdown
+    assert "Branch/ref: brain/mission-report" in markdown
+    assert "All acceptance criteria satisfied with verified evidence." in markdown
+    assert "https://github.com/madnessgate44-debug/brain/pull/999" in markdown
+    assert "Post-PR verification" in markdown
+    assert "WorkflowBootstrapFailure" not in markdown
