@@ -231,6 +231,38 @@ def render_markdown(report: dict[str, Any]) -> str:
         "## Candidate shortlist",
         "",
     ]
+    evidence = report.get("evidence", {})
+    for item in evidence.get("repository_documentation", [])[:8]:
+        if not isinstance(item, dict):
+            continue
+        repo_name = str(item.get("repository", "unknown")).replace("[", "\\[").replace("]", "\\]")
+        source_url = str(item.get("source_url", ""))
+        excerpt = str(item.get("excerpt", "")).replace("\\n", " ")[:700]
+        for char in ("\\", "`", "*", "_", "[", "]"):
+            excerpt = excerpt.replace(char, "\\" + char)
+        lines.extend([
+            f"- [{repo_name}]({source_url}) — {item.get('source_type', 'public documentation')}",
+            f"  - Excerpt: {excerpt}",
+            f"  - Boundary: {item.get('evidence_boundary', 'documentation only; not a code audit')}",
+        ])
+    job_market = evidence.get("job_market", {})
+    for job in job_market.get("jobs", [])[:10] if isinstance(job_market, dict) else []:
+        if not isinstance(job, dict):
+            continue
+        title = str(job.get("title", "Job listing")).replace("[", "\\[").replace("]", "\\]")
+        url = str(job.get("url", ""))
+        tags = ", ".join(str(tag)[:80] for tag in job.get("tags", [])[:12])
+        excerpt = str(job.get("description_excerpt", "")).replace("\\n", " ")[:500]
+        for char in ("\\", "`", "*", "_", "[", "]"):
+            excerpt = excerpt.replace(char, "\\" + char)
+        lines.extend([
+            f"- [{title}]({url}) — {job.get('company', 'Company not listed')}",
+            f"  - Tags: {tags or 'not provided'}",
+            f"  - Description excerpt: {excerpt}",
+        ])
+    if isinstance(job_market, dict) and job_market.get("limitation"):
+        lines.append(f"- Job sample limitation: {job_market['limitation']}")
+    lines.append("")
     candidates = report.get("candidates", [])
     if not candidates:
         lines.append("No qualifying candidates were found in this run.")
