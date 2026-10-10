@@ -65,7 +65,7 @@ async def test_verification_ignores_forged_or_mismatched_result_comments():
                 def report(user, target):
                     return {
                         "user": {"login": user},
-                        "body": "\\n".join([
+                        "body": "\n".join([
                             "## Brain remote test run",
                             f"**Target repository:** {target}",
                             "**Target branch:** brain/test-branch",
