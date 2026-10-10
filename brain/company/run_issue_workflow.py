@@ -297,7 +297,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
                 raise RuntimeError(f"Evidence extraction returned empty output for {chunk['chunk_id']}.")
             evidence_summaries.append({"chunk_id": chunk["chunk_id"], "analysis": summary})
             if chunk is not chunks[-1]:
-                await asyncio.sleep(8)
+                await asyncio.sleep(16)
             events.append({
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "stage": "audit_evidence_pass",
@@ -336,6 +336,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
             "Explicitly disclose all skipped paths, truncation, line truncations, and evidence limitations. "
             "Do not modify the target repository."
         )
+        await asyncio.sleep(16)
         draft = await provider.complete(
             synthesis_system,
             json.dumps({
@@ -361,6 +362,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
             "final report. Preserve only claims supportable by supplied evidence; label unresolved claims UNKNOWN. "
             "Never invent line references."
         )
+        await asyncio.sleep(16)
         reviewed = await provider.complete(
             reviewer_system,
             json.dumps({
