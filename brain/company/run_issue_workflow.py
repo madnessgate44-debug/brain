@@ -368,12 +368,21 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
                 f"read_errors={len(manifest.get('failed_paths', {}))}."
             ),
         })
+        if manifest.get("coverage_complete") is not True:
+            raise RuntimeError(
+                "Read-only audit blocked because repository source coverage is incomplete: "
+                f"read {manifest.get('read_count', 0)}/{manifest.get('candidate_count', 0)} "
+                f"candidate files; failed paths={len(manifest.get('failed_paths', {}))}; "
+                f"budget omissions={len(manifest.get('omitted_by_aggregate_budget', []))}; "
+                f"tree_truncated={manifest.get('tree_truncated')}. "
+                "No complete audit report will be claimed."
+            )
         if not snapshot.get("source_contents"):
             raise RuntimeError("Repository inspection returned no readable source files.")
 
 
 
-        audit_brief = objective.split("\n\nAUDIT RERUN REQUEST", 1)[0]
+        audit_brief = objective.split("\\n\\nAUDIT RERUN REQUEST", 1)[0]
         chunks = build_audit_source_chunks(snapshot["source_contents"])
         if not chunks:
             raise RuntimeError("Repository inspection produced no source evidence chunks.")
