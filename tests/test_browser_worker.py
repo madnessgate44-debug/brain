@@ -87,7 +87,7 @@ def test_expanded_browser_action_validation():
         {"op": "reload"},
         {"op": "extract_links"},
     ]
-    assert len(validate_browser_actions(actions)) == 6
+    assert len(validate_browser_actions(actions)) == 7
     with pytest.raises(BrowserPolicyError, match="scroll"):
         validate_browser_actions([{"op": "scroll", "direction": "diagonal"}])
     with pytest.raises(BrowserPolicyError, match="select value"):
