@@ -142,7 +142,7 @@ class RecoveryService:
                     else f"Recovery completed for mission in phase {phase}"
                 ),
                 phase=phase,
-                severity="WARN" if active_interruption else "INFO",
+                severity="WARNING" if active_interruption else "INFO",
             )
             
             logger.info(
