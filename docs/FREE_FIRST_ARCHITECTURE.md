@@ -15,7 +15,7 @@
 
 ## Free execution architecture
 
-- **Control plane:** GitHub Issues. The marker /brain browse starts a public research task; /brain browser remains the existing explicit action-list workflow.
+- **Control plane:** GitHub Issues. The marker /brain browse starts a public read-only research task. Explicit browser tasks that may mutate a website use the authenticated FastAPI /browser/tasks endpoint; that API currently has no public persistent deployment URL.
 - **Runner:** GitHub Actions standard Linux runner plus open-source Playwright/Chromium. GitHub's current documentation says standard runners are free and unlimited for public repositories; private repositories use plan allowances. Confirm limits at https://docs.github.com/en/billing/concepts/product-billing/github-actions.
 - **Browser:** Playwright opens public websites, inspects rendered page text, follows a bounded plan, and can capture screenshots. It runs only for the duration of a workflow; it is not an always-on remote desktop.
 - **Planning:** the existing OpenAI-compatible adapter calls the configured Gemini endpoint using a secret stored in GitHub Actions. Gemini's free quota can be exhausted or changed. If no key or quota is available, Brain must fail explicitly; it must not claim the AI planner ran.
@@ -41,18 +41,18 @@ Create an issue in this repository with /brain browse and one JSON block. Exampl
 
 The allowed_domains list may be omitted; when omitted, the start URL's host is the default. Keep the list narrow. The owner-only workflow asks the existing model adapter to create a bounded plan, pins its first navigation to the supplied URL, preflights allowed destinations, then executes only read-only actions. It records the exact plan, action results, and optional screenshots.
 
-If the plan contains a mutating action, execution stops and the report returns the proposed action list. The owner must inspect that list and separately submit the explicit /brain browser task before a mutation can run. Editing an issue triggers a new run, so an issue should not be edited casually while a workflow is active.
+If the plan contains a mutating action, execution stops and the report returns the proposed action list. The owner must inspect that exact list and separately submit an explicitly approved task to the authenticated /browser/tasks API before a mutation can run. This issue workflow does not execute write actions. Both the issue author and the actor who opens/edits the issue must be the repository owner. Editing an issue triggers a new run, so an issue should not be edited casually while a workflow is active.
 
 ## Capability boundary: what is and is not solved
 
 | Capability | Current status |
 |---|---|
 | Owner starts tasks from a phone | Supported through GitHub Issues |
-| Rendered public pages in Chromium | Implemented; CI must verify on this branch |
+| Rendered public pages in Chromium | Implemented; CI includes a real Chromium smoke test |
 | Natural-language plan generation | Implemented using configured Gemini-compatible API; free quota not guaranteed |
 | Read-only public browsing | Implemented in the new issue workflow; end-to-end run still required |
-| Screenshot and structured action report | Implemented; CI and live workflow evidence still required |
-| Multi-site research | Possible when each destination is in allowed_domains; not yet benchmarked |
+| Screenshot and structured action report | Implemented; live issue-workflow evidence still required |
+| Browser tabs | New/list/switch/close tab actions implemented with public-URL checks; end-to-end workflow still to verify |\n| Public-link extraction | Implemented with deduplication and URL policy; live research accuracy still to benchmark |\n| Multi-site research | Possible when each destination is in allowed_domains; not yet benchmarked |
 | Logged-in sites or personal ChatGPT/Gemini sessions | Not supported by this free workflow |
 | Always-on FastAPI API with persistent SQLite | Not provided by GitHub Actions; would need a different free persistent architecture or paid hosting |
 | Guaranteed unlimited model calls or compute | Impossible to promise on free tiers |
