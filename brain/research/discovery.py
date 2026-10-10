@@ -65,21 +65,35 @@ class GitHubRepositoryDiscovery:
         )
         queries = list(self.queries)
         if self.mission:
-            stop_words = {
-                "about", "after", "also", "and", "are", "build", "built", "can", "could",
-                "design", "find", "from", "free", "give", "into", "mission", "need", "our",
-                "that", "the", "their", "them", "then", "this", "through", "tools", "with",
-                "would", "your", "brain", "tomatom", "research", "investigate", "return",
-            }
-            words = []
-            for raw_word in self.mission.lower().replace("/", " ").replace("-", " ").split():
-                word = "".join(ch for ch in raw_word if ch.isalnum())
-                if len(word) >= 4 and word not in stop_words and word not in words:
-                    words.append(word)
-                if len(words) >= 5:
-                    break
-            if words:
-                queries.insert(0, " ".join(words) + " in:name,description")
+            mission = self.mission.casefold()
+            if any(term in mission for term in ("browser", "playwright", "chromium", "puppeteer", "extension")):
+                # Use focused searches instead of taking the first arbitrary words from
+                # a prose mission (which previously ranked unrelated projects highly).
+                targeted = [
+                    "browser automation in:name,description",
+                    "browser extension in:name,description",
+                    "Playwright agent in:name,description",
+                ]
+                queries = targeted + list(self.queries[:1])
+            else:
+                stop_words = {
+                    "about", "after", "also", "and", "are", "build", "built", "can", "could",
+                    "design", "first", "find", "from", "free", "give", "into", "mission", "need",
+                    "our", "that", "the", "their", "them", "then", "this", "through", "tools",
+                    "with", "would", "your", "brain", "tomatom", "research", "investigate",
+                    "return", "relevant", "open", "source", "repositories", "repository",
+                    "support", "control", "needed", "skills", "requirements", "recommendation",
+                    "roadmap", "operate", "platform", "limits", "including", "related",
+                }
+                words = []
+                for raw_word in mission.replace("/", " ").replace("-", " ").split():
+                    word = "".join(ch for ch in raw_word if ch.isalnum())
+                    if len(word) >= 4 and word not in stop_words and word not in words:
+                        words.append(word)
+                    if len(words) >= 4:
+                        break
+                if words:
+                    queries.insert(0, " ".join(words) + " in:name,description")
         if self.token:
             # The dedicated token must be read-only and explicitly authorized by the owner.
             queries.append("is:private archived:false")
