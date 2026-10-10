@@ -218,6 +218,7 @@ class BrowserWorker:
         headless: bool | None = None,
         executable_path: str | None = None,
         page_session_factory: Callable[[], Any] | None = None,
+        block_consumer_ai: bool | None = None,
     ) -> None:
         raw_domains = os.getenv("BRAIN_BROWSER_ALLOWED_DOMAINS", "") if allowed_domains is None else ",".join(allowed_domains)
         self.allowed_domains = [item.strip() for item in raw_domains.split(",") if item.strip()]
@@ -230,6 +231,8 @@ class BrowserWorker:
         self.headless = (raw_headless not in {"0", "false", "no"}) if headless is None else headless
         self.executable_path = executable_path or os.getenv("BRAIN_BROWSER_EXECUTABLE_PATH") or None
         self.page_session_factory = page_session_factory
+        raw_block_consumer_ai = os.getenv("BRAIN_BROWSER_BLOCK_CONSUMER_AI", "false").lower()
+        self.block_consumer_ai = (raw_block_consumer_ai in {"1", "true", "yes"} if block_consumer_ai is None else block_consumer_ai)
 
     async def execute(self, actions: Any, owner_approved: bool = False) -> dict[str, Any]:
         validated = validate_browser_actions(actions)
@@ -240,7 +243,7 @@ class BrowserWorker:
             for index, action in enumerate(validated):
                 try:
                     op = action["op"]
-                    if op in {"new_tab", "list_tabs", "switch_tab", "close_tab"} and is_restricted_consumer_ai_url(page.url):
+                    if self.block_consumer_ai and op in {"new_tab", "list_tabs", "switch_tab", "close_tab"} and is_restricted_consumer_ai_url(page.url):
                         raise BrowserPolicyError(
                             "Automated interaction with consumer ChatGPT/Gemini chat pages is disabled."
                         )
@@ -259,7 +262,7 @@ class BrowserWorker:
                         if tab_index >= len(pages):
                             raise BrowserPolicyError("tab index does not exist")
                         target = pages[tab_index]
-                        if is_restricted_consumer_ai_url(target.url):
+                        if self.block_consumer_ai and is_restricted_consumer_ai_url(target.url):
                             raise BrowserPolicyError(
                                 "Automated interaction with consumer ChatGPT/Gemini chat pages is disabled."
                             )
@@ -348,7 +351,7 @@ class BrowserWorker:
         skipped = 0
         for index, candidate in enumerate(list(context.pages)):
             url = candidate.url
-            if is_restricted_consumer_ai_url(url) or (url != "about:blank" and not is_allowed_url(url, self.allowed_domains)):
+            if (self.block_consumer_ai and is_restricted_consumer_ai_url(url)) or (url != "about:blank" and not is_allowed_url(url, self.allowed_domains)):
                 skipped += 1
                 continue
             visible.append({"index": index, "url": url, "title": await candidate.title()})
@@ -363,7 +366,7 @@ class BrowserWorker:
 
     async def _run_action(self, page: Any, action: dict[str, Any]) -> dict[str, Any]:
         op = action["op"]
-        if op != "navigate" and is_restricted_consumer_ai_url(page.url):
+        if self.block_consumer_ai and op != "navigate" and is_restricted_consumer_ai_url(page.url):
             raise BrowserPolicyError(
                 "Automated interaction with consumer ChatGPT/Gemini chat pages is disabled. "
                 "Use a provider-supported integration; Brain will not script chat submission "
