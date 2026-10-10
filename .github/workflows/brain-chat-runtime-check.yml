@@ -20,7 +20,7 @@ jobs:
       BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
       BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL }}
       BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL }}
-      BRAIN_CONTROL_API_KEY: test-only-${{ github.run_id }}-${{ github.run_attempt }}
+      BRAIN_CONTROL_API_KEY: brain-runtime-test-only-${{ github.run_id }}-${{ github.run_attempt }}
       DATABASE__SQLITE_PATH: ./test_workspace/db/chat-runtime-check.db
       WORKSPACE__ROOT: ./test_workspace
     steps:
@@ -64,13 +64,19 @@ jobs:
               os.environ["BRAIN_AI_MODEL"] = "gemini-3.5-flash-lite"
 
           report_path = "brain-chat-runtime-result.md"
+          failure_code = "UnexpectedException"
           try:
+              if len(os.environ["BRAIN_CONTROL_API_KEY"]) < 24:
+                  failure_code = "TestControlKeyTooShort"
+                  raise RuntimeError(failure_code)
               if not os.environ.get("BRAIN_AI_API_KEY", "").strip():
-                  raise RuntimeError("ProviderConfigurationMissing")
+                  failure_code = "ProviderConfigurationMissing"
+                  raise RuntimeError(failure_code)
               with TestClient(create_app()) as client:
                   before = client.get("/missions")
                   if before.status_code != 200:
-                      raise RuntimeError("MissionBaselineCheckFailed")
+                      failure_code = "MissionBaselineHTTP" + str(before.status_code)
+                      raise RuntimeError(failure_code)
                   mission_count_before = before.json().get("total")
                   response = client.post(
                       "/chat",
@@ -78,21 +84,26 @@ jobs:
                       json={"messages": [{"role": "user", "content": "Reply with exactly BRAIN_CHAT_OK"}]},
                   )
                   if response.status_code != 200:
-                      raise RuntimeError("ChatEndpointHTTP" + str(response.status_code))
+                      failure_code = "ChatEndpointHTTP" + str(response.status_code)
+                      raise RuntimeError(failure_code)
                   reply = response.json().get("reply", "")
                   if "BRAIN_CHAT_OK" not in reply:
-                      raise RuntimeError("ModelResponseValidationFailed")
+                      failure_code = "ModelResponseValidationFailed"
+                      raise RuntimeError(failure_code)
                   after = client.get("/missions")
                   if after.status_code != 200 or after.json().get("total") != mission_count_before:
-                      raise RuntimeError("ChatUnexpectedlyChangedMissionState")
+                      failure_code = "ChatUnexpectedlyChangedMissionState"
+                      raise RuntimeError(failure_code)
               report = "# Brain chat runtime check\n\n**Result: PASS**\n\nThe real authenticated /chat API route called the configured model provider, returned the required response marker, and did not create a mission. The model response and credentials were not logged.\n"
               print("RESULT=PASS")
           except Exception as exc:
               report = (
                   "# Brain chat runtime check\n\n**Result: FAILED**\n\n"
-                  "The authenticated /chat end-to-end check failed. Failure class: "
+                  "The authenticated /chat end-to-end check failed. Failure code: "
+                  + failure_code
+                  + "; exception class: "
                   + type(exc).__name__
-                  + ". No provider response or credential was logged. Inspect the workflow steps and sanitized application diagnostics.\n"
+                  + ". No provider response or credential was logged.\n"
               )
               print("RESULT=FAILED")
               with open(report_path, "w", encoding="utf-8") as handle:
