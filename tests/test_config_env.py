@@ -9,7 +9,7 @@ def test_documented_flat_environment_variables_are_loaded(monkeypatch, tmp_path)
 
     monkeypatch.setenv("INSTANCE_ID", "audit-instance")
     monkeypatch.setenv("DATABASE_PATH", str(database_path))
-    monkeypatch.setenv("DATABASE__SQLITE_PATH", str(database_path))
+    monkeypatch.delenv("DATABASE__SQLITE_PATH", raising=False)
     monkeypatch.setenv("DATABASE_BUSY_TIMEOUT", "47")
     monkeypatch.setenv("WORKSPACE_ROOT", str(workspace_root))
     monkeypatch.setenv("WORKSPACE_MISSIONS_DIR", "missions-custom")
