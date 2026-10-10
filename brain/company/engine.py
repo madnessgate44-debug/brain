@@ -57,6 +57,10 @@ def _compact_repository_snapshot(
     max_files: int = 20,
 ) -> dict[str, Any]:
     """Bound repository context sent to every model call while retaining source evidence."""
+    source_contents = snapshot.get("source_contents", {})
+    if not isinstance(source_contents, dict):
+        source_contents = {}
+
     explicit_paths = {
         token.strip("`'\".,:;()[]{}")
         for token in user_request.split()
