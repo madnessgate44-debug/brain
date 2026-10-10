@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from brain.research.agent import ResearchAndDevelopmentAgent, render_markdown
+from brain.research.agent import ResearchAndDevelopmentAgent, mission_relevance, render_markdown
 from brain.research.discovery import DiscoveryError, GitHubRepositoryDiscovery, heuristic_score
 from brain.research.evidence import ResearchEvidenceCollector
 import brain.research.evidence as evidence_module
@@ -113,6 +113,24 @@ def test_heuristic_score_rewards_recent_activity_and_identified_license():
         "license": "NOASSERTION",
     }
     assert heuristic_score(recent, now) > heuristic_score(old_unlicensed, now)
+
+
+def test_mission_relevance_prioritizes_browser_automation_and_extensions():
+    mission = "Build browser automation with extensions, security, GitHub Actions, and persistence."
+    relevant = {
+        "full_name": "acme/browser-extension-agent",
+        "description": "Browser automation and Playwright extension with security isolation and persistent GitHub Actions runner support",
+        "topics": ["browser-automation", "extension"],
+    }
+    irrelevant = {
+        "full_name": "acme/interactive-diagrams",
+        "description": "Interactive diagrams and visual planning for teams",
+        "topics": ["design"],
+    }
+    relevant_score, relevant_matches = mission_relevance(relevant, mission)
+    irrelevant_score, _ = mission_relevance(irrelevant, mission)
+    assert relevant_score > irrelevant_score
+    assert {"browser", "automation", "extensions", "security", "hosting", "persistence"}.issubset(set(relevant_matches))
 
 
 @pytest.mark.asyncio
@@ -232,10 +250,15 @@ def test_markdown_report_warns_that_discovery_is_not_a_security_audit():
         "private_candidate_count": 0,
         "model_assessment_status": "not_configured",
         "candidates": [],
+        "recommendation_summary": "Prioritize mission-fit candidates.",
+        "roadmap": ["Inspect source and license.", "Test in isolation."],
     }
     markdown = render_markdown(report)
     assert "No candidate code was executed" in markdown
     assert "not an approval to import or execute code" in markdown
+    assert "Recommendation and roadmap" in markdown
+    assert "Prioritize mission-fit candidates." in markdown
+    assert "Inspect source and license." in markdown
 
 
 @pytest.mark.asyncio
