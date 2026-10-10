@@ -191,13 +191,21 @@ class GitHubCompanyTools:
                     rf"https://github\.com/{re.escape(owner)}/{re.escape(name)}/actions/runs/(\d+)",
                     body,
                 )
-                target_match = re.search(r"(?m)^\*\*Target repository:\*\*\s*(\S+)", body)
-                branch_match = re.search(r"(?m)^\*\*Target branch:\*\*\s*(\S+)", body)
-                if not (result_match and run_match and target_match and branch_match):
+                target_line = next(
+                    (line.partition("**Target repository:**")[2].strip().strip("`")
+                     for line in body.splitlines() if line.startswith("**Target repository:**")),
+                    "",
+                )
+                branch_line = next(
+                    (line.partition("**Target branch:**")[2].strip().strip("`")
+                     for line in body.splitlines() if line.startswith("**Target branch:**")),
+                    "",
+                )
+                if not (result_match and run_match and target_line and branch_line):
                     continue
-                if target_match.group(1).strip("`").casefold() != repository.casefold():
+                if target_line.casefold() != repository.casefold():
                     continue
-                if branch_match.group(1).strip("`") != branch:
+                if branch_line != branch:
                     continue
                 run_id = int(run_match.group(1))
                 run = await trigger_gateway._request(
