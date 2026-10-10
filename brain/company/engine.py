@@ -18,7 +18,10 @@ class CompanyWorkflowTools(Protocol):
         """Read bounded project context from the actual repository."""
 
     async def apply_change_set(
-        self, change_set: dict[str, Any], repository: str
+        self,
+        change_set: dict[str, Any],
+        repository: str,
+        expected_base_sha: str | None = None,
     ) -> dict[str, Any]:
         """Apply proposed changes to an isolated branch and return the actual diff."""
 
@@ -311,7 +314,10 @@ class CompanyWorkflowEngine:
             raise CompanyWorkflowBlocked("Invalid change set reached the write boundary.")
         assert isinstance(change_set, dict)
 
-        applied = await self.tools.apply_change_set(change_set, repository)
+        expected_base_sha = model_snapshot.get("base_commit")
+        applied = await self.tools.apply_change_set(
+            change_set, repository, expected_base_sha=expected_base_sha
+        )
         if not applied.get("branch") or not isinstance(applied.get("diff"), str):
             raise CompanyWorkflowBlocked("Repository tool did not return branch and actual diff.")
         evidence.update({
@@ -363,7 +369,11 @@ class CompanyWorkflowEngine:
                     "Reviewer repair returned an invalid change set: "
                     + "; ".join(repair_errors)
                 )
-            applied = await self.tools.apply_change_set(revised_change_set, repository)
+            applied = await self.tools.apply_change_set(
+                revised_change_set,
+                repository,
+                expected_base_sha=expected_base_sha,
+            )
             if not applied.get("branch") or not isinstance(applied.get("diff"), str):
                 raise CompanyWorkflowBlocked("Repair tool did not return actual diff evidence.")
             evidence.update({
