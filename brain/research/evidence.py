@@ -161,6 +161,19 @@ class ResearchEvidenceCollector:
         self.max_jobs = min(10, max(1, max_jobs))
         self.max_web_pages = min(8, max(1, max_web_pages))
 
+    async def collect_web_research(self, mission: str) -> dict[str, Any]:
+        """Collect bounded public web evidence without README or job-board requests."""
+        headers = {
+            "User-Agent": "Mozilla/5.0 Brain-RD/1.0",
+            "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
+        }
+        async with httpx.AsyncClient(
+            timeout=self.timeout_seconds,
+            headers=headers,
+            follow_redirects=False,
+        ) as client:
+            return await self._web_research(client, mission[:4000])
+
     async def collect(self, candidates: list[dict[str, Any]], mission: str) -> dict[str, Any]:
         headers = {
             "Accept": "application/vnd.github+json",
