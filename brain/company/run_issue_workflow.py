@@ -66,7 +66,7 @@ async def build_gateway(
     """Resolve credentials using mission scope and the token's actual repository boundary."""
     events = events if events is not None else []
     control_repo = (
-        control_repository or get_setting("BRAIN_CONTROL_REPOSITORY")
+        control_repository or os.environ.get("BRAIN_CONTROL_REPOSITORY", "")
         or os.environ.get("GITHUB_REPOSITORY", "")
     ).strip().casefold()
     primary = primary_token.strip()
