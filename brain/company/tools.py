@@ -32,35 +32,77 @@ class GitHubCompanyTools:
         self.timeout_seconds = timeout_seconds
 
     async def inspect_repository(self, repository: str) -> dict[str, Any]:
-        """Collect a bounded source snapshot so design and engineering use real files."""
-        snapshot = await self.gateway.inspect_repository(repository, max_files=100)
-        candidates = [
-            item["path"] for item in snapshot["files"]
-            if item["path"] in {
-                "README.md", "package.json", "pyproject.toml", "index.html",
-                "vite.config.ts", "tsconfig.json", "src/App.tsx", "src/App.jsx",
-                "src/main.tsx", "src/main.jsx", "brain/api/app.py",
-            }
-            or (
-                item["path"].startswith(("src/", "brain/"))
-                and item["path"].endswith((".tsx", ".ts", ".jsx", ".js", ".py", ".css"))
-                and not any(part in item["path"].lower() for part in ("test", "lock", "generated"))
-            )
-        ]
-        contents = {}
+        """Build a multi-pass source inventory; disclose every candidate not read."""
+        snapshot = await self.gateway.inspect_repository(repository, max_files=1000)
+        source_suffixes = (
+            ".tsx", ".ts", ".jsx", ".js", ".py", ".css", ".html", ".json",
+            ".md", ".yml", ".yaml", ".toml",
+        )
+        root_files = {
+            "README.md", "package.json", "pyproject.toml", "index.html",
+            "vite.config.ts", "vite.config.js", "tsconfig.json", "server.ts",
+            "server.js", "next.config.js", "next.config.ts", "pytest.ini",
+            "vitest.config.ts", "jest.config.js", "playwright.config.ts",
+        }
+        excluded_parts = {
+            "node_modules", "dist", "build", "coverage", ".git", "generated",
+            "vendor", ".next", ".turbo",
+        }
+        candidates = []
+        for item in snapshot["files"]:
+            path = item["path"]
+            parts = {part.casefold() for part in path.split("/")}
+            in_scope_tree = path.startswith(("src/", "brain/", "tests/", "test/", "scripts/", ".github/workflows/"))
+            test_tree = any(part in {"tests", "test", "__tests__"} for part in parts)
+            is_source = path.endswith(source_suffixes) and in_scope_tree
+            is_root_config = path in root_files or path.startswith(".github/workflows/")
+            if parts.intersection(excluded_parts):
+                continue
+            if is_source or is_root_config or test_tree:
+                candidates.append(path)
+
+        candidates = list(dict.fromkeys(candidates))
+        contents: dict[str, str] = {}
+        errors: dict[str, str] = {}
         total_bytes = 0
-        for path in candidates[:30]:
+        aggregate_limit = 1_500_000
+        omitted_by_budget: list[str] = []
+        for index, path in enumerate(candidates):
+            if total_bytes >= aggregate_limit:
+                omitted_by_budget.extend(candidates[index:])
+                break
             try:
-                text = await self.gateway.read_file(repository, path, max_bytes=30_000)
-            except GitHubGatewayError:
+                text = await self.gateway.read_file(
+                    repository, path, max_bytes=min(30_000, aggregate_limit - total_bytes)
+                )
+            except GitHubGatewayError as exc:
+                errors[path] = str(exc)
                 continue
             size = len(text.encode("utf-8"))
-            if total_bytes + size > 220_000:
+            if total_bytes + size > aggregate_limit:
+                omitted_by_budget.append(path)
+                omitted_by_budget.extend(candidates[index + 1:])
                 break
             contents[path] = text
             total_bytes += size
+
         snapshot["source_contents"] = contents
         snapshot["source_files_read"] = len(contents)
+        snapshot["source_manifest"] = {
+            "candidate_count": len(candidates),
+            "read_count": len(contents),
+            "failed_paths": errors,
+            "omitted_by_aggregate_budget": omitted_by_budget,
+            "candidate_paths": candidates,
+            "read_paths": list(contents),
+            "tree_file_count_returned": len(snapshot.get("files", [])),
+            "tree_truncated": bool(snapshot.get("truncated")),
+            "aggregate_bytes_read": total_bytes,
+            "aggregate_byte_limit": aggregate_limit,
+            "coverage_complete": (
+                not errors and not omitted_by_budget and not snapshot.get("truncated")
+            ),
+        }
         return snapshot
 
     async def apply_change_set(
