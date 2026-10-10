@@ -9,6 +9,8 @@ from brain.services.recovery_service import RecoveryService
 from brain.core.config import Config
 from brain.db.session import DatabaseSessionManager
 from brain.runtime.runtime_registry import RuntimeRegistry
+from brain.domain.enums import MissionPhase, MissionStatus
+from brain.repositories.mission_repository import MissionRepository
 
 
 @pytest.fixture
@@ -42,3 +44,33 @@ async def test_recovery_service(db_manager):
     # Verify recovery ran without errors
     # This is a basic test; more comprehensive testing would require
     # setting up missions in recoverable states
+
+
+@pytest.mark.asyncio
+async def test_interrupted_active_mission_is_paused_instead_of_replayed(db_manager):
+    config = Config()
+    config.recovery.auto_recover = True
+    config.recovery.recoverable_phases = ["EXECUTE", "VALIDATE", "REPAIR"]
+
+    async with db_manager.get_session_factory()() as session:
+        repo = MissionRepository(session)
+        mission = await repo.create(
+            title="Interrupted mission",
+            objective="Avoid replaying external side effects",
+        )
+        mission_id = mission.id
+        await repo.update_phase(mission_id, MissionPhase.EXECUTE)
+        await repo.update_status(mission_id, MissionStatus.RUNNING)
+        await session.commit()
+
+    recovery = RecoveryService(config, db_manager, RuntimeRegistry())
+    await recovery.recover()
+
+    async with db_manager.get_session_factory()() as session:
+        recovered = await MissionRepository(session).get_by_id(mission_id)
+
+    assert recovered is not None
+    assert recovered.status == MissionStatus.PAUSED.value
+    assert recovered.phase == MissionPhase.EXECUTE.value
+    assert recovered.assigned_runtime_id is None
+    assert recovered.recovery_state == "recovery_requires_manual_review_from_EXECUTE"
