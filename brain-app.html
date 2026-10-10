@@ -404,13 +404,13 @@
                 <div class="msg assistant">
                     <div class="bubble">
                         👋 I'm Brain. Tell me what you want to do.<br>
-                        <span class="text-muted text-xs">I'll turn your requests into missions.</span>
+                        <span class="text-muted text-xs">Chat normally. Use /mission to create a mission or /run to start the specialist workflow.</span>
                     </div>
                     <div class="time">Just now</div>
                 </div>
             </div>
             <div class="chat-input-area">
-                <textarea id="chatInput" rows="1" placeholder="Type a mission..."></textarea>
+                <textarea id="chatInput" rows="1" placeholder="Chat, /mission <task>, or /run <repository task>..."></textarea>
                 <button class="send-btn" id="sendBtn">
                     <span class="material-symbols-outlined" style="font-size:22px;">send</span>
                 </button>
@@ -634,7 +634,7 @@
         const text = chatInput.value.trim();
         if (!text || State.isThinking) return;
         if (!State.apiKey) {
-            toast('Please set your API key in Settings first.', 'error');
+            toast('Please set the Brain control API key in Settings first.', 'error');
             return;
         }
 
@@ -643,41 +643,24 @@
         setThinking(true);
 
         try {
-            const response = await callGemini(State.messages);
-            addMessage('assistant', response);
-
-            const missionMatch = response.match(/---MISSION---\s*([\s\S]*?)\s*---END MISSION---/);
-            if (missionMatch) {
-                const missionText = missionMatch[1];
-                const titleMatch = missionText.match(/Title:\s*(.*)/);
-                const objectiveMatch = missionText.match(/Objective:\s*([\s\S]*?)(?=\n\w+:|$)/);
-                const priorityMatch = missionText.match(/Priority:\s*(.*)/);
-                const riskMatch = missionText.match(/Risk Level:\s*(.*)/);
-
-                const mission = {
-                    id: 'mis_' + Date.now().toString(36),
-                    title: titleMatch ? titleMatch[1].trim() : 'Untitled Mission',
-                    objective: objectiveMatch ? objectiveMatch[1].trim() : text,
-                    priority: priorityMatch ? priorityMatch[1].trim() : 'MEDIUM',
-                    risk_level: riskMatch ? riskMatch[1].trim() : 'LOW',
-                    phase: 'INTAKE',
-                    status: 'PENDING',
-                    current_loop_iteration: 0,
-                    max_loop_iterations: 10,
-                    approval_state: 'NOT_REQUIRED',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                };
-
-                State.missions.unshift(mission);
-                await saveMissionsToGitHub();
-                renderMissions();
-                toast('✅ Mission created!', 'success');
+            let response;
+            if (text.startsWith('/mission ')) {
+                const mission = await createMissionFromText(text.slice(9).trim());
+                await loadMissionsFromGitHub();
+                response = 'Mission created: ' + mission.title + ' (status: ' + mission.status + ').';
+                toast('Mission created.', 'success');
+            } else if (text.startsWith('/run ')) {
+                const result = await startCompanyWorkflow(text.slice(5).trim());
+                await loadMissionsFromGitHub();
+                response = 'Company workflow accepted. Mission ID: ' + result.mission_id + '. Check the Missions tab for progress.';
+                toast('Company workflow queued.', 'success');
+            } else {
+                response = await callGemini(State.messages);
             }
-
+            addMessage('assistant', response);
         } catch (e) {
             toast('Error: ' + e.message, 'error');
-            addMessage('assistant', `❌ Error: ${e.message}`);
+            addMessage('assistant', 'Error: ' + e.message);
         }
 
         setThinking(false);
@@ -708,7 +691,7 @@
 
     document.getElementById('saveSettings').addEventListener('click', () => {
         State.apiKey = document.getElementById('apiKeyInput').value.trim();
-        State.model = document.getElementById('modelInput').value.trim() || 'gemini-flash-latest';
+        State.model = document.getElementById('modelInput').value.trim() || 'http://localhost:8000';
         saveSettings();
         document.getElementById('settingsApiKey').value = State.apiKey;
         document.getElementById('settingsModel').value = State.model;
@@ -719,7 +702,7 @@
 
     document.getElementById('saveAllSettings').addEventListener('click', () => {
         State.apiKey = document.getElementById('settingsApiKey').value.trim();
-        State.model = document.getElementById('settingsModel').value.trim() || 'gemini-flash-latest';
+        State.model = document.getElementById('settingsModel').value.trim() || 'http://localhost:8000';
         State.provider = document.getElementById('providerSelect').value;
         State.repo = document.getElementById('settingsRepo').value.trim() || 'madnessgate44-debug/brain';
         saveSettings();
@@ -779,11 +762,11 @@
         const el = document.getElementById('statusText');
         if (el) {
             if (State.apiKey) {
-                el.textContent = `✅ Connected: ${State.provider} | ${State.model}`;
+                el.textContent = `Connected to Brain API: ${State.model}`;
                 el.style.color = '#10b981';
                 statusDot.className = 'status-dot online';
             } else {
-                el.textContent = '⚠️ No API key configured. Go to Settings.';
+                el.textContent = 'No Brain control key configured. Go to Settings.';
                 el.style.color = '#f59e0b';
                 statusDot.className = 'status-dot';
             }
