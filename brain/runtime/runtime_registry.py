@@ -33,6 +33,16 @@ class RuntimeRegistry:
                 raise RuntimeError(f"Runtime for mission {mission_id} not found")
             
             runtime.start()
+            task = runtime._task
+            if task is not None:
+                # A finished task is no longer active even if its mission is paused
+                # for approval or persisted as failed/completed.
+                task.add_done_callback(
+                    lambda _task, mid=mission_id, registered=runtime:
+                    self.unregister(mid)
+                    if self._runtimes.get(mid) is registered
+                    else None
+                )
     
     async def stop(self, mission_id: str) -> None:
         """Stop a runtime."""
