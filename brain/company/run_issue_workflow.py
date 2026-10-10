@@ -18,34 +18,6 @@ from brain.company.llm_provider import OpenAICompatibleProvider
 from brain.company.tools import GitHubCompanyTools
 
 
-async def build_write_ready_gateway(
-    repository: str,
-    owner: str,
-    primary_token: str,
-    actions_token: str,
-) -> GitHubRepositoryGateway:
-    """Choose a token with verified write access before any model calls."""
-    candidates = []
-    if primary_token.strip():
-        candidates.append(primary_token.strip())
-    if actions_token.strip() and actions_token.strip() not in candidates:
-        candidates.append(actions_token.strip())
-
-    for token in candidates:
-        gateway = GitHubRepositoryGateway(token=token, allowed_owner=owner)
-        try:
-            await gateway.verify_write_access(repository)
-        except GitHubGatewayError:
-            continue
-        return gateway
-
-    raise RuntimeError(
-        "No configured GitHub token has verified repository write access. "
-        "Grant Contents: write to BRAIN_GITHUB_TOKEN or to the GitHub Actions token "
-        "through the workflow/repository permissions. No model calls were made."
-    )
-
-
 def request_from_issue() -> tuple[str, str, int]:
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
@@ -221,7 +193,7 @@ def main() -> None:
         lines.extend(["", "## Release gate", f"- Passed: {result.get('release_gate', {}).get('passed', False)}",
             f"- Blockers: {', '.join(result.get('release_gate', {}).get('blockers', [])) or 'none'}", "",
             "## Next action", result.get("next_action", "Review the saved JSON artifact and evidence.")])
-        report_path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+        report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(report_path.read_text(encoding="utf-8"))
     except BaseException as exc:
         if not events:
