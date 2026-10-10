@@ -68,3 +68,19 @@ def test_explicit_fix_request_remains_mutating_when_other_actions_are_forbidden(
 def test_deploy_and_merge_mentions_without_targets_do_not_trigger_mutating_mode():
     plan = plan_capabilities("Audit the workflow logs for mentions of deploy and merge.")
     assert plan.mode == "read_only"
+
+
+def test_direct_brain_reliability_improvement_is_mutating_intent():
+    objective = """Make Brain materially more reliable at orchestrating specialist agents.
+Implement only well-scoped improvements directly supported by findings.
+Do not merge, deploy, change production secrets, or remove existing capabilities."""
+    plan = plan_capabilities(objective)
+    assert plan.mode == "mutating"
+    assert "repository:write" in plan.required_capabilities
+    assert "checks:run" in plan.required_capabilities
+    assert "pull_request:create" in plan.required_capabilities
+
+
+def test_improve_system_request_is_mutating_but_recommendation_is_read_only():
+    assert plan_capabilities("Improve Brain orchestration and checkpoint recovery.").mode == "mutating"
+    assert plan_capabilities("Audit Brain and recommend improvements to orchestration.").mode == "read_only"
