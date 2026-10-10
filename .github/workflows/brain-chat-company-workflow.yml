@@ -400,7 +400,7 @@ jobs:
                     "",
                 ]
                 with open("brain-company-result.md", "w", encoding="utf-8") as handle:
-                    handle.write("\\n".join(lines))
+                    handle.write("\n".join(lines))
             PY
           fi
       - name: Upload execution report
