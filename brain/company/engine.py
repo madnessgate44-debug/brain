@@ -205,9 +205,9 @@ def validate_change_set_scope(change_set: Any, user_request: str) -> tuple[str, 
     """Enforce explicit non-documentation acceptance constraints before repository writes."""
     request = user_request or ""
     rejects_docs_only = re.search(
-        r"\\b(?:documentation|document|docs?)[ -]only\\b.{0,160}?"
-        r"\\b(?:does not|doesn't|do not|don't|must not|cannot|can't|not)\\b.{0,60}?"
-        r"\\b(?:satisfy|meet|count|qualify|acceptable|enough)\\b",
+        r"\b(?:documentation|document|docs?)[ -]only\\b.{0,160}?"
+        r"\b(?:does not|doesn't|do not|don't|must not|cannot|can't|not)\\b.{0,60}?"
+        r"\b(?:satisfy|meet|count|qualify|acceptable|enough)\\b",
         request,
         flags=re.IGNORECASE | re.DOTALL,
     )
