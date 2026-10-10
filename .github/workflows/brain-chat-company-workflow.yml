@@ -77,7 +77,7 @@ jobs:
                 commit_sha: ref.data.object.sha
               });
               const message = commit.data.message || '';
-              const match = message.match(/acquired_at=([^\\s]+)/);
+              const match = message.match(/acquired_at=([^\s]+)/);
               const date = match ? Date.parse(match[1]) : Date.parse(commit.data.committer?.date || '');
               return { sha: ref.data.object.sha, message, acquiredAt: date };
             }
