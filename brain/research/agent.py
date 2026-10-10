@@ -228,8 +228,6 @@ def render_markdown(report: dict[str, Any]) -> str:
         "",
         "### Public repository documentation",
         "",
-        "## Candidate shortlist",
-        "",
     ]
     evidence = report.get("evidence", {})
     for item in evidence.get("repository_documentation", [])[:8]:
@@ -245,6 +243,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"  - Excerpt: {excerpt}",
             f"  - Boundary: {item.get('evidence_boundary', 'documentation only; not a code audit')}",
         ])
+    lines.extend(["", "### Job-market sample", ""])
     job_market = evidence.get("job_market", {})
     for job in job_market.get("jobs", [])[:10] if isinstance(job_market, dict) else []:
         if not isinstance(job, dict):
@@ -263,6 +262,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     if isinstance(job_market, dict) and job_market.get("limitation"):
         lines.append(f"- Job sample limitation: {job_market['limitation']}")
     lines.append("")
+    lines.extend(["", "## Candidate shortlist", ""])
     candidates = report.get("candidates", [])
     if not candidates:
         lines.append("No qualifying candidates were found in this run.")
