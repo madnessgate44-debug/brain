@@ -153,7 +153,8 @@ def request_from_issue() -> tuple[str, str, int]:
     if repository.split("/", 1)[0].casefold() != owner.casefold():
         raise RuntimeError("Target repository must belong to the Brain repository owner.")
     objective = body.split("/brain simulate", 1)[1].strip()
-    import re
+    # Other /brain commands are workflow directives, not part of the mission.
+    objective = re.sub(r"(?im)^\s*/brain\s+\w+.*$", "", objective).strip()
     objective = re.sub(r"(?im)^repository:\s*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\s*$", "", objective).strip()
     if objective.lower().startswith("objective:"):
         objective = objective[len("objective:"):].strip()
