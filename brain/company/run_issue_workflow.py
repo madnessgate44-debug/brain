@@ -132,6 +132,26 @@ def build_audit_source_chunks(
     return chunks
 
 
+def parse_issue_body(body: str) -> tuple[str, str]:
+    """Extract the target repository and explicit objective regardless of command placement."""
+    command = "/brain simulate"
+    if command not in body:
+        raise RuntimeError("Missing /brain simulate command.")
+    repository_match = re.search(r"(?im)^repository:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
+    repository = repository_match.group(1) if repository_match else ""
+    lines = []
+    for line in body.splitlines():
+        if re.match(r"(?i)^\s*repository:\s*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\s*$", line):
+            continue
+        lines.append(line.replace(command, " "))
+    objective = "\n".join(lines).strip()
+    objective = re.sub(r"(?im)^\s*objective:\s*", "", objective).strip()
+    objective = re.sub(r"\n{3,}", "\n\n", objective)
+    if not objective:
+        raise RuntimeError("Empty mission objective. Add explicit instructions before or after /brain simulate; Brain will not substitute a default task.")
+    return repository, objective
+
+
 def request_from_issue() -> tuple[str, str, int]:
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
@@ -142,29 +162,14 @@ def request_from_issue() -> tuple[str, str, int]:
     owner = os.environ.get("GITHUB_REPOSITORY", "").split("/", 1)[0]
     if (issue.get("user") or {}).get("login", "").casefold() != owner.casefold():
         raise RuntimeError("Only an issue opened by the repository owner can run Brain.")
-    if "/brain simulate" not in body:
-        raise RuntimeError("Missing /brain simulate command.")
-    repository = os.environ.get("BRAIN_TARGET_REPOSITORY", "").strip()
-    if not repository:
-        import re
-        match = re.search(r"(?im)^repository:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
-        repository = match.group(1) if match else ""
+    parsed_repository, objective = parse_issue_body(body)
+    repository = os.environ.get("BRAIN_TARGET_REPOSITORY", "").strip() or parsed_repository
     if not repository or "/" not in repository:
         raise RuntimeError("Add a repository: owner/name line to the issue body.")
+    if parsed_repository and repository.casefold() != parsed_repository.casefold():
+        raise RuntimeError("BRAIN_TARGET_REPOSITORY conflicts with the repository: owner/name line in the issue.")
     if repository.split("/", 1)[0].casefold() != owner.casefold():
         raise RuntimeError("Target repository must belong to the Brain repository owner.")
-    objective = body.split("/brain simulate", 1)[1].strip()
-    import re
-    objective = re.sub(r"(?im)^repository:\s*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\s*$", "", objective).strip()
-    if objective.lower().startswith("objective:"):
-        objective = objective[len("objective:"):].strip()
-    if not objective:
-        objective = (
-            "Inspect the target repository using actual source files, identify the three "
-            "most critical verified defects, fix them on a dedicated branch, run the real "
-            "test suite, conduct independent code review and security/QA checks, and report "
-            "evidence. Do not merge or deploy."
-        )
     return repository, objective, int(issue.get("number", 0))
 
 
