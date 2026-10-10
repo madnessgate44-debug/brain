@@ -309,8 +309,8 @@ class SpecialistAgentRunner:
             )
         if role_key in {"code_reviewer", "qa_engineer", "security_auditor", "customer_advocate", "release_manager"}:
             role_contract += (
-                "\\nDiff completeness rule: if diff_review_blocked is true or actual_diff_truncated is true, "
-                "do not approve this gate. Return BLOCKED or NEEDS_WORK and identify the missing diff evidence.\\n"
+                "\nDiff completeness rule: if diff_review_blocked is true or actual_diff_truncated is true, "
+                "do not approve this gate. Return BLOCKED or NEEDS_WORK and identify the missing diff evidence.\n"
             )
         if role_key in {"ux_designer", "customer_advocate"}:
             role_contract += (
