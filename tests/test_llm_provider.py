@@ -200,3 +200,32 @@ async def test_native_gemini_stops_after_three_rate_limited_attempts(monkeypatch
             await provider.complete("system", "user")
 
     assert native_calls == 2
+
+
+def test_provider_defaults_to_configured_gemini_endpoint(monkeypatch):
+    """A Gemini key works without an additional endpoint/model override."""
+    monkeypatch.setattr(
+        "brain.company.llm_provider.get_setting",
+        lambda name, default="": default,
+    )
+
+    provider = OpenAICompatibleProvider(api_key="test-key")
+
+    assert provider.base_url == "https://generativelanguage.googleapis.com/v1beta/openai"
+    assert provider.model == "gemini-3.5-flash-lite"
+
+
+def test_provider_normalizes_native_gemini_base_url(monkeypatch):
+    """A native Gemini v1beta setting is adapted to the chat-completions endpoint."""
+    monkeypatch.setattr(
+        "brain.company.llm_provider.get_setting",
+        lambda name, default="": default,
+    )
+
+    provider = OpenAICompatibleProvider(
+        api_key="test-key",
+        base_url="https://generativelanguage.googleapis.com/v1beta",
+        model="gemini-3.5-flash-lite",
+    )
+
+    assert provider.base_url == "https://generativelanguage.googleapis.com/v1beta/openai"

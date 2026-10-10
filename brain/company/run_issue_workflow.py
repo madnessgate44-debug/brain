@@ -61,14 +61,33 @@ async def build_gateway(
     actions_token: str,
     capability_plan: Any,
     events: list[dict[str, Any]] | None = None,
+    control_repository: str | None = None,
 ) -> GitHubRepositoryGateway:
-    """Resolve a credential against the target repo using only mission-required capabilities."""
+    """Resolve credentials using mission scope and the token's actual repository boundary."""
     events = events if events is not None else []
+    control_repo = (
+        control_repository or os.environ.get("BRAIN_CONTROL_REPOSITORY", "")
+        or os.environ.get("GITHUB_REPOSITORY", "")
+    ).strip().casefold()
+    primary = primary_token.strip()
+    actions = actions_token.strip()
+    is_control_repo_write = (
+        "repository:write" in capability_plan.required_capabilities
+        and bool(control_repo)
+        and repository.casefold() == control_repo
+    )
+    # GITHUB_TOKEN is scoped to this workflow's repository and has explicit contents:write
+    # permission. Prefer it only for writes to that same repository. For other repositories,
+    # retain the configured PAT first because GITHUB_TOKEN cannot cross repository boundaries.
+    ordered_tokens = (
+        [("BRAIN_GITHUB_ACTIONS_TOKEN", actions), ("BRAIN_GITHUB_TOKEN", primary)]
+        if is_control_repo_write
+        else [("BRAIN_GITHUB_TOKEN", primary), ("BRAIN_GITHUB_ACTIONS_TOKEN", actions)]
+    )
     candidates: list[tuple[str, str]] = []
-    if primary_token.strip():
-        candidates.append(("BRAIN_GITHUB_TOKEN", primary_token.strip()))
-    if actions_token.strip() and actions_token.strip() not in [token for _, token in candidates]:
-        candidates.append(("BRAIN_GITHUB_ACTIONS_TOKEN", actions_token.strip()))
+    for label, token in ordered_tokens:
+        if token and token not in [existing for _, existing in candidates]:
+            candidates.append((label, token))
 
     failures: list[str] = []
     for label, token in candidates:
@@ -118,10 +137,16 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         actions_token=os.environ.get("BRAIN_GITHUB_ACTIONS_TOKEN", ""),
         capability_plan=plan,
         events=events,
+        control_repository=os.environ.get(
+            "BRAIN_CONTROL_REPOSITORY", "madnessgate44-debug/brain"
+        ),
+    )
+    control_repository = os.environ.get(
+        "BRAIN_CONTROL_REPOSITORY", "madnessgate44-debug/brain"
     )
     tools = GitHubCompanyTools(
         gateway=gateway,
-        control_repository=os.environ.get("BRAIN_CONTROL_REPOSITORY", "madnessgate44-debug/brain"),
+        control_repository=control_repository,
         poll_seconds=5,
         timeout_seconds=900,
     )
