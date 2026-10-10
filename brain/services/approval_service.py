@@ -5,7 +5,7 @@ import logging
 from datetime import timezone
 from typing import Optional
 
-from brain.domain.enums import ApprovalStatus, EventSeverity, MissionPhase
+from brain.domain.enums import ApprovalStatus, EventSeverity, MissionPhase, MissionStatus
 from brain.repositories.approval_repository import ApprovalRepository
 from brain.repositories.mission_repository import MissionRepository
 from brain.repositories.event_repository import EventRepository
@@ -50,7 +50,7 @@ class ApprovalService:
         mission = await self.mission_repo.get_by_id(mission_id)
         if not mission:
             raise ValueError(f"Mission {mission_id} not found")
-        if mission.status != "PENDING":
+        if mission.status != MissionStatus.PENDING.value:
             raise ValueError(
                 "Approval requests must be created before mission execution; "
                 f"mission status is {mission.status}."
