@@ -219,9 +219,30 @@ class GitHubCompanyTools:
             "- Product/UX, architecture, independent review, QA, security, and customer gates passed.",
             "- Human review is required. Brain has not merged or deployed this change.",
         ])
+        summary = workflow_result.get("summary")
+        if isinstance(summary, dict):
+            summary = next(
+                (
+                    summary.get(key)
+                    for key in ("title", "summary", "objective", "name")
+                    if isinstance(summary.get(key), str) and summary.get(key).strip()
+                ),
+                None,
+            )
+        if not isinstance(summary, str) or not summary.strip():
+            first_path = next(
+                (path for path in changed_files if isinstance(path, str) and path.strip()),
+                None,
+            )
+            if first_path:
+                filename = first_path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+                summary = "update " + filename.replace("_", " ").replace("-", " ")
+            else:
+                summary = "reviewed implementation"
+        summary = " ".join(summary.split())[:180]
         return await self.pull_request_gateway.create_pull_request(
             repository=repository,
             branch=branch,
-            title=f"Brain: {workflow_result.get('summary', 'Reviewed implementation')}"[:240],
+            title=f"Brain: {summary}"[:240],
             body=body,
         )
