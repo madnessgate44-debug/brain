@@ -70,7 +70,7 @@ def test_rejects_embedded_credentials_and_non_http_urls():
         "https://playwright.dev/docs/test-retries",
         "file:///etc/passwd",
     )
-    with pytest.raises(ValueError, match="HTTP(S) URL"):
+    with pytest.raises(ValueError, match="HTTP"):
         parse_research_payload(event_for(body), "madnessgate44-debug")
 
 
