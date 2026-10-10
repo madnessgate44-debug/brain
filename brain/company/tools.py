@@ -19,8 +19,10 @@ class GitHubCompanyTools:
         control_repository: str | None = None,
         poll_seconds: float = 5.0,
         timeout_seconds: float = 900.0,
+        verification_gateway: GitHubRepositoryGateway | None = None,
     ):
         self.gateway = gateway or GitHubRepositoryGateway()
+        self.verification_gateway = verification_gateway or self.gateway
         self.control_repository = (
             control_repository or get_setting("BRAIN_CONTROL_REPOSITORY")
         )
@@ -85,7 +87,10 @@ class GitHubCompanyTools:
             raise GitHubGatewayError("Checks are allowed only for Brain-created branches.")
 
         owner, name = self.control_repository.split("/", 1)
-        issue = await self.gateway._request(
+        # The verification issue must be created with a PAT, not GITHUB_TOKEN:
+        # GitHub suppresses follow-on workflow runs for events caused by GITHUB_TOKEN.
+        trigger_gateway = self.verification_gateway
+        issue = await trigger_gateway._request(
             "POST",
             f"/repos/{owner}/{name}/issues",
             json={
@@ -102,7 +107,7 @@ class GitHubCompanyTools:
         issue_number = issue["number"]
         deadline = asyncio.get_running_loop().time() + self.timeout_seconds
         while asyncio.get_running_loop().time() < deadline:
-            comments = await self.gateway._request(
+            comments = await trigger_gateway._request(
                 "GET",
                 f"/repos/{owner}/{name}/issues/{issue_number}/comments",
                 params={"per_page": 100},
