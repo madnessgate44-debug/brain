@@ -37,9 +37,11 @@ class GitHubRepositoryDiscovery:
         timeout_seconds: float = 15.0,
         now: datetime | None = None,
         token: str | None = None,
+        mission: str | None = None,
     ) -> None:
         self._client = client
         self.queries = queries
+        self.mission = (mission or '').strip()
         self.per_query = min(30, max(1, per_query))
         self.timeout_seconds = timeout_seconds
         self.now = now or datetime.now(timezone.utc)
@@ -62,6 +64,22 @@ class GitHubRepositoryDiscovery:
             headers=headers,
         )
         queries = list(self.queries)
+        if self.mission:
+            stop_words = {
+                "about", "after", "also", "and", "are", "build", "built", "can", "could",
+                "design", "find", "from", "free", "give", "into", "mission", "need", "our",
+                "that", "the", "their", "them", "then", "this", "through", "tools", "with",
+                "would", "your", "brain", "tomatom", "research", "investigate", "return",
+            }
+            words = []
+            for raw_word in self.mission.lower().replace("/", " ").replace("-", " ").split():
+                word = "".join(ch for ch in raw_word if ch.isalnum())
+                if len(word) >= 4 and word not in stop_words and word not in words:
+                    words.append(word)
+                if len(words) >= 5:
+                    break
+            if words:
+                queries.insert(0, " ".join(words) + " in:name,description")
         if self.token:
             # The dedicated token must be read-only and explicitly authorized by the owner.
             queries.append("is:private archived:false")

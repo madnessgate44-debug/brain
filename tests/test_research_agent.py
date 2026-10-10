@@ -8,6 +8,8 @@ import pytest
 
 from brain.research.agent import ResearchAndDevelopmentAgent, render_markdown
 from brain.research.discovery import DiscoveryError, GitHubRepositoryDiscovery, heuristic_score
+from brain.research.evidence import ResearchEvidenceCollector
+import brain.research.evidence as evidence_module
 
 
 def repo(name, **overrides):
@@ -234,3 +236,110 @@ def test_markdown_report_warns_that_discovery_is_not_a_security_audit():
     markdown = render_markdown(report)
     assert "No candidate code was executed" in markdown
     assert "not an approval to import or execute code" in markdown
+
+
+@pytest.mark.asyncio
+async def test_mission_is_preserved_in_report_and_markdown():
+    class FakeDiscovery:
+        token = ""
+
+        async def search(self, max_candidates=30):
+            return []
+
+    mission = "Research Tomatom browser extensions and free hosting limits."
+    report = await ResearchAndDevelopmentAgent(discovery=FakeDiscovery()).run(mission=mission)
+    markdown = render_markdown(report)
+
+    assert report["mission"] == mission
+    assert report["research_scope"]["source_code"] == "not audited; no third-party code executed"
+    assert "Job-market sample status" in markdown
+    assert "not independently investigated" not in markdown
+    assert "bounded job-board sample" in markdown
+
+
+@pytest.mark.asyncio
+async def test_mission_discovery_adds_bounded_targeted_query():
+    seen_queries = []
+
+    def handler(request):
+        seen_queries.append(request.url.params["q"])
+        return httpx.Response(200, json={"items": []})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    discovery = GitHubRepositoryDiscovery(
+        client=client,
+        mission="Tomatom browser extensions free hosting limits",
+        now=datetime(2026, 10, 10, tzinfo=timezone.utc),
+    )
+    try:
+        await discovery.search(max_candidates=5)
+    finally:
+        await client.aclose()
+
+    assert len(seen_queries) == len(discovery.queries) + 1
+    assert "browser extensions hosting limits in:name,description" in seen_queries[0]
+    assert "Tomatom" not in seen_queries[0]
+
+
+@pytest.mark.asyncio
+async def test_agent_includes_public_source_evidence_without_claiming_code_audit():
+    class FakeDiscovery:
+        token = ""
+        async def search(self, max_candidates=30):
+            return []
+
+    class FakeEvidenceCollector:
+        async def collect(self, candidates, mission):
+            return {
+                "repository_documentation": [{"repository": "acme/browser", "source_url": "https://github.com/acme/browser", "source_type": "public README", "excerpt": "Uses Playwright", "evidence_boundary": "README only"}],
+                "repository_documentation_count": 1,
+                "repository_documentation_errors": 0,
+                "job_market": {"status": "completed", "source_url": "https://remotive.com/api/remote-jobs", "sample_count": 1, "jobs": [{"title": "Browser Automation Engineer", "company": "Example", "url": "https://example.com/job", "tags": ["Playwright", "Python"], "description_excerpt": "Build browser automation"}], "limitation": "sample only"},
+            }
+
+    report = await ResearchAndDevelopmentAgent(discovery=FakeDiscovery(), evidence_collector=FakeEvidenceCollector()).run(mission="Build Tomatom")
+    assert report["evidence"]["repository_documentation_count"] == 1
+    assert report["evidence"]["job_market"]["jobs"][0]["tags"] == ["Playwright", "Python"]
+    assert report["research_scope"]["source_code"] == "not audited; no third-party code executed"
+    markdown = render_markdown(report)
+    assert "[acme/browser]" in markdown
+    assert "[Browser Automation Engineer]" in markdown
+
+
+@pytest.mark.asyncio
+async def test_public_web_research_searches_and_fetches_pages(monkeypatch):
+    monkeypatch.setattr(evidence_module, "_public_http_url", lambda url: url.startswith("https://"))
+    calls = []
+    def handler(request):
+        calls.append(str(request.url))
+        if request.url.host == "html.duckduckgo.com":
+            return httpx.Response(200, text='<a class="result__a" href="https://example.com/docs">Browser documentation</a>')
+        return httpx.Response(200, headers={"content-type": "text/html"}, text='<html><nav>Navigation</nav><main><h1>Playwright browser automation</h1><p>Supports browser contexts and tabs.</p><script>ignore me</script></main></html>')
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=False)
+    collector = ResearchEvidenceCollector(max_web_pages=1)
+    try:
+        result = await collector._web_research(client, "Tomatom browser automation extensions")
+    finally:
+        await client.aclose()
+    assert result["status"] == "completed"
+    assert result["pages_fetched"] == 1
+    assert result["sources"][0]["url"] == "https://example.com/docs"
+    assert "Playwright browser automation" in result["sources"][0]["excerpt"]
+    assert "ignore me" not in result["sources"][0]["excerpt"]
+    assert len(calls) == 2
+
+
+def test_web_report_contains_source_links_and_browsing_status():
+    report = {
+        "generated_at": "2026-10-10T00:00:00+00:00", "mission": "Research browser tools",
+        "candidate_count": 0, "private_candidate_count": 0, "model_assessment_status": "not_configured",
+        "candidates": [], "research_scope": {"general_web_browsing": "completed"},
+        "evidence": {"repository_documentation_count": 0, "job_market": {"status": "unavailable"},
+            "web_research": {"status": "completed", "pages_fetched": 1,
+                "sources": [{"title": "Docs", "url": "https://example.com/docs", "query": "browser tools", "status": "fetched", "excerpt": "Tab and extension support"}],
+                "limitations": ["bounded sample"]}},
+    }
+    markdown = render_markdown(report)
+    assert "General web research status: completed" in markdown
+    assert "[Docs](https://example.com/docs)" in markdown
+    assert "Tab and extension support" in markdown

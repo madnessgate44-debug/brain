@@ -4,6 +4,22 @@ on:
   schedule:
     - cron: "30 7 * * *"
   workflow_dispatch:
+    inputs:
+      mission:
+        description: "Research mission (what Brain must investigate)"
+        required: true
+        type: string
+        default: "Design Tomatom, a free-first browser automation platform for Brain. Investigate relevant open-source browser automation repositories, browser extension support, browser control and security, free hosting and persistence limits, and the skills/job requirements needed to build and operate it. Return an evidence-linked recommendation and roadmap."
+      max_candidates:
+        description: "Maximum repository candidates to inspect (1-50)"
+        required: true
+        type: choice
+        options:
+          - "10"
+          - "20"
+          - "30"
+          - "50"
+        default: "30"
   push:
     branches:
       - main
@@ -23,6 +39,8 @@ jobs:
       contents: read
     env:
       BRAIN_RD_ENABLE_MODEL_ASSESSMENT: ${{ vars.BRAIN_RD_ENABLE_MODEL_ASSESSMENT || 'false' }}
+      BRAIN_RD_MISSION: ${{ inputs.mission || 'Design Tomatom, a free-first browser automation platform for Brain. Investigate open-source browser automation repositories, browser extensions, browser control/security, free hosting/persistence limits, and required skills/job-market evidence. Return an evidence-linked recommendation and roadmap.' }}
+      BRAIN_RD_MAX_CANDIDATES: ${{ inputs.max_candidates || '30' }}
     steps:
       - name: Check out Brain
         uses: actions/checkout@v4
@@ -39,11 +57,12 @@ jobs:
           python -m pip install -e .
       - name: Run bounded R&D discovery
         env:
-          BRAIN_RD_GITHUB_TOKEN: ${{ secrets.BRAIN_RD_GITHUB_TOKEN }}
+          # Preserve compatibility with the existing Brain Actions token secret.
+          BRAIN_RD_GITHUB_TOKEN: ${{ secrets.BRAIN_RD_GITHUB_TOKEN || secrets.BRAIN_GITHUB_TOKEN }}
           BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
           BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
           BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
-        run: python -m brain.research.cli --max-candidates 30 --output-dir .
+        run: python -m brain.research.cli --max-candidates "$BRAIN_RD_MAX_CANDIDATES" --mission "$BRAIN_RD_MISSION" --output-dir .
       - name: Add shortlist to workflow summary
         if: always()
         shell: bash

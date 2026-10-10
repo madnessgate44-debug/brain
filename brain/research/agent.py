@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 
 from brain.research.discovery import GitHubRepositoryDiscovery, heuristic_score
+from brain.research.evidence import ResearchEvidenceCollector
 
 
 class TextProvider(Protocol):
@@ -21,13 +22,17 @@ class ResearchAndDevelopmentAgent:
         discovery: GitHubRepositoryDiscovery | None = None,
         provider: TextProvider | None = None,
         now: datetime | None = None,
+        evidence_collector: ResearchEvidenceCollector | None = None,
     ) -> None:
         self.discovery = discovery or GitHubRepositoryDiscovery()
         self.provider = provider
         self.now = now or datetime.now(timezone.utc)
+        self.evidence_collector = evidence_collector
 
-    async def run(self, max_candidates: int = 30) -> dict[str, Any]:
+    async def run(self, max_candidates: int = 30, mission: str = "Find tools that improve Brain research, coding, browser automation, testing, and free execution.") -> dict[str, Any]:
         """Discover candidates, rank them, and return a machine-readable evidence report."""
+        mission = mission.strip()[:4000]
+        self._active_mission = mission
         candidates = await self.discovery.search(max_candidates=max_candidates)
         ranked: list[dict[str, Any]] = []
         for candidate in candidates:
@@ -78,8 +83,38 @@ class ResearchAndDevelopmentAgent:
             reverse=True,
         )
         private_count = sum(1 for item in ranked if item.get("private", False))
+        evidence = (
+            await self.evidence_collector.collect(ranked, mission)
+            if self.evidence_collector is not None
+            else {
+                "repository_documentation": [],
+                "repository_documentation_count": 0,
+                "repository_documentation_errors": 0,
+                "job_market": {
+                    "status": "not_configured",
+                    "source_url": "https://remotive.com/api/remote-jobs",
+                    "sample_count": 0,
+                    "jobs": [],
+                    "limitation": "No evidence collector configured; no job-market conclusions should be drawn.",
+                },
+                "limitation": "No public source evidence collected in this run.",
+            }
+        )
         return {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
+            "mission": mission,
+            "research_scope": {
+                "repository_metadata": "searched and scored",
+                "source_code": "not audited; no third-party code executed",
+                "repository_documentation": "public README excerpts collected when available",
+                "general_web_browsing": evidence.get("web_research", {}).get("status", "unknown"),
+                "job_descriptions_and_live_skill_requirements": evidence.get("job_market", {}).get("status", "unknown"),
+                "hosting_prices_and_free_tier_terms": "searched where public pages are returned; not independently verified",
+                "limitations": [
+                    "GitHub repository metadata is a discovery signal, not source-level evidence.",
+                    "This report does not establish job-market requirements or verify hosting terms.",
+                ],
+            },
             "agent": "research_and_development",
             "generated_at": self.now.isoformat(),
             "status": "completed",
@@ -101,6 +136,7 @@ class ResearchAndDevelopmentAgent:
                 "credentials_exposed_to_candidates": False,
             },
             "candidates": ranked,
+            "evidence": evidence,
         }
 
     async def _assess_with_model(self, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -128,8 +164,8 @@ class ResearchAndDevelopmentAgent:
         raw = await self.provider.complete(
             system,
             json.dumps({
-                "goal": "Find tools that could improve Brain's coding, research, browser, testing, "
-                        "or free cloud execution capabilities.",
+                "goal": "Assess public repository metadata for the user's specific research mission. Do not infer source-code, job-market, security, or pricing facts not present in supplied metadata.",
+                "mission": self._active_mission,
                 "candidates": compact,
             }),
         )
@@ -174,14 +210,81 @@ def render_markdown(report: dict[str, Any]) -> str:
         "# Brain R&D discovery report",
         "",
         f"- Generated: {report.get('generated_at', 'unknown')}",
+        f"- Mission: {report.get('mission', 'not supplied')}",
         f"- Candidates: {report.get('candidate_count', 0)}",
         f"- Private candidates: {report.get('private_candidate_count', 0)}",
         f"- Model assessment: {report.get('model_assessment_status', 'unknown')}",
         f"- Source: {report.get('discovery_source', 'unknown')}",
         "",
-        "## Candidate shortlist",
+        "## Research scope and limitations",
+        "",
+        "- Repository discovery and ranking use metadata only in this version.",
+        "- Public README excerpts and a bounded job-board sample may be collected; neither is a source-code audit or comprehensive labor-market survey.",
+        "- Do not treat this report as a completed technical or job-market research report.",
+        "",
+        "## Source evidence",
+        "",
+        f"- Public README excerpts collected: {report.get('evidence', {}).get('repository_documentation_count', 0)}",
+        f"- Job-market sample status: {report.get('evidence', {}).get('job_market', {}).get('status', 'not collected')}",
+        "",
+        f"- General web research status: {report.get('evidence', {}).get('web_research', {}).get('status', 'not collected')}",
+        f"- Public pages fetched: {report.get('evidence', {}).get('web_research', {}).get('pages_fetched', 0)}",
+        "",
+        "### General web research",
+        "",
+        "### Public repository documentation",
         "",
     ]
+    evidence = report.get("evidence", {})
+    for item in evidence.get("repository_documentation", [])[:8]:
+        if not isinstance(item, dict):
+            continue
+        repo_name = str(item.get("repository", "unknown")).replace("[", "\\[").replace("]", "\\]")
+        source_url = str(item.get("source_url", ""))
+        excerpt = str(item.get("excerpt", "")).replace("\\n", " ")[:700]
+        for char in ("\\", "`", "*", "_", "[", "]"):
+            excerpt = excerpt.replace(char, "\\" + char)
+        lines.extend([
+            f"- [{repo_name}]({source_url}) — {item.get('source_type', 'public documentation')}",
+            f"  - Excerpt: {excerpt}",
+            f"  - Boundary: {item.get('evidence_boundary', 'documentation only; not a code audit')}",
+        ])
+    web_research = evidence.get("web_research", {})
+    for source in web_research.get("sources", [])[:8] if isinstance(web_research, dict) else []:
+        if not isinstance(source, dict):
+            continue
+        title = str(source.get("title", "Web source")).replace("[", "\\[").replace("]", "\\]")
+        url = str(source.get("url", ""))
+        excerpt = str(source.get("excerpt", ""))[:700]
+        for char in ("\\\\", "`", "*", "_", "[", "]"):
+            excerpt = excerpt.replace(char, "\\" + char)
+        lines.extend([
+            f"- [{title}]({url}) — {source.get('status', 'unknown')}",
+            f"  - Search query: {source.get('query', 'not recorded')}",
+            f"  - Excerpt: {excerpt or 'No readable excerpt retrieved.'}",
+        ])
+    for limitation in web_research.get("limitations", []) if isinstance(web_research, dict) else []:
+        lines.append(f"- Limitation: {limitation}")
+    lines.extend(["", "### Job-market sample", ""])
+    job_market = evidence.get("job_market", {})
+    for job in job_market.get("jobs", [])[:10] if isinstance(job_market, dict) else []:
+        if not isinstance(job, dict):
+            continue
+        title = str(job.get("title", "Job listing")).replace("[", "\\[").replace("]", "\\]")
+        url = str(job.get("url", ""))
+        tags = ", ".join(str(tag)[:80] for tag in job.get("tags", [])[:12])
+        excerpt = str(job.get("description_excerpt", "")).replace("\\n", " ")[:500]
+        for char in ("\\", "`", "*", "_", "[", "]"):
+            excerpt = excerpt.replace(char, "\\" + char)
+        lines.extend([
+            f"- [{title}]({url}) — {job.get('company', 'Company not listed')}",
+            f"  - Tags: {tags or 'not provided'}",
+            f"  - Description excerpt: {excerpt}",
+        ])
+    if isinstance(job_market, dict) and job_market.get("limitation"):
+        lines.append(f"- Job sample limitation: {job_market['limitation']}")
+    lines.append("")
+    lines.extend(["", "## Candidate shortlist", ""])
     candidates = report.get("candidates", [])
     if not candidates:
         lines.append("No qualifying candidates were found in this run.")
