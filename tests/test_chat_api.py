@@ -30,7 +30,7 @@ def test_chat_returns_model_reply_without_creating_mission(monkeypatch):
     provider = FakeProvider()
     monkeypatch.setattr(chat_route, "OpenAICompatibleProvider", lambda: provider)
 
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         before = client.get("/missions").json()["total"]
         response = client.post(
             "/chat",
@@ -61,7 +61,7 @@ def test_chat_returns_model_reply_without_creating_mission(monkeypatch):
 def test_chat_rejects_invalid_control_key(monkeypatch):
     """The chat endpoint is not anonymously accessible."""
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "test-control-key-for-unit-tests-123")
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         response = client.post(
             "/chat",
             headers={"X-Brain-API-Key": "wrong-key"},
@@ -73,7 +73,7 @@ def test_chat_rejects_invalid_control_key(monkeypatch):
 def test_chat_requires_latest_message_from_user(monkeypatch):
     """A request cannot ask Brain to continue an assistant-only transcript."""
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "test-control-key-for-unit-tests-123")
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         response = client.post(
             "/chat",
             headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"},
@@ -95,7 +95,7 @@ def test_chat_hides_provider_errors(monkeypatch):
             raise ModelProviderError("private provider details")
 
     monkeypatch.setattr(chat_route, "OpenAICompatibleProvider", BrokenProvider)
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         response = client.post(
             "/chat",
             headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"},
@@ -121,7 +121,7 @@ def test_chat_reports_missing_provider_configuration(monkeypatch):
             raise ProviderConfigurationError("secret config detail")
 
     monkeypatch.setattr(chat_route, "OpenAICompatibleProvider", UnconfiguredProvider)
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         response = client.post(
             "/chat",
             headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"},
@@ -137,7 +137,7 @@ def test_chat_reports_missing_provider_configuration(monkeypatch):
 def test_chat_rejects_short_configured_control_key(monkeypatch):
     """A weak configured control key disables chat instead of accepting requests."""
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "short-key")
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         response = client.post(
             "/chat",
             headers={"X-Brain-API-Key": "short-key"},
