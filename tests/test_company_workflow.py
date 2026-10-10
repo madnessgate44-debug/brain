@@ -5,7 +5,7 @@ import pytest
 from brain.company.roles import ROLE_CATALOG, ROLE_BY_KEY, WORKFLOW_ORDER
 from brain.company.run_issue_workflow import parse_issue_body
 from brain.company.diagnostics import failure_report
-from brain.company.engine import CompanyWorkflowBlocked
+from brain.company.engine import CompanyWorkflowBlocked, CompanyWorkflowEngine, validate_change_set_scope
 from brain.company.workflow import (
     WorkflowPolicyError,
     evaluate_release_gate,
@@ -107,3 +107,113 @@ def test_failure_report_preserves_sanitized_stage_evidence_and_known_non_mutatio
     assert report["stage_evidence"]["role_outputs"]["product_owner"]["blockers"] == ["needs evidence"]
     assert report["impact"]["repository_mutation_status"] == "NOT_STARTED"
     assert report["impact"]["tests_status"] == "NOT_STARTED"
+
+
+@pytest.mark.parametrize("request_text", [
+    "A documentation-only change does NOT satisfy the task.",
+    "A docs-only report does not satisfy acceptance.",
+])
+def test_explicitly_disallowed_documentation_only_change_set_is_rejected(request_text):
+    change_set = {"files": [{"path": "docs/BRAIN_RELIABILITY_MISSION_REPORT.md", "content": "# Report"}]}
+    errors = validate_change_set_scope(change_set, request_text)
+    assert errors
+    assert "documentation-only change does not satisfy" in errors[0]
+
+
+def test_explicit_implementation_requirement_accepts_code_and_regression_tests():
+    change_set = {"files": [
+        {"path": "brain/company/engine.py", "content": "implementation"},
+        {"path": "tests/test_company_workflow.py", "content": "regression test"},
+        {"path": "docs/reliability.md", "content": "report"},
+    ]}
+    assert validate_change_set_scope(
+        change_set,
+        "A documentation-only change does NOT satisfy the task; add implementation and regression tests.",
+    ) == ()
+
+
+def test_documentation_only_change_remains_allowed_when_requested():
+    change_set = {"files": [{"path": "docs/acceptance.md", "content": "# Acceptance"}]}
+    assert validate_change_set_scope(
+        change_set,
+        "Create a documentation-only acceptance report.",
+    ) == ()
+
+
+@pytest.mark.asyncio
+async def test_engine_blocks_docs_only_proposal_before_any_repository_write():
+    class FakeRunner:
+        def __init__(self):
+            self.developer_calls = 0
+
+        async def run(self, role_key, user_request, evidence):
+            if role_key == "developer":
+                self.developer_calls += 1
+                return {
+                    "status": "PASS",
+                    "findings": [],
+                    "blockers": [],
+                    "evidence_needed": [],
+                    "deliverables": {
+                        "change_set": {
+                            "files": [{
+                                "path": "docs/BRAIN_RELIABILITY_MISSION_REPORT.md",
+                                "content": "# Report only",
+                            }]
+                        }
+                    },
+                }
+            deliverables = {
+                "product_owner": {
+                    "product_brief": "Reliability fix",
+                    "acceptance_criteria": ["Implementation change and regression test required"],
+                },
+                "ux_designer": {"ux_notes": "Not applicable to backend gate"},
+                "architect": {"architecture_decisions": ["Preserve current architecture"]},
+            }.get(role_key, {})
+            return {
+                "status": "PASS",
+                "findings": [],
+                "blockers": [],
+                "evidence_needed": [],
+                "deliverables": deliverables,
+            }
+
+    class FakeTools:
+        def __init__(self):
+            self.apply_calls = 0
+
+        async def inspect_repository(self, repository):
+            return {
+                "repository": repository,
+                "default_branch": "main",
+                "base_commit": "base-sha",
+                "files": [],
+                "source_contents": {},
+                "source_manifest": {"coverage_complete": True},
+            }
+
+        async def apply_change_set(self, change_set, repository):
+            self.apply_calls += 1
+            return {"branch": "unexpected", "diff": "unexpected", "changed_files": []}
+
+        async def run_checks(self, repository, branch):
+            return {"executed": True, "status": "PASS", "run_url": "https://example.test/run"}
+
+        async def open_pull_request(self, repository, branch, workflow_result):
+            return {"url": "https://example.test/pull/1", "number": 1}
+
+    runner = FakeRunner()
+    tools = FakeTools()
+    engine = CompanyWorkflowEngine(runner, tools, max_repair_cycles=2)
+    objective = (
+        "Fix verified defects and add regression tests. A documentation-only change, "
+        "generic checklist, unverified claims, or a run that stops without explicit "
+        "diagnosis does NOT satisfy the task."
+    )
+
+    with pytest.raises(CompanyWorkflowBlocked, match="remained invalid after repair limit"):
+        await engine.run(objective, "madnessgate44-debug/brain")
+
+    assert runner.developer_calls == 3
+    assert tools.apply_calls == 0

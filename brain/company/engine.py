@@ -4,6 +4,7 @@ The engine coordinates specialist model calls, but repository edits and test exe
 must be performed by injected tools. It never treats model claims as execution evidence.
 """
 
+import re
 from typing import Any, Protocol
 
 from brain.company.agent_runner import SpecialistAgentRunner
@@ -200,6 +201,39 @@ def validate_change_set(change_set: Any) -> tuple[str, ...]:
     return tuple(errors)
 
 
+def validate_change_set_scope(change_set: Any, user_request: str) -> tuple[str, ...]:
+    """Enforce explicit non-documentation acceptance constraints before repository writes."""
+    request = user_request or ""
+    rejects_docs_only = re.search(
+        r"\b(?:documentation|document|docs?)[ -]only\b.{0,160}?"
+        r"\b(?:does not|doesn't|do not|don't|must not|cannot|can't|not)\b.{0,60}?"
+        r"\b(?:satisfy|meet|count|qualify|acceptable|enough)\b",
+        request,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not rejects_docs_only:
+        return ()
+    files = change_set.get("files", []) if isinstance(change_set, dict) else []
+    paths = [item.get("path", "") for item in files if isinstance(item, dict)]
+    if not paths:
+        return ("No changed file paths were supplied for the explicit implementation requirement.",)
+    documentation_suffixes = {".md", ".mdx", ".rst", ".txt", ".adoc"}
+    docs_only = all(
+        isinstance(path, str)
+        and (
+            path.casefold().startswith("docs/")
+            or path.casefold().endswith(tuple(documentation_suffixes))
+        )
+        for path in paths
+    )
+    if docs_only:
+        return (
+            "The request explicitly states that a documentation-only change does not satisfy "
+            "acceptance, but the proposed change set contains only documentation files.",
+        )
+    return ()
+
+
 class CompanyWorkflowEngine:
     """Run specialist roles in order, with bounded repair and evidence-based release."""
 
@@ -262,7 +296,7 @@ class CompanyWorkflowEngine:
             if developer_output.get("status") != "PASS":
                 raise CompanyWorkflowBlocked("Developer did not produce an approved change set.")
             change_set = developer_output.get("deliverables", {}).get("change_set")
-            validation_errors = validate_change_set(change_set)
+            validation_errors = validate_change_set(change_set) + validate_change_set_scope(change_set, user_request)
             if not validation_errors:
                 break
             timeline.append({
@@ -335,7 +369,7 @@ class CompanyWorkflowEngine:
             if repair["status"] != "PASS":
                 raise CompanyWorkflowBlocked("Developer could not resolve reviewer findings.")
             revised_change_set = repair["deliverables"].get("change_set")
-            repair_errors = validate_change_set(revised_change_set)
+            repair_errors = validate_change_set(revised_change_set) + validate_change_set_scope(revised_change_set, user_request)
             if repair_errors:
                 raise CompanyWorkflowBlocked(
                     "Reviewer repair returned an invalid change set: "
