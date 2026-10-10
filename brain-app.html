@@ -386,8 +386,8 @@
     </div>
 
     <div class="settings-bar" id="settingsBar">
-        <input type="password" id="apiKeyInput" placeholder="Gemini API Key">
-        <input type="text" id="modelInput" placeholder="Model" value="gemini-flash-latest">
+        <input type="password" id="apiKeyInput" placeholder="Brain control API key">
+        <input type="text" id="modelInput" placeholder="Brain API base URL" value="http://localhost:8000">
         <button class="btn-sm green" id="saveSettings">Save</button>
         <button class="btn-sm gray" id="testConnection">Test</button>
     </div>
@@ -434,19 +434,17 @@
 
     <div class="tab-content" id="tab-settings">
         <div class="settings-group">
-            <label>🤖 AI Provider</label>
+            <label>Backend</label>
             <select id="providerSelect">
-                <option value="gemini">Google Gemini</option>
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic Claude</option>
+                <option value="brain">Brain API (configured server-side)</option>
             </select>
         </div>
         <div class="settings-group">
-            <label>🔑 API Key</label>
+            <label>🔑 Brain Control API Key</label>
             <input type="password" id="settingsApiKey" placeholder="Enter your API key">
         </div>
         <div class="settings-group">
-            <label>📦 Model</label>
+            <label>🌐 Brain API Base URL</label>
             <input type="text" id="settingsModel" placeholder="Model name" value="gemini-flash-latest">
         </div>
         <div class="settings-group">
@@ -470,9 +468,9 @@
     // STATE — PERSISTED IN localStorage
     // ============================================================
     const State = {
-        apiKey: localStorage.getItem('brain_api_key') || '',
-        model: localStorage.getItem('brain_model') || 'gemini-flash-latest',
-        provider: localStorage.getItem('brain_provider') || 'gemini',
+        apiKey: sessionStorage.getItem('brain_control_api_key') || '',
+        model: localStorage.getItem('brain_api_base_url') || 'http://localhost:8000',
+        provider: 'brain',
         repo: localStorage.getItem('brain_repo') || 'madnessgate44-debug/brain',
         missions: [],
         messages: [],
@@ -482,9 +480,10 @@
     };
 
     function saveSettings() {
-        localStorage.setItem('brain_api_key', State.apiKey);
-        localStorage.setItem('brain_model', State.model);
-        localStorage.setItem('brain_provider', State.provider);
+        sessionStorage.setItem('brain_control_api_key', State.apiKey);
+        localStorage.removeItem('brain_api_key');
+        localStorage.setItem('brain_api_base_url', State.model);
+        localStorage.removeItem('brain_provider');
         localStorage.setItem('brain_repo', State.repo);
         const parts = State.repo.split('/');
         State.repoUser = parts[0] || '';
@@ -511,137 +510,64 @@
     // ============================================================
     // GITHUB API — READ/WRITE MISSIONS
     // ============================================================
+    async function brainRequest(path, options = {}) {
+        const base = (State.model || 'http://localhost:8000').replace(/\/+$/, '');
+        if (!State.apiKey) throw new Error('Enter the Brain control API key in Settings.');
+        let response;
+        try {
+            response = await fetch(base + path, {
+                method: options.method || 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Brain-API-Key': State.apiKey,
+                    ...(options.headers || {})
+                },
+                body: options.body ? JSON.stringify(options.body) : undefined
+            });
+        } catch (_) {
+            throw new Error('Brain API is unreachable. Check the API URL and deployment status.');
+        }
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload.detail || 'Brain API request failed (HTTP ' + response.status + ').');
+        }
+        return payload;
+    }
+
     async function loadMissionsFromGitHub() {
         try {
-            const [owner, repo] = State.repo.split('/');
-            if (!owner || !repo) throw new Error('Invalid repository format');
-
-            const url = `https://api.github.com/repos/${owner}/${repo}/contents/brain-missions.json`;
-            const res = await fetch(url, {
-                headers: { 'Accept': 'application/vnd.github+json' }
-            });
-
-            if (!res.ok) {
-                if (res.status === 404) {
-                    State.missions = [];
-                    renderMissions();
-                    return;
-                }
-                throw new Error(`HTTP ${res.status}`);
-            }
-
-            const data = await res.json();
-            const decoded = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
-            State.missions = JSON.parse(decoded);
+            const payload = await brainRequest('/missions?limit=100');
+            State.missions = payload.missions || [];
             renderMissions();
         } catch (e) {
-            console.warn('Failed to load missions:', e);
             State.missions = [];
             renderMissions();
+            toast(e.message, 'error');
         }
     }
 
-    async function saveMissionsToGitHub() {
-        try {
-            const [owner, repo] = State.repo.split('/');
-            if (!owner || !repo) throw new Error('Invalid repository format');
-
-            const content = JSON.stringify(State.missions, null, 2);
-            const encoded = btoa(unescape(encodeURIComponent(content)));
-
-            // Check if file exists to get SHA
-            let sha = null;
-            try {
-                const checkRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/brain-missions.json`, {
-                    headers: { 'Accept': 'application/vnd.github+json' }
-                });
-                if (checkRes.ok) {
-                    const data = await checkRes.json();
-                    sha = data.sha;
-                }
-            } catch (e) {}
-
-            const body = {
-                message: 'Update missions via Brain App',
-                content: encoded,
-                branch: 'main'
-            };
-            if (sha) body.sha = sha;
-
-            const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/brain-missions.json`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${State.apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
-
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.message || `HTTP ${res.status}`);
-            }
-        } catch (e) {
-            console.error('Failed to save missions:', e);
-            throw e;
-        }
-    }
-
-    // ============================================================
-    // GEMINI API
-    // ============================================================
-    async function callGemini(messages) {
-        const key = State.apiKey;
-        const model = State.model;
-        if (!key) throw new Error('API key is required. Go to Settings.');
-        if (!model) throw new Error('Model is required.');
-
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-
-        const contents = messages.map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }]
-        }));
-
-        const systemInstruction = `You are Brain, a mission orchestration assistant. You help users create and manage missions.
-        When a user describes a task, create a mission with:
-        - A clear title
-        - A detailed objective
-        - Suggested priority (LOW, MEDIUM, HIGH)
-        - Suggested risk level (LOW, MEDIUM, HIGH)
-
-        Format mission creation like this:
-        ---MISSION---
-        Title: [title]
-        Objective: [objective]
-        Priority: [priority]
-        Risk Level: [risk]
-        ---END MISSION---
-
-        Be helpful, concise, and focused on getting things done.`;
-
-        const body = {
-            contents: contents,
-            systemInstruction: { parts: [{ text: systemInstruction }] },
-            generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 2048,
-            }
-        };
-
-        const response = await fetch(url, {
+    async function createMissionFromText(objective) {
+        const title = objective.length > 80 ? objective.slice(0, 77) + '...' : objective;
+        return brainRequest('/missions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
+            body: { title, objective, priority: 'MEDIUM', risk_level: 'LOW' }
         });
+    }
 
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error?.message || `HTTP ${response.status}`);
-        }
+    async function startCompanyWorkflow(objective) {
+        const title = objective.length > 80 ? objective.slice(0, 77) + '...' : objective;
+        return brainRequest('/company-workflows', {
+            method: 'POST',
+            body: { title, objective, repository: State.repo }
+        });
+    }
 
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    async function callGemini(messages) {
+        const payload = await brainRequest('/chat', {
+            method: 'POST',
+            body: { messages: messages.map(m => ({ role: m.role, content: m.content })) }
+        });
+        return payload.reply || '';
     }
 
     // ============================================================
