@@ -166,14 +166,26 @@ class GitHubRepositoryGateway:
         if not commit_message.strip() or len(commit_message) > 180:
             raise GitHubGatewayError("Commit message must be 1–180 characters.")
 
+        seen_paths: set[str] = set()
+        aggregate_bytes = 0
         for item in files:
             if not isinstance(item, dict) or not isinstance(item.get("path"), str):
                 raise GitHubGatewayError("Each change must contain a path and text content.")
-            self._validate_path(item["path"])
+            path = item["path"]
+            self._validate_path(path)
+            if path in seen_paths:
+                raise GitHubGatewayError(f"Duplicate file path in change set: {path}")
+            seen_paths.add(path)
             if not isinstance(item.get("content"), str):
                 raise GitHubGatewayError("Binary or missing file content is not supported.")
-            if len(item["content"].encode("utf-8")) > 200_000:
-                raise GitHubGatewayError(f"{item['path']} exceeds the 200 KB per-file limit.")
+            size = len(item["content"].encode("utf-8"))
+            if size > 200_000:
+                raise GitHubGatewayError(f"{path} exceeds the 200 KB per-file limit.")
+            aggregate_bytes += size
+        if aggregate_bytes > 2_200_000:
+            raise GitHubGatewayError(
+                "Change set exceeds the 2,200,000-byte aggregate limit."
+            )
 
         base = f"/repos/{quote(owner)}/{quote(name)}"
         repo = await self._request("GET", base)
