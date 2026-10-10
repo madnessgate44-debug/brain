@@ -100,11 +100,7 @@ class BrowserPlanner:
             "objective": normalized_objective.strip(),
             "actions": actions,
             "requires_owner_approval": any(
-                action["op"] in {
-                    "click", "type", "press", "select", "wait_for", "screenshot",
-                    "hover", "scroll", "go_back", "go_forward", "reload",
-                }
-                for action in actions
+                action["op"] in {"click", "type", "press", "select"} for action in actions
             ),
             "execution_started": False,
         }
