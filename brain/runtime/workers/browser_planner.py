@@ -23,6 +23,7 @@ Return ONLY one JSON object with exactly this shape:
 Supported actions and schemas:
 - {"op":"navigate","url":"https://public-host/path"}
 - {"op":"inspect","max_chars":3000}
+- {"op":"extract_links","max_chars":3000}
 - {"op":"click","selector":"CSS selector"}
 - {"op":"type","selector":"CSS selector","text":"text to enter","clear":true}
 - {"op":"press","selector":"CSS selector","key":"Enter"}
