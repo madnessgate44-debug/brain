@@ -27,11 +27,13 @@ class MissionService:
         event_repo: EventRepository,
         artifact_store: ArtifactStore,
         session_factory: async_sessionmaker[AsyncSession],
+        heartbeat_interval_seconds: float = 30.0,
     ):
         self.mission_repo = mission_repo
         self.event_repo = event_repo
         self.artifact_store = artifact_store
         self.session_factory = session_factory
+        self.heartbeat_interval_seconds = max(0.1, float(heartbeat_interval_seconds))
 
     async def create_mission(self, data: MissionCreate) -> MissionResponse:
         """Create a new mission."""
@@ -135,6 +137,7 @@ class MissionService:
             session_factory=self.session_factory,
             artifact_store=self.artifact_store,
             max_iterations=mission.max_loop_iterations,
+            heartbeat_interval_seconds=self.heartbeat_interval_seconds,
         )
         runtime_registry.register(runtime)
         await runtime_registry.start(mission_id)
