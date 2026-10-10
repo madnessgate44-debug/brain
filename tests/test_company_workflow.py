@@ -5,7 +5,7 @@ import pytest
 from brain.company.roles import ROLE_CATALOG, ROLE_BY_KEY, WORKFLOW_ORDER
 from brain.company.run_issue_workflow import parse_issue_body
 from brain.company.diagnostics import failure_report
-from brain.company.engine import CompanyWorkflowBlocked
+from brain.company.engine import CompanyWorkflowBlocked, validate_change_set_scope
 from brain.company.workflow import (
     WorkflowPolicyError,
     evaluate_release_gate,
@@ -107,3 +107,34 @@ def test_failure_report_preserves_sanitized_stage_evidence_and_known_non_mutatio
     assert report["stage_evidence"]["role_outputs"]["product_owner"]["blockers"] == ["needs evidence"]
     assert report["impact"]["repository_mutation_status"] == "NOT_STARTED"
     assert report["impact"]["tests_status"] == "NOT_STARTED"
+
+
+@pytest.mark.parametrize("request", [
+    "A documentation-only change does NOT satisfy the task.",
+    "A docs-only report does not satisfy acceptance.",
+])
+def test_explicitly_disallowed_documentation_only_change_set_is_rejected(request):
+    change_set = {"files": [{"path": "docs/BRAIN_RELIABILITY_MISSION_REPORT.md", "content": "# Report"}]}
+    errors = validate_change_set_scope(change_set, request)
+    assert errors
+    assert "documentation-only change does not satisfy" in errors[0]
+
+
+def test_explicit_implementation_requirement_accepts_code_and_regression_tests():
+    change_set = {"files": [
+        {"path": "brain/company/engine.py", "content": "implementation"},
+        {"path": "tests/test_company_workflow.py", "content": "regression test"},
+        {"path": "docs/reliability.md", "content": "report"},
+    ]}
+    assert validate_change_set_scope(
+        change_set,
+        "A documentation-only change does NOT satisfy the task; add implementation and regression tests.",
+    ) == ()
+
+
+def test_documentation_only_change_remains_allowed_when_requested():
+    change_set = {"files": [{"path": "docs/acceptance.md", "content": "# Acceptance"}]}
+    assert validate_change_set_scope(
+        change_set,
+        "Create a documentation-only acceptance report.",
+    ) == ()
