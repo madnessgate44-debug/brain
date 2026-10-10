@@ -18,6 +18,47 @@ from brain.company.llm_provider import OpenAICompatibleProvider
 from brain.company.tools import GitHubCompanyTools
 
 
+
+def build_audit_source_chunks(
+    source_contents: dict[str, str],
+    max_chars: int = 130000,
+    max_line_chars: int = 3500,
+) -> list[dict[str, str]]:
+    """Encode numbered source compactly so audit context does not repeat paths per line."""
+    chunks: list[dict[str, str]] = []
+    current: list[str] = []
+    current_size = 0
+    chunk_number = 1
+
+    def flush() -> None:
+        nonlocal current, current_size, chunk_number
+        if current:
+            chunks.append({"chunk_id": f"source-{chunk_number:03d}", "text": "\\n".join(current)})
+            chunk_number += 1
+        current = []
+        current_size = 0
+
+    for path, content in source_contents.items():
+        header = f"FILE: {path}"
+        if current and current_size + len(header) + 1 > max_chars:
+            flush()
+        current.append(header)
+        current_size += len(header) + 1
+        for line_number, raw_line in enumerate(content.splitlines(), start=1):
+            line = raw_line
+            if len(line) > max_line_chars:
+                line = line[:max_line_chars] + " [LINE TRUNCATED FOR PROMPT SIZE]"
+            rendered = f"L{line_number}: {line}"
+            if current and current_size + len(rendered) + 1 > max_chars:
+                flush()
+                current.append(header)
+                current_size = len(header) + 1
+            current.append(rendered)
+            current_size += len(rendered) + 1
+    flush()
+    return chunks
+
+
 def request_from_issue() -> tuple[str, str, int]:
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
@@ -241,29 +282,10 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         if not snapshot.get("source_contents"):
             raise RuntimeError("Repository inspection returned no readable source files.")
 
-        def make_chunks(source_contents: dict[str, str], max_chars: int = 130000) -> list[dict[str, str]]:
-            chunks: list[dict[str, str]] = []
-            current: list[str] = []
-            current_size = 0
-            chunk_number = 1
-            for path, content in source_contents.items():
-                for line_number, raw_line in enumerate(content.splitlines(), start=1):
-                    line = raw_line
-                    if len(line) > 3500:
-                        line = line[:3500] + " [LINE TRUNCATED FOR PROMPT SIZE]"
-                    rendered = f"{path}:L{line_number}: {line}"
-                    if current and current_size + len(rendered) + 1 > max_chars:
-                        chunks.append({"chunk_id": f"source-{chunk_number:03d}", "text": "\n".join(current)})
-                        chunk_number += 1
-                        current = []
-                        current_size = 0
-                    current.append(rendered)
-                    current_size += len(rendered) + 1
-            if current:
-                chunks.append({"chunk_id": f"source-{chunk_number:03d}", "text": "\n".join(current)})
-            return chunks
 
-        chunks = make_chunks(snapshot["source_contents"])
+
+        audit_brief = objective.split("\n\nAUDIT RERUN REQUEST", 1)[0]
+        chunks = build_audit_source_chunks(snapshot["source_contents"])
         if not chunks:
             raise RuntimeError("Repository inspection produced no source evidence chunks.")
         evidence_summaries: list[dict[str, str]] = []
@@ -275,7 +297,9 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         })
         batch_system = (
             "You are performing one evidence-extraction pass in a read-only software audit. "
-            "Analyze ONLY the supplied numbered source lines. Do not infer that a feature works merely "
+            "Source is grouped under FILE: <path> headers and each line begins L<number>:. Cite findings " 
+            "as exact path:Lx or path:Lx-Ly references. Analyze ONLY the supplied numbered source lines. " 
+            "Do not infer that a feature works merely "
             "because a component exists. Do not claim tests ran. For each meaningful observation, cite "
             "exact path and line references exactly as supplied (path:Lx or path:Lx-Ly), explain the "
             "observed code behavior, and classify it as CONFIRMED, RISK, CONTRADICTED, or UNKNOWN. "
@@ -286,7 +310,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
             summary = await provider.complete(
                 batch_system,
                 json.dumps({
-                    "objective": objective,
+                    "objective": audit_brief,
                     "repository": repository,
                     "base_commit": snapshot.get("base_commit"),
                     "chunk_id": chunk["chunk_id"],
@@ -340,7 +364,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         draft = await provider.complete(
             synthesis_system,
             json.dumps({
-                "objective": objective,
+                "objective": audit_brief,
                 "inventory": inventory,
                 "evidence_passes": evidence_summaries,
             }, ensure_ascii=False, default=str),
