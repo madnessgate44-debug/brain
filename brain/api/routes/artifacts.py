@@ -4,9 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from brain.schemas.artifact import ArtifactCreate, ArtifactResponse
 from brain.services.artifact_service import ArtifactService
-from brain.api.deps import get_artifact_service
+from brain.api.deps import get_artifact_service, require_control_key
 
-router = APIRouter(prefix="/missions/{mission_id}/artifacts", tags=["artifacts"])
+router = APIRouter(
+    prefix="/missions/{mission_id}/artifacts",
+    tags=["artifacts"],
+    dependencies=[Depends(require_control_key)],
+)
 
 
 @router.get("", response_model=list[ArtifactResponse])
