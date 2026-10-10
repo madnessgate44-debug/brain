@@ -76,12 +76,11 @@ async def build_gateway(
         and bool(control_repo)
         and repository.casefold() == control_repo
     )
-    # Prefer the configured PAT for mutating missions on the control repository because
-    # repository settings may forbid GITHUB_TOKEN from creating pull requests even when
-    # contents:write is granted. Keep the scoped Actions token as a fallback for bounded
-    # same-repository writes. A PAT is never used for another owner's repository.
+    # Use the workflow token for bounded contents writes to the control repository.
+    # Pull-request creation uses the separate configured PAT gateway because repository
+    # settings may forbid GITHUB_TOKEN from opening PRs. External repositories use the PAT.
     ordered_tokens = (
-        [("BRAIN_GITHUB_TOKEN", primary), ("BRAIN_GITHUB_ACTIONS_TOKEN", actions)]
+        [("BRAIN_GITHUB_ACTIONS_TOKEN", actions), ("BRAIN_GITHUB_TOKEN", primary)]
         if is_control_repo_write
         else [("BRAIN_GITHUB_TOKEN", primary), ("BRAIN_GITHUB_ACTIONS_TOKEN", actions)]
     )
