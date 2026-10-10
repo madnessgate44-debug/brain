@@ -99,6 +99,14 @@ class MissionService:
                 f"Mission {mission_id} cannot be started from status {mission.status}; "
                 "only PENDING missions can start. Paused missions require explicit resume support."
             )
+        if mission.approval_state in {
+            "PENDING", "REJECTED", "EXPIRED",
+        }:
+            raise RuntimeError(
+                f"Mission {mission_id} cannot start while approval_state is "
+                f"{mission.approval_state}; a pending approval must be approved first, "
+                "and rejected or expired approvals must be resolved before execution."
+            )
 
         runtime_id = generate_runtime_id()
         heartbeat = utc_now()
