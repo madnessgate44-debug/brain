@@ -140,9 +140,12 @@ class GitHubCompanyTools:
         return snapshot
 
     async def apply_change_set(
-        self, change_set: dict[str, Any], repository: str
+        self,
+        change_set: dict[str, Any],
+        repository: str,
+        expected_base_sha: str | None = None,
     ) -> dict[str, Any]:
-        """Create a unique branch and commit the model-proposed file changes."""
+        """Create a branch only if the inspected base commit is still current."""
         summary = change_set.get("summary", "Implement approved software requirements")
         if not isinstance(summary, str):
             summary = "Implement approved software requirements"
@@ -152,6 +155,7 @@ class GitHubCompanyTools:
             change_set=change_set,
             branch_name=branch,
             commit_message=f"Brain: {summary[:140]}",
+            expected_base_sha=expected_base_sha,
         )
         return result
 
