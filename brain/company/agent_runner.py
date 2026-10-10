@@ -141,6 +141,13 @@ def _prepare_prompt_evidence(
         }
         snapshot_view["file_index"] = file_index
         snapshot_view["source_manifest"] = _compact_source_manifest(manifest)
+        explicit_context_paths = set(_SOURCE_PATH_RE.findall(user_request))
+        planned_paths = evidence.get("file_plan", [])
+        changed_paths = evidence.get("changed_files", [])
+        if isinstance(planned_paths, list):
+            explicit_context_paths.update(path for path in planned_paths if isinstance(path, str))
+        if isinstance(changed_paths, list):
+            explicit_context_paths.update(path for path in changed_paths if isinstance(path, str))
         if role_key in {"architect", "developer"}:
             budget = _ARCHITECT_SOURCE_BUDGET_CHARS if role_key == "architect" else _SOURCE_BUDGET_CHARS
             selected = _select_source_contents(
@@ -156,7 +163,7 @@ def _prepare_prompt_evidence(
                 "selected_chars": sum(len(content) for content in selected.values()),
                 "budget_chars": budget,
                 "omitted_explicit_paths": sorted(
-                    path for path in explicit_paths
+                    path for path in explicit_context_paths
                     if path in source_contents and path not in selected
                 ),
                 "note": "Only complete files selected by task relevance are supplied; use the manifest to identify omitted context.",
