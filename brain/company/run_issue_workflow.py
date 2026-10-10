@@ -146,15 +146,18 @@ def request_from_issue() -> tuple[str, str, int]:
         raise RuntimeError("Missing /brain simulate command.")
     repository = os.environ.get("BRAIN_TARGET_REPOSITORY", "").strip()
     if not repository:
-        import re
         match = re.search(r"(?im)^repository:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
-        repository = match.group(1) if match else ""
-    if not repository or "/" not in repository:
-        raise RuntimeError("Add a repository: owner/name line to the issue body.")
+        # Match the task-runner contract: when no target is supplied, use the
+        # current repository rather than aborting before the mission is parsed.
+        repository = match.group(1) if match else os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise RuntimeError("Target repository must use owner/repository format.")
     if repository.split("/", 1)[0].casefold() != owner.casefold():
         raise RuntimeError("Target repository must belong to the Brain repository owner.")
     objective = body.split("/brain simulate", 1)[1].strip()
-    import re
+    # Issue bodies may contain multiple Brain commands. They are workflow
+    # directives, not part of the natural-language objective for the agents.
+    objective = re.sub(r"(?im)^\s*/brain\s+\w+.*$", "", objective).strip()
     objective = re.sub(r"(?im)^repository:\s*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\s*$", "", objective).strip()
     if objective.lower().startswith("objective:"):
         objective = objective[len("objective:"):].strip()
