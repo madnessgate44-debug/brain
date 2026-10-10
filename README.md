@@ -148,3 +148,25 @@ yet a general-purpose remote terminal or autonomous code-editing agent.
 - Mobile operations guide and usage/cost monitoring.
 
 Do not treat planned items as available until implemented and verified.
+
+
+## Mission-free conversational API
+
+Brain provides an authenticated `POST /chat` endpoint for ordinary model conversation.
+It uses the configured model provider directly and does not create a mission, enqueue a workflow,
+or write to a repository.
+
+- Header: `X-Brain-API-Key: <BRAIN_CONTROL_API_KEY>`
+- JSON body: `{"messages":[{"role":"user","content":"Reply with exactly BRAIN_CHAT_OK"}]}`
+- Supported message roles: `user` and `assistant`; the final message must be from the user.
+- Conversation limit: 16 messages, up to 6,000 characters per message.
+- Provider settings: `BRAIN_AI_API_KEY`, `BRAIN_AI_MODEL`, and `BRAIN_AI_BASE_URL`.
+  For Gemini's OpenAI-compatible API, use `https://generativelanguage.googleapis.com/v1beta/openai`.
+- Responses contain the model reply, configured model name, and number of messages in context.
+  Authentication failures and provider errors are returned without raw provider payloads.
+
+This endpoint is implemented in the FastAPI application. A successful local/CI runtime test does
+not by itself make it reachable from the public internet: a persistent deployment must run this
+application with the required environment variables and expose its HTTPS base URL. No production
+deployment URL is configured in this repository, so do not treat the endpoint as externally
+reachable until deployment and an external health/chat smoke test are recorded.
