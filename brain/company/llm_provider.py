@@ -36,9 +36,10 @@ class OpenAICompatibleProvider:
     ):
         self.api_key = api_key or get_setting("BRAIN_AI_API_KEY")
         self.base_url = (base_url or get_setting(
-            "BRAIN_AI_BASE_URL", "https://api.openai.com/v1"
+            "BRAIN_AI_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta/openai",
         )).rstrip("/")
-        self.model = model or get_setting("BRAIN_AI_MODEL")
+        self.model = model or get_setting("BRAIN_AI_MODEL", "gemini-3.5-flash-lite")
         self.timeout_seconds = timeout_seconds
         self._client = client
 
