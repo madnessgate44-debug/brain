@@ -93,10 +93,26 @@ async def build_gateway(
     for label, token in candidates:
         candidate = GitHubRepositoryGateway(token=token, allowed_owner=owner)
         try:
-            if "repository:write" in capability_plan.required_capabilities:
+            if (
+                "repository:write" in capability_plan.required_capabilities
+                and label == "BRAIN_GITHUB_ACTIONS_TOKEN"
+                and is_control_repo_write
+            ):
+                # GitHub's repository metadata can report push=false for the workflow token
+                # even when the job's explicit contents:write permission authorizes Git Data writes.
+                # Do not mistake that metadata field for an authoritative token-scope check.
+                snapshot = await candidate.inspect_repository(repository, max_files=1)
+                detail = (
+                    f"{label} passed read preflight for the control repository; effective write "
+                    "permission will be established by the actual bounded change-set request."
+                )
+            elif "repository:write" in capability_plan.required_capabilities:
                 permission_result = await candidate.verify_write_access(repository)
                 if permission_result.get("write_access") is True:
-                    detail = f"{label} confirmed push permission for target repository {repository}."
+                    detail = (
+                        f"{label} repository metadata reports push permission for {repository}; "
+                        "the actual write API has not yet been exercised."
+                    )
                 else:
                     detail = (
                         f"{label} can read target repository {repository}; GitHub did not expose push "
