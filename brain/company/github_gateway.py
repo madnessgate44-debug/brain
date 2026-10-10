@@ -75,25 +75,23 @@ class GitHubRepositoryGateway:
                 await client.aclose()
 
     async def verify_write_access(self, repository: str) -> dict[str, Any]:
-        """Verify Git blobs write access without creating a commit or branch ref."""
+        """Check repository metadata and advertised push permission without mutating Git objects."""
         owner, name = self._validate_repository(repository)
         base = f"/repos/{quote(owner)}/{quote(name)}"
-        # This fixed content-addressed blob is deliberately not referenced by a tree,
-        # commit, or branch. Repeated probes deduplicate to the same Git object.
-        probe = await self._request(
-            "POST",
-            f"{base}/git/blobs",
-            json={
-                "content": "Brain write-access preflight probe; not referenced by a commit.",
-                "encoding": "utf-8",
-            },
-        )
-        if not isinstance(probe.get("sha"), str) or not re.fullmatch(r"[0-9a-f]{40}", probe["sha"]):
+        metadata = await self._request("GET", base)
+        permissions = metadata.get("permissions")
+        push_permission = permissions.get("push") if isinstance(permissions, dict) else None
+        if push_permission is False:
             raise GitHubGatewayError(
-                "GitHub write access preflight returned an invalid blob response. "
-                "No model workflow was started."
+                f"GitHub confirms the selected credential lacks push permission for {repository}."
             )
-        return {"repository": repository, "write_access": True}
+        # GitHub does not expose permission details in every response. If omitted, record
+        # the uncertainty and let the actual requested write operation provide the final proof.
+        return {
+            "repository": repository,
+            "write_access": push_permission is True,
+            "permission_evidence": "confirmed_push" if push_permission is True else "not_exposed_by_api",
+        }
 
     async def inspect_repository(self, repository: str, max_files: int = 80) -> dict[str, Any]:
         """Return a bounded repository snapshot for planning and review."""
