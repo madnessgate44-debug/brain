@@ -1,11 +1,13 @@
-"""Bounded public GitHub discovery for Brain's R&D agent.
+"""Bounded GitHub discovery for Brain's R&D agent.
 
 Discovery is read-only. Candidate repositories are metadata-scanned only; this module
-never clones, installs, or executes third-party code.
+never clones, installs, or executes third-party code. Private repository metadata is
+searched only when a dedicated authorized read-only token is configured.
 """
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -25,7 +27,7 @@ DEFAULT_QUERIES = (
 
 
 class GitHubRepositoryDiscovery:
-    """Search public GitHub repository metadata with bounded request volume."""
+    """Search GitHub repository metadata with bounded request volume."""
 
     def __init__(
         self,
@@ -34,29 +36,38 @@ class GitHubRepositoryDiscovery:
         per_query: int = 15,
         timeout_seconds: float = 15.0,
         now: datetime | None = None,
+        token: str | None = None,
     ) -> None:
         self._client = client
         self.queries = queries
         self.per_query = min(30, max(1, per_query))
         self.timeout_seconds = timeout_seconds
         self.now = now or datetime.now(timezone.utc)
+        self.token = (token if token is not None else os.getenv("BRAIN_RD_GITHUB_TOKEN", "")).strip()
 
     async def search(self, max_candidates: int = 30) -> list[dict[str, Any]]:
-        """Return deduplicated, recently active public repository candidates."""
+        """Return deduplicated, recently active public and authorized private candidates."""
         limit = min(100, max(1, max_candidates))
         cutoff = (self.now - timedelta(days=180)).date().isoformat()
         owns_client = self._client is None
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "Brain-RD-Agent",
+        }
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
         client = self._client or httpx.AsyncClient(
             timeout=self.timeout_seconds,
-            headers={
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "Brain-RD-Agent",
-            },
+            headers=headers,
         )
+        queries = list(self.queries)
+        if self.token:
+            # The dedicated token must be read-only and explicitly authorized by the owner.
+            queries.append("is:private archived:false")
         found: dict[str, dict[str, Any]] = {}
         try:
-            for query in self.queries:
+            for query in queries:
                 response = await client.get(
                     "https://api.github.com/search/repositories",
                     params={
@@ -65,6 +76,7 @@ class GitHubRepositoryDiscovery:
                         "order": "desc",
                         "per_page": self.per_query,
                     },
+                    headers=headers if self._client is not None else None,
                 )
                 if response.status_code == 403 and response.headers.get("X-RateLimit-Remaining") == "0":
                     raise DiscoveryError("GitHub search API rate limit reached; retry in a later run.")
@@ -101,6 +113,7 @@ class GitHubRepositoryDiscovery:
                         "pushed_at": pushed_at,
                         "created_at": item.get("created_at"),
                         "topics": item.get("topics", []) if isinstance(item.get("topics"), list) else [],
+                        "private": item.get("private") is True,
                     }
                     previous = found.get(full_name)
                     if previous is None or candidate["stars"] > previous["stars"]:
@@ -122,7 +135,7 @@ class GitHubRepositoryDiscovery:
 
 
 def heuristic_score(candidate: dict[str, Any], now: datetime | None = None) -> int:
-    """Score public metadata only; this is a triage signal, not a security verdict."""
+    """Score repository metadata only; this is a triage signal, not a security verdict."""
     now = now or datetime.now(timezone.utc)
     score = 0
     stars = int(candidate.get("stars") or 0)
