@@ -149,7 +149,6 @@ def main() -> None:
         report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(report_path.read_text(encoding="utf-8"))
     except Exception as exc:
-        # Avoid printing raw exception strings: upstream HTTP errors can contain sensitive details.
         safe_message = str(exc)
         for secret_name in ("BRAIN_GITHUB_TOKEN", "BRAIN_AI_API_KEY"):
             secret = os.environ.get(secret_name, "")
