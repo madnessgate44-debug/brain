@@ -160,11 +160,25 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
     control_repository = os.environ.get(
         "BRAIN_CONTROL_REPOSITORY", "madnessgate44-debug/brain"
     )
+    primary_token = os.environ.get("BRAIN_GITHUB_TOKEN", "").strip()
+    if plan.mode == "mutating" and not primary_token:
+        raise RuntimeError(
+            "BRAIN_GITHUB_TOKEN is required to trigger the test workflow: issue events "
+            "created with the workflow GITHUB_TOKEN do not start downstream workflows."
+        )
+    verification_gateway = (
+        GitHubRepositoryGateway(token=primary_token, allowed_owner=os.environ.get(
+            "BRAIN_GITHUB_OWNER", "madnessgate44-debug"
+        ))
+        if primary_token
+        else None
+    )
     tools = GitHubCompanyTools(
         gateway=gateway,
         control_repository=control_repository,
         poll_seconds=5,
         timeout_seconds=900,
+        verification_gateway=verification_gateway,
     )
     provider = OpenAICompatibleProvider(
         api_key=os.environ["BRAIN_AI_API_KEY"],
