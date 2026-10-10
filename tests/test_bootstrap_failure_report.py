@@ -184,6 +184,71 @@ def test_ensure_failure_reports_renders_missing_markdown_from_valid_json(tmp_pat
     assert "Commit SHA: abc123" in markdown
 
 
+def test_ensure_failure_reports_repairs_empty_markdown_preserves_valid_json(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    valid_report = build_bootstrap_failure_report(BASE_ENV, {"issue": {"number": 154}})
+    original_json = json.dumps(valid_report)
+    json_path.write_text(original_json, encoding="utf-8")
+    markdown_path.write_text("   \n ", encoding="utf-8")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert json_path.read_text(encoding="utf-8") == original_json
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "# Brain execution failure report" in markdown
+    assert "Commit SHA: abc123" in markdown
+
+
+def test_ensure_failure_reports_repairs_invalid_utf8_markdown_preserves_valid_json(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    valid_report = build_bootstrap_failure_report(BASE_ENV, {"issue": {"number": 154}})
+    original_json = json.dumps(valid_report)
+    json_path.write_text(original_json, encoding="utf-8")
+    markdown_path.write_bytes(b"\xff\xfe\x00\x01")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert json_path.read_text(encoding="utf-8") == original_json
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "# Brain execution failure report" in markdown
+    assert "Commit SHA: abc123" in markdown
+
+
+def test_ensure_failure_reports_preserves_valid_json_and_markdown(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    valid_report = build_bootstrap_failure_report(BASE_ENV, {"issue": {"number": 154}})
+    original_json = json.dumps(valid_report)
+    json_path.write_text(original_json, encoding="utf-8")
+    valid_markdown = render_failure_markdown(valid_report)
+    markdown_path.write_text(valid_markdown, encoding="utf-8")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is False
+    assert json_path.read_text(encoding="utf-8") == original_json
+    assert markdown_path.read_text(encoding="utf-8") == valid_markdown
+
+
 def test_workflow_wires_helper_and_retains_checkout_safe_fallback():
     from pathlib import Path
 
@@ -294,3 +359,25 @@ def test_ensure_failure_reports_repairs_invalid_utf8_json(tmp_path):
     assert created is True
     assert markdown_path.read_text(encoding="utf-8") == "pre-existing markdown report"
     assert json.loads(json_path.read_text(encoding="utf-8"))["status"] == "FAILED"
+
+
+def test_ensure_failure_reports_repairs_zero_byte_markdown_preserves_valid_json(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    valid_report = build_bootstrap_failure_report(BASE_ENV, {"issue": {"number": 154}})
+    original_json = json.dumps(valid_report)
+    json_path.write_text(original_json, encoding="utf-8")
+    markdown_path.write_bytes(b"")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert json_path.read_text(encoding="utf-8") == original_json
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "# Brain execution failure report" in markdown
+    assert "Commit SHA: abc123" in markdown

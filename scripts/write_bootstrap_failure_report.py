@@ -149,7 +149,7 @@ def ensure_failure_reports(
     markdown_path: str | Path = "brain-company-result.md",
     json_path: str | Path = "brain-company-result.json",
 ) -> bool:
-    """Validate JSON and create or repair missing/malformed report files."""
+    """Validate JSON and Markdown report files, repairing or regenerating missing/malformed pairs."""
     md_path = Path(markdown_path)
     report_path = Path(json_path)
 
@@ -166,7 +166,16 @@ def ensure_failure_reports(
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             pass
 
-    if md_path.exists() and json_valid:
+    md_valid = False
+    if md_path.exists():
+        try:
+            md_content = md_path.read_text(encoding="utf-8")
+            if md_content.strip():
+                md_valid = True
+        except (OSError, UnicodeDecodeError):
+            pass
+
+    if md_valid and json_valid:
         return False
 
     if report_data is None:
@@ -182,7 +191,7 @@ def ensure_failure_reports(
         )
         changed = True
 
-    if not md_path.exists():
+    if not md_valid:
         md_path.write_text(render_failure_markdown(report), encoding="utf-8")
         changed = True
 
