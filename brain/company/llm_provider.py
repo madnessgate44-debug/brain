@@ -100,7 +100,7 @@ class OpenAICompatibleProvider:
                 if isinstance(reason, str) and re.fullmatch(r"[A-Z][A-Z0-9_]{1,63}", reason):
                     parts.append("reason=" + reason)
                 retry_delay = detail.get("retryDelay")
-                if isinstance(retry_delay, str) and re.fullmatch(r"\\d+(?:\\.\\d+)?s", retry_delay):
+                if isinstance(retry_delay, str) and re.fullmatch(r"\d+(?:\.\d+)?s", retry_delay):
                     parts.append("retry_delay=" + retry_delay)
                 violations = detail.get("violations", [])
                 if isinstance(violations, list):
