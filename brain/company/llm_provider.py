@@ -35,10 +35,17 @@ class OpenAICompatibleProvider:
         client: httpx.AsyncClient | None = None,
     ):
         self.api_key = api_key or get_setting("BRAIN_AI_API_KEY")
-        self.base_url = (base_url or get_setting(
+        configured_base_url = (base_url or get_setting(
             "BRAIN_AI_BASE_URL",
             "https://generativelanguage.googleapis.com/v1beta/openai",
         )).rstrip("/")
+        parsed_base_url = urlparse(configured_base_url)
+        if (
+            parsed_base_url.hostname == "generativelanguage.googleapis.com"
+            and parsed_base_url.path.rstrip("/").endswith(("/v1beta", "/v1"))
+        ):
+            configured_base_url += "/openai"
+        self.base_url = configured_base_url
         self.model = model or get_setting("BRAIN_AI_MODEL", "gemini-3.5-flash-lite")
         self.timeout_seconds = timeout_seconds
         self._client = client
