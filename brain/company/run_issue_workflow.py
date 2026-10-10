@@ -355,7 +355,11 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         events.append({
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "stage": "repository_inspection",
-            "status": "PASS" if manifest.get("read_count", 0) else "FAIL",
+            "status": (
+                "PASS" if manifest.get("coverage_complete") is True
+                else "WARN" if manifest.get("read_count", 0)
+                else "FAIL"
+            ),
             "detail": (
                 f"Read {manifest.get('read_count', 0)}/{manifest.get('candidate_count', 0)} "
                 f"candidate files at {snapshot.get('base_commit')}; "
