@@ -188,7 +188,10 @@ async def test_customer_advocate_scope_rule_covers_non_ui_work():
             role = ROLE_BY_KEY["customer_advocate"]
             return json.dumps({
                 "status": "PASS",
-                "deliverables": {key: "not applicable to documentation-only scope" for key in role.deliverables},
+                "deliverables": {
+                    key: ("PASS" if key == "customer_review" else "not applicable to documentation-only scope")
+                    for key in role.deliverables
+                },
                 "findings": [],
                 "blockers": [],
                 "evidence_needed": [],
