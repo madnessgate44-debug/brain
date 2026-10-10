@@ -198,6 +198,7 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
             raise BrowserPolicyError(f"action {index} requires a select value no longer than 5000 characters")
         if op == "scroll" and (
             action.get("direction", "down") not in {"up", "down", "left", "right"}
+            or isinstance(action.get("amount", 600), bool)
             or not isinstance(action.get("amount", 600), int)
             or not 1 <= action.get("amount", 600) <= 5000
         ):
