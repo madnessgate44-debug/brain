@@ -303,3 +303,21 @@ def test_company_tools_defaults_control_repository_from_owner(monkeypatch):
     tools = GitHubCompanyTools(gateway=object())
 
     assert tools.control_repository == "example-owner/brain"
+
+
+
+@pytest.mark.asyncio
+async def test_verification_issue_respects_control_repository_owner_allowlist():
+    trigger_gateway = FakeGateway("pat")
+    tools = GitHubCompanyTools(
+        gateway=FakeGateway("write"),
+        verification_gateway=trigger_gateway,
+        control_repository="other-owner/brain",
+        poll_seconds=0,
+        timeout_seconds=1,
+    )
+
+    with pytest.raises(RuntimeError, match="repository owner is not allowed"):
+        await tools.run_checks("owner/brain", "brain/test-branch")
+
+    assert trigger_gateway.calls == []
