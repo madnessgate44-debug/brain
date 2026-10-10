@@ -61,13 +61,15 @@ def _select_source_contents(
     user_request: str,
     changed_files: Any = None,
     max_chars: int = _SOURCE_BUDGET_CHARS,
+    planned_files: Any = None,
 ) -> dict[str, str]:
     """Select complete, task-relevant files under a strict prompt budget."""
     if not isinstance(source_contents, dict):
         return {}
     changed = {str(path) for path in changed_files} if isinstance(changed_files, list) else set()
+    planned = {str(path) for path in planned_files if isinstance(path, str)} if isinstance(planned_files, list) else set()
     request_lower = user_request.casefold()
-    explicit_paths = set(_SOURCE_PATH_RE.findall(user_request))
+    explicit_paths = set(_SOURCE_PATH_RE.findall(user_request)) | planned | changed
     request_tokens = set(re.findall(r"[a-z0-9]+", request_lower))
     scored: list[tuple[int, int, str, str]] = []
     for raw_path, raw_content in source_contents.items():
@@ -146,12 +148,17 @@ def _prepare_prompt_evidence(
                 user_request,
                 evidence.get("changed_files"),
                 max_chars=budget,
+                planned_files=evidence.get("file_plan"),
             )
             snapshot_view["source_contents"] = selected
             snapshot_view["source_selection"] = {
                 "selected_file_count": len(selected),
                 "selected_chars": sum(len(content) for content in selected.values()),
                 "budget_chars": budget,
+                "omitted_explicit_paths": sorted(
+                    path for path in explicit_paths
+                    if path in source_contents and path not in selected
+                ),
                 "note": "Only complete files selected by task relevance are supplied; use the manifest to identify omitted context.",
             }
         elif role_key == "code_reviewer":
@@ -261,7 +268,10 @@ class SpecialistAgentRunner:
                 "a short 'summary' string and a 'files' array. Each array item must contain "
                 "a safe repository-relative 'path' and complete UTF-8 text 'content'. "
                 "Return 1–30 files, each at most 200 KB. Do not claim to have applied changes; "
-                "the repository tool will commit them on an isolated branch.\n"
+                "the repository tool will commit them on an isolated branch. Only replace an existing "
+                "file when its complete original contents are present in repository_snapshot.source_contents. "
+                "If a requested existing file is omitted from that context, return BLOCKED and request its "
+                "complete contents in evidence_needed; never reconstruct an omitted file from memory.\n"
             )
         elif role_key == "qa_engineer":
             role_contract = (
