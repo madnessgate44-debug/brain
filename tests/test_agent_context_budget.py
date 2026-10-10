@@ -101,3 +101,19 @@ def test_developer_gets_multiple_fallback_files_when_no_path_matches_the_request
     )
     selected = prepared["repository_snapshot"]["source_contents"]
     assert len(selected) == 3
+
+
+def test_developer_context_prioritizes_architect_file_plan():
+    contents = {
+        "src/alpha.py": "alpha implementation\\n" * 1000,
+        "src/planned.py": "planned implementation\\n" * 1000,
+        "src/other.py": "other implementation\\n" * 1000,
+    }
+    selected = __import__(
+        "brain.company.agent_runner", fromlist=["_select_source_contents"]
+    )._select_source_contents(
+        contents,
+        "Implement a change with unrelated request wording.",
+        planned_files=["src/planned.py"],
+    )
+    assert "src/planned.py" in selected
