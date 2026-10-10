@@ -1,4 +1,4 @@
-"""R&D agent: rank public technology discoveries and produce evidence-linked reports."""
+"""R&D agent: rank technology discoveries and produce evidence-linked reports."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ class TextProvider(Protocol):
 
 
 class ResearchAndDevelopmentAgent:
-    """Research public GitHub metadata and optionally use Brain's configured model."""
+    """Research public and authorized private repository metadata."""
 
     def __init__(
         self,
@@ -47,24 +47,26 @@ class ResearchAndDevelopmentAgent:
                     if score >= 65 and license_status != "review_required"
                     else "review_before_import"
                 ),
-                "evaluation_basis": "public GitHub metadata only",
+                "evaluation_basis": "repository metadata only",
                 "model_assessment": None,
             })
 
+        public_candidates = [item for item in ranked if not item.get("private", False)]
         model_status = "not_configured"
-        if self.provider is not None and ranked:
-            model_status = "failed"
+        if self.provider is not None and public_candidates:
             try:
-                assessments = await self._assess_with_model(ranked[:12])
+                assessments = await self._assess_with_model(public_candidates[:12])
                 by_name = {item["full_name"]: item for item in assessments}
-                for item in ranked:
+                for item in public_candidates:
                     if item["full_name"] in by_name:
                         item["model_assessment"] = by_name[item["full_name"]]
-                model_status = "passed"
+                model_status = "passed" if assessments else "invalid_output"
             except (ValueError, TypeError, json.JSONDecodeError):
                 model_status = "invalid_output"
             except Exception:
                 model_status = "unavailable"
+        elif self.provider is not None and ranked:
+            model_status = "skipped_private_metadata"
 
         ranked.sort(
             key=lambda item: (
@@ -75,20 +77,27 @@ class ResearchAndDevelopmentAgent:
             ),
             reverse=True,
         )
+        private_count = sum(1 for item in ranked if item.get("private", False))
         return {
             "schema_version": "1.0",
             "agent": "research_and_development",
             "generated_at": self.now.isoformat(),
             "status": "completed",
-            "discovery_source": "GitHub public repository search API",
+            "discovery_source": (
+                "GitHub public search and authorized account metadata"
+                if getattr(self.discovery, "token", "")
+                else "GitHub public repository search API"
+            ),
             "model_assessment_status": model_status,
             "candidate_count": len(ranked),
+            "private_candidate_count": private_count,
             "policy": {
                 "free_tier_first": True,
                 "no_paid_upgrade_or_purchase": True,
                 "no_third_party_code_executed": True,
                 "no_repository_imported_automatically": True,
                 "unlicensed_repositories_require_manual_license_review": True,
+                "private_metadata_sent_to_external_model": False,
                 "credentials_exposed_to_candidates": False,
             },
             "candidates": ranked,
@@ -154,7 +163,7 @@ class ResearchAndDevelopmentAgent:
                 "relevance": relevance,
                 "capability": capability[:500],
                 "risks": [risk[:300] for risk in risks[:10]],
-                "basis": "model assessment of supplied public metadata; not a code audit",
+                "basis": "model assessment of public metadata; not a code audit",
             })
         return validated
 
@@ -166,8 +175,9 @@ def render_markdown(report: dict[str, Any]) -> str:
         "",
         f"- Generated: {report.get('generated_at', 'unknown')}",
         f"- Candidates: {report.get('candidate_count', 0)}",
+        f"- Private candidates: {report.get('private_candidate_count', 0)}",
         f"- Model assessment: {report.get('model_assessment_status', 'unknown')}",
-        "- Source: public GitHub repository search metadata",
+        f"- Source: {report.get('discovery_source', 'unknown')}",
         "",
         "## Candidate shortlist",
         "",
@@ -178,8 +188,10 @@ def render_markdown(report: dict[str, Any]) -> str:
     for item in candidates[:20]:
         name = str(item.get("full_name", "unknown")).replace("[", "\\[").replace("]", "\\]")
         url = str(item.get("url", ""))
+        visibility = "private" if item.get("private", False) else "public"
         lines.extend([
             f"### [{name}]({url})",
+            f"- Visibility: {visibility}",
             f"- Heuristic score: {item.get('heuristic_score', 0)}/100",
             f"- Stars: {item.get('stars', 0)}; language: {item.get('language') or 'unknown'}",
             f"- License identifier: {item.get('license', 'NOASSERTION')} "
@@ -201,8 +213,9 @@ def render_markdown(report: dict[str, Any]) -> str:
         "## Safety boundary",
         "",
         "This is discovery and triage, not an approval to import or execute code. "
-        "Inspect repository source, license terms, dependencies, security, free-tier terms, "
-        "and isolation requirements before integration. No candidate code was executed.",
+        "Private repository metadata is not sent to the external model. Inspect source, "
+        "license terms, dependencies, security, free-tier terms, and isolation requirements "
+        "before integration. No candidate code was executed.",
         "",
     ])
     return "\n".join(lines)
