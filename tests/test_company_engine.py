@@ -152,3 +152,25 @@ async def test_engine_blocks_review_failure_after_repair_limit():
     engine = CompanyWorkflowEngine(runner, FakeTools(), max_repair_cycles=1)
     with pytest.raises(CompanyWorkflowBlocked, match="after repair limit"):
         await engine.run("Build a small feature", "owner/repository")
+
+
+@pytest.mark.asyncio
+async def test_customer_gate_failure_reports_decision_and_counts():
+    """A blocked customer gate should expose safe decision metadata for diagnosis."""
+    class BlockedCustomerRunner(FakeAgentRunner):
+        async def run(self, role_key, user_request, evidence):
+            output = await super().run(role_key, user_request, evidence)
+            if role_key == "customer_advocate":
+                output["status"] = "NEEDS_WORK"
+                output["deliverables"]["customer_review"] = "NEEDS_WORK"
+                output["blockers"] = ["first issue", "second issue"]
+                output["findings"] = ["finding"]
+                output["evidence_needed"] = ["evidence"]
+            return output
+
+    engine = CompanyWorkflowEngine(BlockedCustomerRunner(), FakeTools())
+    with pytest.raises(
+        CompanyWorkflowBlocked,
+        match=r"Customer review did not pass .*decision='NEEDS_WORK'.*findings=1, blockers=2, evidence_needed=1",
+    ):
+        await engine.run("Create a documentation-only report", "owner/repository")
