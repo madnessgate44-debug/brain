@@ -1,6 +1,6 @@
 """Approval API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from brain.schemas.approval import (
     ApprovalRequestCreate,
@@ -8,10 +8,28 @@ from brain.schemas.approval import (
     ApprovalResponseCreate,
 )
 from brain.services.approval_service import ApprovalService
-from brain.api.deps import get_approval_service
+from brain.api.deps import get_approval_service, require_control_key
 
-router = APIRouter(prefix="/approvals", tags=["approvals"])
-mission_router = APIRouter(prefix="/missions", tags=["approvals"])
+router = APIRouter(
+    prefix="/approvals",
+    tags=["approvals"],
+    dependencies=[Depends(require_control_key)],
+)
+mission_router = APIRouter(
+    prefix="/missions",
+    tags=["approvals"],
+    dependencies=[Depends(require_control_key)],
+)
+
+
+@router.get("", response_model=list[ApprovalRequestResponse])
+async def list_approvals(
+    status_filter: str | None = Query(default="PENDING", max_length=32),
+    limit: int = Query(default=100, ge=1, le=500),
+    service: ApprovalService = Depends(get_approval_service),
+):
+    """List recent approvals for the authenticated owner."""
+    return await service.list_approvals(status_filter=status_filter, limit=limit)
 
 
 @router.post("/missions/{mission_id}/approvals", response_model=ApprovalRequestResponse)

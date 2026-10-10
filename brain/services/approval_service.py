@@ -30,6 +30,15 @@ class ApprovalService:
         self.mission_repo = mission_repo
         self.event_repo = event_repo
 
+    async def list_approvals(
+        self,
+        status_filter: Optional[str] = None,
+        limit: int = 100,
+    ) -> list[ApprovalRequestResponse]:
+        """List recent approval requests for the authenticated owner."""
+        approvals = await self.approval_repo.list_all(status_filter=status_filter, limit=limit)
+        return [ApprovalRequestResponse(**approval.to_dict()) for approval in approvals]
+
     async def create_approval_request(
         self,
         mission_id: str,

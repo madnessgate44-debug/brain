@@ -7,10 +7,11 @@ from fastapi.testclient import TestClient
 from brain.api.app import create_app
 
 
-def test_started_mission_persists_artifact_and_completion():
+def test_started_mission_persists_artifact_and_completion(monkeypatch):
     """A started mission should create a registered artifact and completion events."""
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "test-control-key-for-unit-tests-123")
     app = create_app()
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         created = client.post(
             "/missions",
             json={"title": "Runtime verification", "objective": "Create a mission brief"},
@@ -46,10 +47,12 @@ def test_started_mission_persists_artifact_and_completion():
         assert {"worker_started", "artifact_created", "mission_phase_changed"} <= event_types
 
 
-def test_failed_mission_persists_detailed_diagnostic_artifacts():
+def test_failed_mission_persists_detailed_diagnostic_artifacts(monkeypatch):
     """Any mission worker failure should persist a readable and machine-readable report."""
+    import os
+    os.environ["BRAIN_CONTROL_API_KEY"] = "test-control-key-for-unit-tests-123"
     app = create_app()
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         created = client.post(
             "/missions",
             json={

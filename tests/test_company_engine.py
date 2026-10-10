@@ -2,7 +2,7 @@
 
 import pytest
 
-from brain.company.engine import CompanyWorkflowBlocked, CompanyWorkflowEngine
+from brain.company.engine import CompanyWorkflowBlocked, CompanyWorkflowEngine, validate_change_set
 
 
 class FakeAgentRunner:
@@ -103,6 +103,75 @@ class FakeTools:
             "state": "open",
             "merged": False,
         }
+
+
+def test_validate_change_set_rejects_unsafe_and_duplicate_paths():
+    errors = validate_change_set({
+        "files": [
+            {"path": "../outside.py", "content": "pass"},
+            {"path": "brain/safe.py", "content": "pass"},
+            {"path": "brain/safe.py", "content": "again"},
+            {"path": "brain\\unsafe.py", "content": "pass"},
+        ]
+    })
+    assert any("unsafe" in error for error in errors)
+    assert any("duplicate file path" in error for error in errors)
+
+
+def test_validate_change_set_enforces_file_count_and_size_limits():
+    too_many = {"files": [{"path": f"src/file_{i}.py", "content": "x"} for i in range(31)]}
+    oversized = {"files": [{"path": "src/large.py", "content": "x" * 200_001}]}
+    assert any("between 1 and 30 files" in error for error in validate_change_set(too_many))
+    assert any("200,000-byte" in error for error in validate_change_set(oversized))
+
+
+def test_validate_change_set_rejects_non_text_content_and_empty_patch():
+    assert validate_change_set({"files": []})
+    assert any(
+        "must be text" in error
+        for error in validate_change_set({"files": [{"path": "src/file.py", "content": None}]})
+    )
+
+
+class InvalidFirstChangeSetRunner(FakeAgentRunner):
+    """Simulate a model returning an empty patch before correcting itself."""
+
+    def __init__(self, always_invalid=False):
+        super().__init__()
+        self.developer_calls = 0
+        self.always_invalid = always_invalid
+
+    async def run(self, role_key, user_request, evidence):
+        output = await super().run(role_key, user_request, evidence)
+        if role_key == "developer":
+            self.developer_calls += 1
+            if self.always_invalid or self.developer_calls == 1:
+                output["deliverables"]["change_set"] = {"files": []}
+        return output
+
+
+@pytest.mark.asyncio
+async def test_engine_repairs_invalid_change_set_before_writing():
+    runner = InvalidFirstChangeSetRunner()
+    tools = FakeTools()
+    result = await CompanyWorkflowEngine(runner, tools, max_repair_cycles=1).run(
+        "Build a small feature", "owner/repository"
+    )
+    assert result["status"] == "READY_FOR_HUMAN_APPROVAL"
+    assert runner.developer_calls == 2
+    assert tools.apply_count == 1
+
+
+@pytest.mark.asyncio
+async def test_engine_stops_before_writing_when_change_set_stays_invalid():
+    runner = InvalidFirstChangeSetRunner(always_invalid=True)
+    tools = FakeTools()
+    with pytest.raises(CompanyWorkflowBlocked, match="remained invalid after repair limit"):
+        await CompanyWorkflowEngine(runner, tools, max_repair_cycles=1).run(
+            "Build a small feature", "owner/repository"
+        )
+    assert runner.developer_calls == 2
+    assert tools.apply_count == 0
 
 
 @pytest.mark.asyncio

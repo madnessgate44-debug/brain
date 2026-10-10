@@ -8,10 +8,11 @@ from brain.domain.enums import ArtifactType
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
     """Create a test client with application startup and shutdown enabled."""
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "test-control-key-for-unit-tests-123")
     app = create_app()
-    with TestClient(app) as test_client:
+    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as test_client:
         yield test_client
 
 
