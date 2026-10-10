@@ -60,6 +60,11 @@ def test_respond_to_approval(client):
     )
     approval_id = approval_response.json()["id"]
 
+    # A pending approval must prevent mission execution.
+    blocked_start = client.post(f"/missions/{mission_id}/start")
+    assert blocked_start.status_code == 409
+    assert "approval_state is PENDING" in blocked_start.json()["detail"]
+
     # Respond to approval
     response_data = {
         "approved": True,
@@ -74,6 +79,9 @@ def test_respond_to_approval(client):
     approval = response.json()
     assert approval["status"] == "APPROVED"
     assert approval["response_note"] == "Plan looks good"
+
+    allowed_start = client.post(f"/missions/{mission_id}/start")
+    assert allowed_start.status_code == 200
 
     repeated_response = client.post(
         f"/approvals/{approval_id}/respond",
