@@ -12,6 +12,7 @@ from brain.company.llm_provider import OpenAICompatibleProvider
 from brain.company.settings import get_setting
 from brain.research.agent import ResearchAndDevelopmentAgent, render_markdown
 from brain.research.discovery import GitHubRepositoryDiscovery
+from brain.research.evidence import ResearchEvidenceCollector
 
 
 async def _run(max_candidates: int, mission: str) -> dict:
@@ -25,6 +26,7 @@ async def _run(max_candidates: int, mission: str) -> dict:
     )
     agent = ResearchAndDevelopmentAgent(
         discovery=GitHubRepositoryDiscovery(per_query=15, mission=mission),
+        evidence_collector=ResearchEvidenceCollector(),
         provider=provider,
     )
     return await agent.run(max_candidates=max_candidates, mission=mission)
