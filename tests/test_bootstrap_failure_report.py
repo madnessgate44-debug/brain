@@ -166,7 +166,8 @@ def test_ensure_failure_reports_renders_missing_markdown_from_valid_json(tmp_pat
     markdown_path = tmp_path / "brain-company-result.md"
     json_path = tmp_path / "brain-company-result.json"
     valid_report = build_bootstrap_failure_report(BASE_ENV, {"issue": {"number": 154}})
-    json_path.write_text(json.dumps(valid_report), encoding="utf-8")
+    original_json = json.dumps(valid_report)
+    json_path.write_text(original_json, encoding="utf-8")
     assert not markdown_path.exists()
 
     created = ensure_failure_reports(
@@ -177,7 +178,7 @@ def test_ensure_failure_reports_renders_missing_markdown_from_valid_json(tmp_pat
     )
 
     assert created is True
-    assert json_path.read_text(encoding="utf-8") == json.dumps(valid_report, ensure_ascii=False, indent=2, default=str) + "\n"
+    assert json_path.read_text(encoding="utf-8") == original_json
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "# Brain execution failure report" in markdown
     assert "Commit SHA: abc123" in markdown
