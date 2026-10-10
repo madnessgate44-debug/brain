@@ -11,7 +11,7 @@ def test_failure_report_includes_traceback_timeline_and_runtime(monkeypatch):
     except RuntimeError as exc:
         report = failure_report(
             exc,
-            mission={"repository": "owner/repo", "objective": "audit"},
+            mission={"repository": "owner/repo", "objective": f"audit using {secret}"},
             events=[{"stage": "repository_read", "status": "FAIL", "detail": "HTTP 403"}],
             started_at="2026-10-10T00:00:00+00:00",
         )
