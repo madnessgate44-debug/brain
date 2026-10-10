@@ -1,5 +1,7 @@
 """Mission API tests."""
 
+import asyncio
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -97,3 +99,27 @@ def test_mission_events(client):
     events = response.json()
     assert len(events) > 0
     assert events[0]["event_type"] == "mission_created"
+
+
+def test_shutdown_cancels_active_mission_runtime(monkeypatch):
+    """Application shutdown must stop background tasks before closing SQLite."""
+    from brain.runtime.mission_runtime import MissionRuntime
+
+    async def wait_until_cancelled(self):
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(MissionRuntime, "run", wait_until_cancelled)
+    app = create_app()
+    with TestClient(app) as test_client:
+        created = test_client.post(
+            "/missions",
+            json={"title": "Shutdown test", "objective": "Exercise runtime cleanup"},
+        )
+        assert created.status_code == 201
+        mission_id = created.json()["id"]
+        started = test_client.post(f"/missions/{mission_id}/start")
+        assert started.status_code == 200
+        registry = app.state.boot_service.runtime_registry
+        assert mission_id in registry.list_active()
+
+    assert registry.list_active() == []
