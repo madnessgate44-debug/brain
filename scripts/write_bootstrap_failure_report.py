@@ -149,30 +149,44 @@ def ensure_failure_reports(
     markdown_path: str | Path = "brain-company-result.md",
     json_path: str | Path = "brain-company-result.json",
 ) -> bool:
-    """Create only missing report files; never overwrite a mission-produced report."""
+    """Validate JSON and create or repair missing/malformed report files."""
     md_path = Path(markdown_path)
     report_path = Path(json_path)
-    if md_path.exists() and report_path.exists():
-        return False
 
+    json_valid = False
+    report_data: dict[str, Any] | None = None
     if report_path.exists():
         try:
-            report = json.loads(report_path.read_text(encoding="utf-8"))
-            if not isinstance(report, dict):
-                report = build_bootstrap_failure_report(env, event_payload)
-        except (OSError, json.JSONDecodeError):
-            report = build_bootstrap_failure_report(env, event_payload)
-    else:
-        report = build_bootstrap_failure_report(env, event_payload)
+            content = report_path.read_text(encoding="utf-8")
+            if content.strip():
+                parsed = json.loads(content)
+                if isinstance(parsed, dict) and isinstance(parsed.get("status"), str) and parsed.get("status"):
+                    json_valid = True
+                    report_data = parsed
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            pass
 
-    if not report_path.exists():
+    if md_path.exists() and json_valid:
+        return False
+
+    if report_data is None:
+        report = build_bootstrap_failure_report(env, event_payload)
+    else:
+        report = report_data
+
+    changed = False
+    if not json_valid:
         report_path.write_text(
             json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n",
             encoding="utf-8",
         )
+        changed = True
+
     if not md_path.exists():
         md_path.write_text(render_failure_markdown(report), encoding="utf-8")
-    return True
+        changed = True
+
+    return changed
 
 
 def main() -> int:

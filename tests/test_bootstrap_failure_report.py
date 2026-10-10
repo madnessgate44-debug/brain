@@ -123,6 +123,67 @@ def test_existing_mission_reports_are_never_overwritten(tmp_path):
     assert json.loads(json_path.read_text(encoding="utf-8"))["status"] == "PASS"
 
 
+def test_ensure_failure_reports_repairs_malformed_json_and_preserves_markdown(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    markdown_path.write_text("pre-existing markdown report", encoding="utf-8")
+    json_path.write_text("{not-valid-json", encoding="utf-8")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert markdown_path.read_text(encoding="utf-8") == "pre-existing markdown report"
+    repaired = json.loads(json_path.read_text(encoding="utf-8"))
+    assert repaired["status"] == "FAILED"
+    assert repaired["failure"]["type"] == "WorkflowBootstrapFailure"
+
+
+def test_ensure_failure_reports_repairs_empty_json_and_preserves_markdown(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    markdown_path.write_text("pre-existing markdown report", encoding="utf-8")
+    json_path.write_text("   \n ", encoding="utf-8")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert markdown_path.read_text(encoding="utf-8") == "pre-existing markdown report"
+    repaired = json.loads(json_path.read_text(encoding="utf-8"))
+    assert repaired["status"] == "FAILED"
+
+
+def test_ensure_failure_reports_renders_missing_markdown_from_valid_json(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    valid_report = build_bootstrap_failure_report(BASE_ENV, {"issue": {"number": 154}})
+    original_json = json.dumps(valid_report)
+    json_path.write_text(original_json, encoding="utf-8")
+    assert not markdown_path.exists()
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert json_path.read_text(encoding="utf-8") == original_json
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "# Brain execution failure report" in markdown
+    assert "Commit SHA: abc123" in markdown
+
+
 def test_workflow_wires_helper_and_retains_checkout_safe_fallback():
     from pathlib import Path
 
@@ -197,3 +258,39 @@ def test_inline_fallback_runs_without_checked_out_helper(tmp_path):
     assert report["failed_steps"] == [{"step": "checkout", "outcome": "failure"}]
     assert report["impact"]["repository_mutation_status"].startswith("UNKNOWN")
     assert "Commit SHA: checkout-sha" in markdown
+
+
+def test_ensure_failure_reports_repairs_empty_json_object(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    markdown_path.write_text("pre-existing markdown report", encoding="utf-8")
+    json_path.write_text("{}", encoding="utf-8")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert markdown_path.read_text(encoding="utf-8") == "pre-existing markdown report"
+    assert json.loads(json_path.read_text(encoding="utf-8"))["status"] == "FAILED"
+
+
+def test_ensure_failure_reports_repairs_invalid_utf8_json(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    markdown_path.write_text("pre-existing markdown report", encoding="utf-8")
+    json_path.write_bytes(b"\\xff\\xfe")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert markdown_path.read_text(encoding="utf-8") == "pre-existing markdown report"
+    assert json.loads(json_path.read_text(encoding="utf-8"))["status"] == "FAILED"
