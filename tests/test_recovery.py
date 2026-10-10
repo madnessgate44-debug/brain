@@ -1,5 +1,8 @@
 """Recovery service tests."""
 
+import asyncio
+from datetime import timedelta
+
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -11,6 +14,9 @@ from brain.db.session import DatabaseSessionManager
 from brain.runtime.runtime_registry import RuntimeRegistry
 from brain.domain.enums import MissionPhase, MissionStatus
 from brain.repositories.mission_repository import MissionRepository
+from brain.runtime.mission_runtime import MissionRuntime
+from brain.storage.artifact_store import ArtifactStore
+from brain.core.clock import utc_now
 
 
 @pytest.fixture
@@ -105,3 +111,44 @@ async def test_recovery_does_not_pause_a_mission_with_a_recent_heartbeat(db_mana
     assert recovered.status == MissionStatus.RUNNING.value
     assert recovered.assigned_runtime_id == "runtime_live"
     assert recovered.recovery_state is None
+
+
+
+@pytest.mark.asyncio
+async def test_live_runtime_refreshes_heartbeat_for_orphan_detection(db_manager, tmp_path):
+    old_heartbeat = utc_now() - timedelta(minutes=10)
+    async with db_manager.get_session_factory()() as session:
+        repo = MissionRepository(session)
+        mission = await repo.create(
+            title="Heartbeat test",
+            objective="Keep live runtime discoverable",
+        )
+        mission_id = mission.id
+        assert await repo.try_start(
+            mission_id,
+            "runtime_heartbeat_test",
+            heartbeat=old_heartbeat,
+        )
+        await session.commit()
+
+    runtime = MissionRuntime(
+        mission_id=mission_id,
+        runtime_id="runtime_heartbeat_test",
+        session_factory=db_manager.get_session_factory(),
+        artifact_store=ArtifactStore(str(tmp_path / "workspace")),
+        heartbeat_interval_seconds=0.01,
+    )
+    heartbeat_task = asyncio.create_task(runtime._heartbeat_loop())
+    try:
+        await asyncio.sleep(0.06)
+    finally:
+        heartbeat_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await heartbeat_task
+
+    async with db_manager.get_session_factory()() as session:
+        refreshed = await MissionRepository(session).get_by_id(mission_id)
+
+    assert refreshed is not None
+    assert refreshed.last_heartbeat_at is not None
+    assert refreshed.last_heartbeat_at.replace(tzinfo=None) > old_heartbeat.replace(tzinfo=None)
