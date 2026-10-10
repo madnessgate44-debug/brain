@@ -264,20 +264,20 @@ def build_pull_request_gateway(
     control_repository: str,
     fallback_gateway: GitHubRepositoryGateway,
 ) -> GitHubRepositoryGateway:
-    """Choose the credential suited to PR creation in the target repository.
+    """Choose a PR credential that allows follow-on CI workflows to run.
 
-    The Actions token has explicit pull-requests:write permission in the control
-    workflow, so prefer it for PRs in the control repository. It cannot be used
-    across other repositories; those continue to use the configured PAT.
+    Prefer the configured PAT even for the control repository: PRs created with
+    GITHUB_TOKEN may suppress follow-on workflow runs. Mutating missions already
+    require the PAT for test-trigger issues, so it should be available here too.
     """
+    if primary_token:
+        return GitHubRepositoryGateway(token=primary_token, allowed_owner=owner)
     if (
         actions_token
         and control_repository
         and repository.casefold() == control_repository.casefold()
     ):
         return GitHubRepositoryGateway(token=actions_token, allowed_owner=owner)
-    if primary_token:
-        return GitHubRepositoryGateway(token=primary_token, allowed_owner=owner)
     return fallback_gateway
 
 
