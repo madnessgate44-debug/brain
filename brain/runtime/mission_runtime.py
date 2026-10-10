@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -18,6 +19,7 @@ from brain.company.github_gateway import GitHubRepositoryGateway
 from brain.company.llm_provider import OpenAICompatibleProvider
 from brain.company.agent_runner import SpecialistAgentRunner
 from brain.company.tools import GitHubCompanyTools
+from brain.company.diagnostics import failure_report
 
 logger = logging.getLogger("brain.runtime.mission_runtime")
 
@@ -327,22 +329,143 @@ class MissionRuntime:
             logger.info("Mission runtime %s cancelled", self.runtime_id)
             raise
         except Exception as exc:
-            logger.exception("Mission runtime %s failed", self.runtime_id)
+            failed_at = datetime.now(timezone.utc).isoformat()
+            diagnostic = failure_report(
+                exc,
+                mission={
+                    "mission_id": self.mission_id,
+                    "runtime_id": self.runtime_id,
+                    "max_iterations": self.max_iterations,
+                },
+                events=[{
+                    "timestamp": failed_at,
+                    "stage": "mission_runtime",
+                    "status": "FAIL",
+                    "detail": f"{type(exc).__name__}: {exc}",
+                }],
+            )
+            safe_message = diagnostic["failure"]["message"]
+            markdown_lines = [
+                "# Brain mission failure report",
+                "",
+                f"- Status: **{diagnostic['status']}**",
+                f"- Mission ID: `{self.mission_id}`",
+                f"- Runtime ID: `{self.runtime_id}`",
+                f"- Failure type: `{diagnostic['failure']['type']}`",
+                f"- Failure location: `{diagnostic['failure']['probable_location'] or 'unavailable'}`",
+                f"- Failed at: {diagnostic['runtime']['failed_at']}",
+                "",
+                "## Exact error",
+                "```text",
+                safe_message,
+                "```",
+                "",
+                "## Full traceback",
+                "```text",
+                diagnostic["failure"]["traceback"],
+                "```",
+                "",
+                "## Runtime context",
+                "```json",
+                json.dumps(diagnostic["runtime"], ensure_ascii=False, indent=2),
+                "```",
+                "",
+                "## Credential diagnostics",
+                "```json",
+                json.dumps(diagnostic["credential_diagnostics"], ensure_ascii=False, indent=2),
+                "```",
+                "",
+                "## Execution timeline",
+            ]
+            markdown_lines.extend(
+                f"- {item.get('timestamp', '')} | {item.get('stage', '')} | {item.get('status', '')} | {item.get('detail', '')}"
+                for item in diagnostic["timeline"]
+            )
+            markdown_lines.extend([
+                "",
+                "## Impact and next action",
+                f"- Repository mutation status: {diagnostic['impact']['repository_mutation_status']}",
+                f"- Tests status: {diagnostic['impact']['tests_status']}",
+                "- Success claimed: no",
+                diagnostic["recovery"]["next_step"],
+            ])
+            diagnostic_files = []
+            try:
+                json_bytes = json.dumps(diagnostic, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+                markdown_bytes = ("\\n".join(markdown_lines) + "\\n").encode("utf-8")
+                for logical_name, content_bytes, mime_type in [
+                    ("failure-diagnostic.json", json_bytes, "application/json"),
+                    ("failure-report.md", markdown_bytes, "text/markdown"),
+                ]:
+                    path = self.artifact_store.save_artifact(
+                        mission_id=self.mission_id,
+                        logical_name=logical_name,
+                        content=content_bytes,
+                        metadata={
+                            "mission_id": self.mission_id,
+                            "runtime_id": self.runtime_id,
+                            "worker": "mission_runtime",
+                            "diagnostic": True,
+                            "failure_type": diagnostic["failure"]["type"],
+                        },
+                    )
+                    diagnostic_files.append((logical_name, path, len(content_bytes), mime_type))
+            except Exception:
+                # Do not emit an unredacted exception or hide the original failure.
+                logger.error("Could not write local diagnostic artifacts for mission %s", self.mission_id)
+
+            logger.error(
+                "Mission runtime %s failed; diagnostic report generated (type=%s, location=%s).",
+                self.runtime_id,
+                diagnostic["failure"]["type"],
+                diagnostic["failure"]["probable_location"],
+            )
             try:
                 async with self.session_factory() as failure_session:
                     mission_repo = MissionRepository(failure_session)
                     event_repo = EventRepository(failure_session)
-                    await mission_repo.mark_failed(self.mission_id, f"Runtime failed: {exc}")
+                    artifact_repo = ArtifactRepository(failure_session)
+                    for logical_name, path, size_bytes, mime_type in diagnostic_files:
+                        await artifact_repo.create(
+                            mission_id=self.mission_id,
+                            artifact_type=ArtifactType.EXECUTION,
+                            logical_name=logical_name,
+                            relative_path=str(path.relative_to(self.artifact_store.workspace_root)),
+                            mime_type=mime_type,
+                            size_bytes=size_bytes,
+                            metadata_json=json.dumps({
+                                "runtime_id": self.runtime_id,
+                                "diagnostic": True,
+                                "failure_type": diagnostic["failure"]["type"],
+                            }),
+                        )
+                    await mission_repo.mark_failed(self.mission_id, f"Runtime failed: {safe_message}")
                     await event_repo.append_event(
                         mission_id=self.mission_id,
                         event_type="mission_failed",
-                        message=f"Mission failed: {exc}",
+                        message=f"Mission failed: {safe_message}",
                         phase=MissionPhase.FAILED.value,
                         severity=EventSeverity.ERROR,
+                        payload_json=json.dumps({
+                            "failure_type": diagnostic["failure"]["type"],
+                            "failure_location": diagnostic["failure"]["probable_location"],
+                            "diagnostic_artifacts": [item[0] for item in diagnostic_files],
+                        }),
+                    )
+                    await event_repo.append_event(
+                        mission_id=self.mission_id,
+                        event_type="failure_diagnostic_created",
+                        message="Detailed secret-safe failure diagnostic created",
+                        phase=MissionPhase.FAILED.value,
+                        severity=EventSeverity.ERROR,
+                        payload_json=json.dumps({
+                            "failure_type": diagnostic["failure"]["type"],
+                            "artifacts": [item[0] for item in diagnostic_files],
+                        }),
                     )
                     await failure_session.commit()
             except Exception:
-                logger.exception("Unable to persist failure state for mission %s", self.mission_id)
+                logger.error("Unable to persist failure state and diagnostic references for mission %s", self.mission_id)
         finally:
             self._running = False
 
