@@ -26,8 +26,10 @@ class ResearchAndDevelopmentAgent:
         self.provider = provider
         self.now = now or datetime.now(timezone.utc)
 
-    async def run(self, max_candidates: int = 30) -> dict[str, Any]:
+    async def run(self, max_candidates: int = 30, mission: str = "Find tools that improve Brain research, coding, browser automation, testing, and free execution.") -> dict[str, Any]:
         """Discover candidates, rank them, and return a machine-readable evidence report."""
+        mission = mission.strip()[:4000]
+        self._active_mission = mission
         candidates = await self.discovery.search(max_candidates=max_candidates)
         ranked: list[dict[str, Any]] = []
         for candidate in candidates:
@@ -79,7 +81,18 @@ class ResearchAndDevelopmentAgent:
         )
         private_count = sum(1 for item in ranked if item.get("private", False))
         return {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
+            "mission": mission,
+            "research_scope": {
+                "repository_metadata": "searched and scored",
+                "source_code_and_documentation": "not inspected by this version",
+                "job_descriptions_and_live_skill_requirements": "not researched by this version",
+                "hosting_prices_and_free_tier_terms": "not independently verified",
+                "limitations": [
+                    "GitHub repository metadata is a discovery signal, not source-level evidence.",
+                    "This report does not establish job-market requirements or verify hosting terms.",
+                ],
+            },
             "agent": "research_and_development",
             "generated_at": self.now.isoformat(),
             "status": "completed",
@@ -128,8 +141,8 @@ class ResearchAndDevelopmentAgent:
         raw = await self.provider.complete(
             system,
             json.dumps({
-                "goal": "Find tools that could improve Brain's coding, research, browser, testing, "
-                        "or free cloud execution capabilities.",
+                "goal": "Assess public repository metadata for the user's specific research mission. Do not infer source-code, job-market, security, or pricing facts not present in supplied metadata.",
+                "mission": self._active_mission,
                 "candidates": compact,
             }),
         )
@@ -174,10 +187,17 @@ def render_markdown(report: dict[str, Any]) -> str:
         "# Brain R&D discovery report",
         "",
         f"- Generated: {report.get('generated_at', 'unknown')}",
+        f"- Mission: {report.get('mission', 'not supplied')}",
         f"- Candidates: {report.get('candidate_count', 0)}",
         f"- Private candidates: {report.get('private_candidate_count', 0)}",
         f"- Model assessment: {report.get('model_assessment_status', 'unknown')}",
         f"- Source: {report.get('discovery_source', 'unknown')}",
+        "",
+        "## Research scope and limitations",
+        "",
+        "- Repository discovery and ranking use metadata only in this version.",
+        "- Source files/documentation, job descriptions, required skills, and hosting terms are not independently investigated.",
+        "- Do not treat this report as a completed technical or job-market research report.",
         "",
         "## Candidate shortlist",
         "",
