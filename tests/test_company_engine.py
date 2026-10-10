@@ -82,12 +82,14 @@ class FakeTools:
         return {
             "repository": repository,
             "default_branch": "main",
+            "base_commit": "abc123",
             "files": [{"path": "README.md", "size": 100}],
             "source_contents": {"README.md": "Existing project"},
         }
 
-    async def apply_change_set(self, change_set, repository):
+    async def apply_change_set(self, change_set, repository, expected_base_sha=None):
         self.apply_count += 1
+        assert expected_base_sha == "abc123"
         return {
             "branch": "brain/feature-test",
             "diff": "diff --git a/brain/feature.py b/brain/feature.py\n+pass",
