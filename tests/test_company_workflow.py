@@ -40,8 +40,8 @@ def test_release_requires_executed_tests_and_independent_review():
     evidence = {
         "review_decision": {"status": "PASS", "reviewer_role": "developer"},
         "test_results": {"status": "PASS", "executed": False},
-        "security_decision": {"status": "PASS"},
-        "customer_review": {"status": "PASS"},
+        "security_decision": {"status": "PASS", "reviewer_role": "security_auditor"},
+        "customer_review": {"status": "PASS", "reviewer_role": "customer_advocate"},
     }
     decision = evaluate_release_gate(evidence)
     assert decision.passed is False
@@ -53,8 +53,8 @@ def test_release_passes_only_when_all_mandatory_gates_pass_with_evidence():
     evidence = {
         "review_decision": {"status": "APPROVED", "reviewer_role": "code_reviewer"},
         "test_results": {"status": "PASS", "executed": True, "run_url": "https://example.test/run/1"},
-        "security_decision": {"status": "PASS"},
-        "customer_review": {"status": "PASS"},
+        "security_decision": {"status": "PASS", "reviewer_role": "security_auditor"},
+        "customer_review": {"status": "PASS", "reviewer_role": "customer_advocate"},
     }
     decision = evaluate_release_gate(evidence)
     assert decision.passed is True
@@ -80,3 +80,18 @@ def test_release_rejects_unverifiable_or_nonpassing_test_results(test_results):
 
     assert decision.passed is False
     assert any("QA" in blocker for blocker in decision.blockers)
+
+
+
+def test_release_rejects_gate_decisions_without_the_required_independent_role():
+    decision = evaluate_release_gate({
+        "review_decision": "PASS",
+        "test_results": {"status": "PASS", "executed": True, "run_url": "https://example.test/run/1"},
+        "security_decision": {"status": "PASS"},
+        "customer_review": {"status": "PASS"},
+    })
+
+    assert decision.passed is False
+    assert any("independent reviewer" in blocker for blocker in decision.blockers)
+    assert any("security_auditor" in blocker for blocker in decision.blockers)
+    assert any("customer_advocate" in blocker for blocker in decision.blockers)
