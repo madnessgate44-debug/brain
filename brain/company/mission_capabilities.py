@@ -13,43 +13,55 @@ class CapabilityPlan:
     rationale: str
 
 
-_WRITE_ACTION = re.compile(
-    r"\b(fix|implement|edit|modify|change|create|add|remove|delete|refactor|repair|"
-    r"build|commit|push|deploy|merge|write|update|rewrite|patch|apply)\b",
+_MUTATION_INTENT = re.compile(
+    r"\b(?:fix(?:es|ed|ing)?|repair(?:s|ed|ing)?|refactor(?:s|ed|ing)?|"
+    r"implement(?:s|ed|ing)?|edit(?:s|ed|ing)?|modify|modifies|modified|modifying|"
+    r"change(?:s|d|ing)?|create(?:s|d|ing)?|add(?:s|ed|ing)?|remove(?:s|d|ing)?|"
+    r"delete(?:s|d|ing)?|update(?:s|d|ing)?|rewrite|rewrites|rewrote|rewriting|"
+    r"patch(?:es|ed|ing)?|apply|applies|applied|applying|build|builds|built|building)"
+    r"\s+(?:(?:the|all|any|these|those|identified|critical|top|following|new|existing|"
+    r"target|repository|source|main|necessary|recommended)\s+){0,3}"
+    r"(?:files?|code|repository|feature|functionality|bug|issues?|defects?|errors?|"
+    r"problems?|fixes?|changes?|patches?|branch|pull requests?|prs?|commits?|"
+    r"implementation|app|application|them|it)\b"
+    r"|\b(?:open|create)\s+(?:a\s+)?(?:pull request|pr|branch|commit|file)\b"
+    r"|\b(?:commit|push)\s+(?:the\s+)?(?:changes?|files?|code|branch|commit)\b"
+    r"|\b(?:deploy|merge)\b"
+    r"|\bmake\s+(?:the\s+)?changes?\b",
     re.IGNORECASE,
 )
 
 
 def plan_capabilities(objective: str) -> CapabilityPlan:
-    """Classify the requested operation before any permission preflight.
+    """Classify requested operations before credential checks.
 
-    Read-only is the safe default. Explicit mutation verbs require write capability.
-    A mission requesting both inspection and changes is classified as mutating.
+    The classifier detects affirmative repository mutation intent, not mere mentions
+    of words such as "build", "commit", or "write" in audit coverage requirements.
+    Negated constraint lines are removed before intent detection. Read-only is the
+    default when no affirmative mutation operation is identified.
     """
     objective_text = objective or ""
-    # Remove standalone constraint lines before classifying positive mission intent.
     objective_text = "\n".join(
         line for line in objective_text.splitlines()
         if not re.match(r"^\s*(?:[-*]\s*)?(?:do not|don't|never|must not)\b", line, re.IGNORECASE)
     )
-    # Explicitly negated actions describe constraints, not requested mutations.
     objective_text = re.sub(
         r"\b(?:do not|don't|never|no need to)\s+(?:[a-z]+\s+){0,2}"
-        r"(?:fix|implement|edit|modify|change|create|add|remove|delete|refactor|repair|"
-        r"build|commit|push|deploy|merge|write|update|rewrite|patch|apply)\b",
+        r"(?:fix|repair|refactor|implement|edit|modify|change|create|add|remove|delete|"
+        r"update|rewrite|patch|apply|build|commit|push|deploy|merge|write)\b",
         " ",
         objective_text,
         flags=re.IGNORECASE,
     )
-    matches = sorted({match.group(0).casefold() for match in _WRITE_ACTION.finditer(objective_text)})
+    matches = sorted({match.group(0).casefold() for match in _MUTATION_INTENT.finditer(objective_text)})
     if matches:
         return CapabilityPlan(
             mode="mutating",
             required_capabilities=("repository:read", "repository:write", "checks:run", "pull_request:create"),
-            rationale=f"Explicit mutation intent detected: {', '.join(matches)}.",
+            rationale=f"Affirmative mutation intent detected: {', '.join(matches)}.",
         )
     return CapabilityPlan(
         mode="read_only",
         required_capabilities=("repository:read", "model:invoke"),
-        rationale="No explicit repository mutation action was requested; read-only is the default.",
+        rationale="No affirmative repository mutation action was requested; read-only is the default.",
     )
