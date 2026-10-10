@@ -171,7 +171,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         base_url=os.environ.get(
             "BRAIN_AI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai"
         ),
-        model=os.environ.get("BRAIN_AI_MODEL", "gemini-2.5-flash"),
+        model=os.environ.get("BRAIN_AI_MODEL", "gemini-3.5-flash-lite"),
         timeout_seconds=45,
     )
     if plan.mode == "read_only":
