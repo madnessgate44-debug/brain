@@ -520,6 +520,28 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         }
 
     events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": "company_workflow", "status": "STARTED", "detail": "Running specialist implementation, review, and verification workflow."})
+    def persist_checkpoint(snapshot: dict[str, Any]) -> None:
+        payload = sanitize_diagnostic_value({
+            "schema_version": "1.0",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "issue_number": issue_number,
+            "repository": repository,
+            "checkpoint": snapshot,
+        })
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = checkpoint_path.with_suffix(checkpoint_path.suffix + ".tmp")
+        temporary_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
+        temporary_path.replace(checkpoint_path)
+        events.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": "agent_checkpoint",
+            "status": "PASS",
+            "detail": f"Persisted checkpoint after {snapshot.get('stage')}; roles recorded={len(snapshot.get('completed_roles', []))}.",
+        })
+
     result = await CompanyWorkflowEngine(SpecialistAgentRunner(provider), tools).run(
         user_request=objective,
         repository=repository,
