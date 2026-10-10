@@ -9,6 +9,8 @@ def test_desktop_interface_uses_brain_api_instead_of_direct_provider_or_github_w
     assert "brainRequest('/chat'" in html
     assert "brainRequest('/missions'" in html
     assert "brainRequest('/company-workflows'" in html
+    assert '<input type="text" id="settingsModel" placeholder="https://your-brain-api.example" value="http://localhost:8000">' in html
+    assert "gemini-flash-latest" not in html
     assert "generativelanguage.googleapis.com" not in html
     assert "api.github.com" not in html
     assert "method: 'PUT'" not in html
