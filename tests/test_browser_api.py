@@ -2,6 +2,8 @@
 
 import time
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from brain.api.app import create_app
@@ -79,14 +81,23 @@ def test_browser_endpoint_rejects_weak_control_key_before_creating_mission(monke
     assert response.status_code == 503
 
 
-def test_browser_endpoint_requires_approval_for_mutating_actions(monkeypatch):
+@pytest.mark.parametrize(
+    "action",
+    [
+        {"op": "click", "selector": "button"},
+        {"op": "type", "selector": "textarea", "text": "hello"},
+        {"op": "press", "selector": "textarea", "key": "Enter"},
+        {"op": "select", "selector": "select#country", "value": "EG"},
+    ],
+)
+def test_browser_endpoint_requires_approval_for_mutating_actions(monkeypatch, action):
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "x" * 32)
     app = create_app()
     with TestClient(app, headers={"X-Brain-API-Key": "x" * 32}) as client:
         response = client.post(
             "/browser/tasks",
             headers={"X-Brain-API-Key": "x" * 32},
-            json=_payload(actions=[{"op": "type", "selector": "textarea", "text": "hello"}]),
+            json=_payload(actions=[action]),
         )
     assert response.status_code == 409
 
