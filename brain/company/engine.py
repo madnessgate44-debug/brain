@@ -178,7 +178,7 @@ def validate_change_set(change_set: Any) -> tuple[str, ...]:
                 path.startswith("/")
                 or "\\" in path
                 or any(part in {"", ".", ".."} for part in parts)
-                or path.startswith(".git/")
+                or any(part.casefold() == ".git" for part in parts)
             ):
                 errors.append(f"files[{index}].path is unsafe: {path!r}")
             if path in seen:
