@@ -53,7 +53,7 @@ class MissionService:
             message=f"Mission '{data.title}' created",
             phase=MissionPhase.INTAKE.value,
             severity="INFO",
-            payload_json=str({"title": data.title, "objective": data.objective}),
+            payload_json=json.dumps({"title": data.title, "objective": data.objective}, ensure_ascii=False),
         )
         self.artifact_store.ensure_mission_dir(mission.id)
 
@@ -109,7 +109,7 @@ class MissionService:
             message=f"Mission started with runtime {runtime_id}",
             phase=MissionPhase.EXECUTE.value,
             severity="INFO",
-            payload_json=str({"runtime_id": runtime_id}),
+            payload_json=json.dumps({"runtime_id": runtime_id}),
         )
 
         # Persist the running state before the independent background session reads it.
