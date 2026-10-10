@@ -192,20 +192,40 @@ class GitHubCompanyTools:
             )
             for comment in comments:
                 body = comment.get("body", "")
+                # Issues are public in many deployments: never accept a result that
+                # an arbitrary commenter can forge before the Actions report arrives.
+                if (comment.get("user") or {}).get("login") != "github-actions[bot]":
+                    continue
                 if "## Brain remote test run" not in body:
                     continue
+                target_match = re.search(r"(?m)^\\*\\*Target repository:\\*\\*\\s*(.+?)\\s*$", body)
+                branch_match = re.search(r"(?m)^\\*\\*Target branch:\\*\\*\\s*(.+?)\\s*$", body)
                 result_match = re.search(
-                    r"\*\*Result:\*\*\s*(PASS|FAIL|EXECUTION_ERROR)", body
+                    r"(?m)^\\*\\*Result:\\*\\*\\s*(PASS|FAIL|EXECUTION_ERROR)\\s*$", body
                 )
-                run_match = re.search(r"https://github\.com/[^\s]+/actions/runs/\d+", body)
+                if not target_match or target_match.group(1) != repository:
+                    continue
+                if not branch_match or branch_match.group(1) != branch:
+                    continue
                 if not result_match:
                     continue
+                run_match = re.search(
+                    rf"https://github\\.com/{re.escape(owner)}/{re.escape(name)}/actions/runs/\\d+",
+                    body,
+                )
+                if not run_match:
+                    continue
                 reported_result = result_match.group(1)
+                if reported_result == "PASS" and (
+                    not re.search(r"(?m)^\\*\\*Exit code:\\*\\*\\s*0\\s*$", body)
+                    or not re.search(r"(?m)^\\*\\*Workflow job:\\*\\*\\s*success\\s*$", body)
+                ):
+                    continue
                 return {
                     "executed": True,
                     "status": "PASS" if reported_result == "PASS" else "FAIL",
                     "reported_result": reported_result,
-                    "run_url": run_match.group(0) if run_match else None,
+                    "run_url": run_match.group(0),
                     "issue_url": issue.get("html_url"),
                     "report": body,
                     "branch": branch,
