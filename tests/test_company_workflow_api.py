@@ -22,7 +22,7 @@ def test_company_workflow_endpoint_is_disabled_without_control_key(monkeypatch):
 
 
 def test_company_workflow_endpoint_rejects_wrong_control_key(monkeypatch):
-    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "expected-secret")
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "expected-control-key-for-tests-123456")
     app = create_app()
     with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
         response = client.post(
