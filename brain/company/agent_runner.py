@@ -27,7 +27,7 @@ _REVIEW_DIFF_BUDGET_CHARS = 60000
 _OTHER_DIFF_BUDGET_CHARS = 30000
 _SOURCE_INDEX_LIMIT = 160
 _SOURCE_PATH_RE = re.compile(
-    r"(?<![A-Za-z0-9_.-])(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\\."
+    r"(?<![A-Za-z0-9_.-])(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\."
     r"(?:py|md|yml|yaml|json|toml|ts|tsx|js|jsx|html|css)(?![A-Za-z0-9_.-])",
     re.IGNORECASE,
 )
