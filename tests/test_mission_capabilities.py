@@ -47,3 +47,24 @@ def test_positive_change_request_still_requires_write_capability():
     plan = plan_capabilities("Inspect the repository and fix the identified defects.")
     assert plan.mode == "mutating"
     assert "repository:write" in plan.required_capabilities
+
+
+def test_read_only_audit_with_negated_actions_in_same_paragraph_stays_read_only():
+    objective = (
+        "Audit the current repository. Do not edit files, create branches, commit, "
+        "open PRs, merge, deploy, alter settings, or change secrets. Report findings only."
+    )
+    plan = plan_capabilities(objective)
+    assert plan.mode == "read_only"
+    assert "repository:write" not in plan.required_capabilities
+
+
+def test_explicit_fix_request_remains_mutating_when_other_actions_are_forbidden():
+    plan = plan_capabilities("Fix the identified defects, but do not merge or deploy.")
+    assert plan.mode == "mutating"
+    assert "repository:write" in plan.required_capabilities
+
+
+def test_deploy_and_merge_mentions_without_targets_do_not_trigger_mutating_mode():
+    plan = plan_capabilities("Audit the workflow logs for mentions of deploy and merge.")
+    assert plan.mode == "read_only"
