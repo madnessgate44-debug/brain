@@ -85,6 +85,14 @@ class FakeTools:
             "base_commit": "abc123",
             "files": [{"path": "README.md", "size": 100}],
             "source_contents": {"README.md": "Existing project"},
+            "source_manifest": {
+                "candidate_count": 1,
+                "read_count": 1,
+                "coverage_complete": True,
+                "failed_paths": {},
+                "omitted_by_aggregate_budget": [],
+                "tree_truncated": False,
+            },
         }
 
     async def apply_change_set(self, change_set, repository, expected_base_sha=None):
@@ -416,3 +424,25 @@ async def test_reviewer_repair_cannot_drop_files_from_the_existing_patch():
         )
 
     assert tools.apply_count == 1
+
+
+
+@pytest.mark.asyncio
+async def test_incomplete_repository_inspection_blocks_before_agent_or_write():
+    class IncompleteTools(FakeTools):
+        async def inspect_repository(self, repository):
+            snapshot = await super().inspect_repository(repository)
+            snapshot["source_manifest"]["coverage_complete"] = False
+            snapshot["source_manifest"]["failed_paths"] = {"brain/missing.py": "HTTP 404"}
+            return snapshot
+
+    runner = FakeAgentRunner()
+    tools = IncompleteTools()
+
+    with pytest.raises(CompanyWorkflowBlocked, match="Repository inspection is incomplete"):
+        await CompanyWorkflowEngine(runner, tools).run(
+            "Implement a feature", "owner/repository"
+        )
+
+    assert runner.calls == []
+    assert tools.apply_count == 0
