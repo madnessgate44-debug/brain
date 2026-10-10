@@ -49,6 +49,7 @@ class MissionRuntime:
             return
 
         self._running = True
+        runtime_started_at = datetime.now(timezone.utc).isoformat()
         try:
             async with self.session_factory() as session:
                 mission_repo = MissionRepository(session)
@@ -337,6 +338,7 @@ class MissionRuntime:
                     "runtime_id": self.runtime_id,
                     "max_iterations": self.max_iterations,
                 },
+                started_at=runtime_started_at,
                 events=[{
                     "timestamp": failed_at,
                     "stage": "mission_runtime",
