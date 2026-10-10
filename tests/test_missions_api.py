@@ -104,6 +104,7 @@ def test_mission_events(client):
 
 def test_shutdown_cancels_active_mission_runtime(monkeypatch):
     """Application shutdown must stop background tasks before closing SQLite."""
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "test-control-key-for-unit-tests-123")
     from brain.runtime.mission_runtime import MissionRuntime
 
     async def wait_until_cancelled(self):
