@@ -281,3 +281,23 @@ async def test_worker_extracts_deduplicated_public_links(monkeypatch):
     assert result["status"] == "succeeded"
     links = result["results"][0]["result"]["links"]
     assert links == [{"url": "https://example.com/docs", "text": "Documentation"}]
+
+
+
+@pytest.mark.parametrize("timeout_ms", [0, -1, 20_001, True, "5000"])
+def test_browser_action_timeout_is_bounded_and_typed(timeout_ms):
+    with pytest.raises(BrowserPolicyError, match="timeout_ms"):
+        validate_browser_actions([
+            {"op": "click", "selector": "#submit", "timeout_ms": timeout_ms}
+        ])
+
+
+def test_browser_numeric_controls_reject_booleans():
+    with pytest.raises(BrowserPolicyError, match="scroll"):
+        validate_browser_actions([{"op": "scroll", "amount": True}])
+    with pytest.raises(BrowserPolicyError, match="max_chars"):
+        validate_browser_actions([{"op": "inspect", "max_chars": True}])
+    with pytest.raises(BrowserPolicyError, match="clear"):
+        validate_browser_actions([
+            {"op": "type", "selector": "#query", "text": "search", "clear": "false"}
+        ])
