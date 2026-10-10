@@ -41,6 +41,16 @@ def test_create_approval(client):
     assert approval["status"] == "PENDING"
     assert "id" in approval
 
+    duplicate = client.post(
+        f"/missions/{mission_id}/approvals",
+        json={
+            "approval_type": ApprovalType.EXECUTION_REVIEW.value,
+            "reason": "A second pending approval must not replace the first",
+        },
+    )
+    assert duplicate.status_code == 400
+    assert "already has a pending approval" in duplicate.json()["detail"]
+
 
 def test_respond_to_approval(client):
     """Test responding to an approval request."""
