@@ -99,3 +99,38 @@ async def test_read_only_mission_uses_read_access_without_write_preflight(monkey
     )
 
     assert gateway.token == "read-only-token"
+
+
+
+@pytest.mark.asyncio
+async def test_control_repository_write_prefers_scoped_actions_token(monkeypatch):
+    """Use the workflow's contents:write token for writes to its own repository."""
+    monkeypatch.setattr(workflow, "GitHubRepositoryGateway", FakeGateway)
+
+    gateway = await workflow.build_gateway(
+        repository="owner/brain",
+        owner="owner",
+        primary_token="primary-write",
+        actions_token="actions-write",
+        capability_plan=plan_capabilities("create file docs/guide.md"),
+        control_repository="owner/brain",
+    )
+
+    assert gateway.token == "actions-write"
+
+
+@pytest.mark.asyncio
+async def test_external_repository_write_keeps_primary_token_first(monkeypatch):
+    """Do not try the control-repository GITHUB_TOKEN first for another repository."""
+    monkeypatch.setattr(workflow, "GitHubRepositoryGateway", FakeGateway)
+
+    gateway = await workflow.build_gateway(
+        repository="owner/other-project",
+        owner="owner",
+        primary_token="primary-write",
+        actions_token="actions-write",
+        capability_plan=plan_capabilities("create file docs/guide.md"),
+        control_repository="owner/brain",
+    )
+
+    assert gateway.token == "primary-write"
