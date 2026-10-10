@@ -16,9 +16,12 @@ capability improvements.
   repositories the owner wants Brain to inspect. Do not reuse a broad write token for this purpose.
 - Deduplicates results and filters forks, archived repositories, and projects with no recent pushes.
 - Ranks candidates using transparent metadata signals: activity, stars, description, language, and license identifier.
-- Uses Brain's configured AI provider for a constrained relevance assessment of public metadata only.
-- Never sends private repository metadata to the external model.
-- Validates model assessments against the discovered public repository names; model output cannot invent a candidate.
+- External AI assessment is disabled by default to prevent unexpected metered API use. Enable it
+  only by setting the repository Actions variable BRAIN_RD_ENABLE_MODEL_ASSESSMENT to true after
+  confirming the provider's applicable free quota and billing settings.
+- When enabled, AI relevance assessment uses public metadata only. Private repository metadata is
+  never sent to the external model.
+- Validates model assessments against discovered public repository names; model output cannot invent a candidate.
 - Produces Markdown and JSON reports as downloadable workflow artifacts.
 - Does not clone, install, import, or execute candidate repositories.
 
