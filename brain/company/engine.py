@@ -152,6 +152,50 @@ def _compact_repository_snapshot(
     }
 
 
+def validate_change_set(change_set: Any) -> tuple[str, ...]:
+    """Validate a model-proposed patch before any GitHub write is attempted."""
+    if not isinstance(change_set, dict):
+        return ("change_set must be an object",)
+    files = change_set.get("files")
+    if not isinstance(files, list):
+        return ("change_set.files must be a list",)
+    errors: list[str] = []
+    if not 1 <= len(files) <= 30:
+        errors.append("change_set.files must contain between 1 and 30 files")
+    seen: set[str] = set()
+    total_bytes = 0
+    for index, item in enumerate(files):
+        if not isinstance(item, dict):
+            errors.append(f"files[{index}] must be an object")
+            continue
+        path = item.get("path")
+        content = item.get("content")
+        if not isinstance(path, str) or not path:
+            errors.append(f"files[{index}].path must be a non-empty string")
+        else:
+            parts = path.split("/")
+            if (
+                path.startswith("/")
+                or "\\" in path
+                or any(part in {"", ".", ".."} for part in parts)
+                or path.startswith(".git/")
+            ):
+                errors.append(f"files[{index}].path is unsafe: {path!r}")
+            if path in seen:
+                errors.append(f"duplicate file path: {path}")
+            seen.add(path)
+        if not isinstance(content, str):
+            errors.append(f"files[{index}].content must be text")
+            continue
+        size = len(content.encode("utf-8"))
+        if size > 200_000:
+            errors.append(f"{path or index} exceeds the 200,000-byte per-file limit")
+        total_bytes += size
+    if total_bytes > 2_200_000:
+        errors.append("change set exceeds the 2,200,000-byte aggregate limit")
+    return tuple(errors)
+
+
 class CompanyWorkflowEngine:
     """Run specialist roles in order, with bounded repair and evidence-based release."""
 
@@ -198,11 +242,42 @@ class CompanyWorkflowEngine:
 
         # Implementation may be repaired only a bounded number of times.
         developer_output = await self.agent_runner.run("developer", user_request, evidence)
-        if developer_output["status"] != "PASS":
-            raise CompanyWorkflowBlocked("Developer did not produce an approved change set.")
-        change_set = developer_output["deliverables"].get("change_set")
-        if not isinstance(change_set, dict) or not change_set:
-            raise CompanyWorkflowBlocked("Developer did not return a structured change set.")
+        change_set = None
+        validation_errors: tuple[str, ...] = ()
+        for validation_cycle in range(self.max_repair_cycles + 1):
+            if developer_output.get("status") != "PASS":
+                raise CompanyWorkflowBlocked("Developer did not produce an approved change set.")
+            change_set = developer_output.get("deliverables", {}).get("change_set")
+            validation_errors = validate_change_set(change_set)
+            if not validation_errors:
+                break
+            timeline.append({
+                "role": "developer_preflight",
+                "status": "NEEDS_REPAIR",
+                "cycle": validation_cycle,
+                "errors": list(validation_errors),
+            })
+            if validation_cycle >= self.max_repair_cycles:
+                raise CompanyWorkflowBlocked(
+                    "Developer change set remained invalid after repair limit: "
+                    + "; ".join(validation_errors)
+                )
+            repair_evidence = {
+                **evidence,
+                "implementation_validation_errors": list(validation_errors),
+                "implementation_feedback": (
+                    "Correct the change set to satisfy every validation error. "
+                    "Return a complete replacement change_set; do not claim changes were applied. "
+                    + "; ".join(validation_errors)
+                ),
+                "repair_cycle": validation_cycle + 1,
+            }
+            developer_output = await self.agent_runner.run(
+                "developer", user_request, repair_evidence
+            )
+        if validation_errors:
+            raise CompanyWorkflowBlocked("Invalid change set reached the write boundary.")
+        assert isinstance(change_set, dict)
 
         applied = await self.tools.apply_change_set(change_set, repository)
         if not applied.get("branch") or not isinstance(applied.get("diff"), str):
@@ -246,8 +321,12 @@ class CompanyWorkflowEngine:
             if repair["status"] != "PASS":
                 raise CompanyWorkflowBlocked("Developer could not resolve reviewer findings.")
             revised_change_set = repair["deliverables"].get("change_set")
-            if not isinstance(revised_change_set, dict) or not revised_change_set:
-                raise CompanyWorkflowBlocked("Repair did not provide a revised change set.")
+            repair_errors = validate_change_set(revised_change_set)
+            if repair_errors:
+                raise CompanyWorkflowBlocked(
+                    "Reviewer repair returned an invalid change set: "
+                    + "; ".join(repair_errors)
+                )
             applied = await self.tools.apply_change_set(revised_change_set, repository)
             if not applied.get("branch") or not isinstance(applied.get("diff"), str):
                 raise CompanyWorkflowBlocked("Repair tool did not return actual diff evidence.")
