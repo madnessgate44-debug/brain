@@ -71,6 +71,24 @@ class ApprovalRepository:
         result = await self.session.execute(query)
         return result.scalars().all()
 
+    async def expire_if_pending(self, approval_id: str) -> Optional[ApprovalModel]:
+        """Atomically expire an approval only while it remains pending."""
+        result = await self.session.execute(
+            update(ApprovalModel)
+            .where(
+                ApprovalModel.id == approval_id,
+                ApprovalModel.status == ApprovalStatus.PENDING.value,
+            )
+            .values(
+                status=ApprovalStatus.EXPIRED.value,
+                responded_at=utc_now(),
+            )
+        )
+        await self.session.flush()
+        if result.rowcount != 1:
+            return None
+        return await self.get_by_id(approval_id)
+
     async def respond(
         self,
         approval_id: str,
