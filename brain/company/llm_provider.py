@@ -7,6 +7,7 @@ remain separate so a model response cannot bypass approval gates.
 
 import asyncio
 import os
+import re
 from typing import Any
 from urllib.parse import quote, urlparse
 
@@ -71,6 +72,48 @@ class OpenAICompatibleProvider:
         except (ValueError, TypeError, AttributeError):
             pass
         return min(60.0, max(0.0, fallback))
+
+    @staticmethod
+    def _safe_google_error(response: httpx.Response) -> str:
+        """Extract quota diagnostics from Google errors without logging raw provider text."""
+        if urlparse(str(response.url)).hostname != "generativelanguage.googleapis.com":
+            return ""
+        try:
+            payload = response.json()
+        except (ValueError, TypeError):
+            return ""
+        error = payload.get("error", {}) if isinstance(payload, dict) else {}
+        if not isinstance(error, dict):
+            return ""
+
+        parts: list[str] = []
+        provider_status = error.get("status")
+        if isinstance(provider_status, str) and re.fullmatch(r"[A-Z][A-Z0-9_]{1,63}", provider_status):
+            parts.append("provider_status=" + provider_status)
+
+        details = error.get("details", [])
+        if isinstance(details, list):
+            for detail in details[:10]:
+                if not isinstance(detail, dict):
+                    continue
+                reason = detail.get("reason")
+                if isinstance(reason, str) and re.fullmatch(r"[A-Z][A-Z0-9_]{1,63}", reason):
+                    parts.append("reason=" + reason)
+                retry_delay = detail.get("retryDelay")
+                if isinstance(retry_delay, str) and re.fullmatch(r"\d+(?:\.\d+)?s", retry_delay):
+                    parts.append("retry_delay=" + retry_delay)
+                violations = detail.get("violations", [])
+                if isinstance(violations, list):
+                    for violation in violations[:5]:
+                        if not isinstance(violation, dict):
+                            continue
+                        for field, label in (("quotaMetric", "quota_metric"), ("quotaId", "quota_id")):
+                            value = violation.get(field)
+                            if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.:/-]{1,160}", value):
+                                parts.append(label + "=" + value)
+                if len(parts) >= 5:
+                    break
+        return "; ".join(parts[:5])
 
     async def _complete_google_native(
         self,
@@ -209,8 +252,14 @@ class OpenAICompatibleProvider:
             if not isinstance(content, str) or not content.strip():
                 raise ModelProviderError("Provider returned an empty completion.")
             return content.strip()
+        except httpx.HTTPStatusError as exc:
+            detail = self._safe_google_error(exc.response)
+            message = f"Model provider request failed: HTTP {exc.response.status_code}"
+            if detail:
+                message += f" ({detail})"
+            raise ModelProviderError(message) from exc
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
-            raise ModelProviderError(f"Model provider request failed: {exc}") from exc
+            raise ModelProviderError(f"Model provider request failed: {type(exc).__name__}") from exc
         finally:
             if owns_client and client is not None:
                 await client.aclose()
