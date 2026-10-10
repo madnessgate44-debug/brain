@@ -13,6 +13,11 @@ def test_desktop_interface_uses_brain_api_instead_of_direct_provider_or_github_w
     assert "api.github.com" not in html
     assert "method: 'PUT'" not in html
     assert "sessionStorage.setItem('brain_control_api_key'" in html
+    test_handler = html[html.index("document.getElementById('testConnection').addEventListener"):]
+    assert "document.getElementById('modelInput').value.trim() || State.model" in test_handler
+    assert "State.apiKey = key;" in test_handler
+    assert "State.model = baseUrl.replace" in test_handler
+    assert "finally {" in test_handler
 
 
 def test_mobile_interface_uses_backend_for_missions_and_approvals_and_disables_github_writes():
