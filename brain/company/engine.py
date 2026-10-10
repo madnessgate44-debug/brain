@@ -4,7 +4,7 @@ The engine coordinates specialist model calls, but repository edits and test exe
 must be performed by injected tools. It never treats model claims as execution evidence.
 """
 
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from brain.company.agent_runner import SpecialistAgentRunner
 from brain.company.roles import WORKFLOW_ORDER
@@ -204,10 +204,35 @@ class CompanyWorkflowEngine:
         agent_runner: SpecialistAgentRunner,
         tools: CompanyWorkflowTools,
         max_repair_cycles: int = 2,
+        checkpoint_callback: Callable[[dict[str, Any]], None] | None = None,
     ):
         self.agent_runner = agent_runner
         self.tools = tools
         self.max_repair_cycles = max_repair_cycles
+        self.checkpoint_callback = checkpoint_callback
+
+    def _checkpoint(
+        self,
+        stage: str,
+        outputs: dict[str, Any],
+        evidence: dict[str, Any],
+        timeline: list[dict[str, Any]],
+        status: str = "IN_PROGRESS",
+    ) -> None:
+        """Persist the completed work so a later stage failure does not erase it."""
+        if self.checkpoint_callback is None:
+            return
+        self.checkpoint_callback({
+            "status": status,
+            "stage": stage,
+            "completed_roles": list(outputs),
+            "role_outputs": outputs,
+            "timeline": timeline,
+            "repository": evidence.get("repository"),
+            "branch": evidence.get("branch"),
+            "changed_files": evidence.get("changed_files", []),
+            "test_evidence": evidence.get("test_results"),
+        })
 
     async def run(
         self,
@@ -234,14 +259,19 @@ class CompanyWorkflowEngine:
             output = await self.agent_runner.run(role_key, user_request, evidence)
             outputs[role_key] = output
             timeline.append({"role": role_key, "status": output["status"]})
+            if output["status"] == "PASS":
+                evidence.update(output["deliverables"])
+            self._checkpoint(f"{role_key}_completed", outputs, evidence, timeline)
             if output["status"] != "PASS":
                 raise CompanyWorkflowBlocked(
                     f"{role_key} did not pass: {output.get('blockers', [])}"
                 )
-            evidence.update(output["deliverables"])
 
         # Implementation may be repaired only a bounded number of times.
         developer_output = await self.agent_runner.run("developer", user_request, evidence)
+        outputs["developer"] = developer_output
+        timeline.append({"role": "developer", "status": developer_output.get("status"), "phase": "proposal"})
+        self._checkpoint("developer_proposal", outputs, evidence, timeline)
         change_set = None
         validation_errors: tuple[str, ...] = ()
         for validation_cycle in range(self.max_repair_cycles + 1):
@@ -257,6 +287,7 @@ class CompanyWorkflowEngine:
                 "cycle": validation_cycle,
                 "errors": list(validation_errors),
             })
+            self._checkpoint("developer_change_set_invalid", outputs, evidence, timeline)
             if validation_cycle >= self.max_repair_cycles:
                 raise CompanyWorkflowBlocked(
                     "Developer change set remained invalid after repair limit: "
@@ -275,6 +306,9 @@ class CompanyWorkflowEngine:
             developer_output = await self.agent_runner.run(
                 "developer", user_request, repair_evidence
             )
+            outputs["developer"] = developer_output
+            timeline.append({"role": "developer", "status": developer_output.get("status"), "phase": "proposal_repair", "cycle": validation_cycle + 1})
+            self._checkpoint("developer_proposal_repaired", outputs, evidence, timeline)
         if validation_errors:
             raise CompanyWorkflowBlocked("Invalid change set reached the write boundary.")
         assert isinstance(change_set, dict)
@@ -290,6 +324,7 @@ class CompanyWorkflowEngine:
         })
         outputs["developer"] = developer_output
         timeline.append({"role": "developer", "status": "APPLIED", "branch": applied["branch"]})
+        self._checkpoint("change_set_applied", outputs, evidence, timeline)
 
         review_output = None
         test_evidence = None
@@ -301,6 +336,7 @@ class CompanyWorkflowEngine:
             outputs["code_reviewer"] = review_output
             timeline.append({"role": "code_reviewer", "status": review_output["status"],
                              "cycle": cycle})
+            self._checkpoint("code_review_completed", outputs, evidence, timeline)
             review_decision = review_output.get("deliverables", {}).get("review_decision")
             if review_output["status"] == "PASS" and str(review_decision).upper() in {"PASS", "APPROVED"}:
                 break
@@ -318,6 +354,8 @@ class CompanyWorkflowEngine:
                 "repair_cycle": cycle + 1,
             }
             repair = await self.agent_runner.run("developer", user_request, repair_evidence)
+            outputs["developer"] = repair
+            self._checkpoint("review_repair_proposal", outputs, evidence, timeline)
             if repair["status"] != "PASS":
                 raise CompanyWorkflowBlocked("Developer could not resolve reviewer findings.")
             revised_change_set = repair["deliverables"].get("change_set")
@@ -336,24 +374,28 @@ class CompanyWorkflowEngine:
                 "branch": applied["branch"],
                 "changed_files": applied.get("changed_files", []),
             })
-            outputs["developer"] = repair
+            timeline.append({"role": "developer", "status": "REPAIR_APPLIED", "cycle": cycle + 1})
+            self._checkpoint("review_repair_applied", outputs, evidence, timeline)
 
         # QA is not permitted to invent test execution. The runner must provide proof.
         test_evidence = await self.tools.run_checks(repository, evidence["branch"])
+        evidence["test_results"] = test_evidence
+        self._checkpoint("test_execution_completed", outputs, evidence, timeline)
         if test_evidence.get("executed") is not True:
             raise CompanyWorkflowBlocked("QA tool did not confirm actual test execution.")
         if test_evidence.get("status") != "PASS":
             raise CompanyWorkflowBlocked("Repository checks failed; release is blocked.")
-        evidence["test_results"] = test_evidence
         qa_output = await self.agent_runner.run("qa_engineer", user_request, evidence)
         outputs["qa_engineer"] = qa_output
         timeline.append({"role": "qa_engineer", "status": qa_output["status"]})
+        self._checkpoint("qa_review_completed", outputs, evidence, timeline)
         if qa_output["status"] != "PASS":
             raise CompanyWorkflowBlocked("QA analysis found unresolved issues.")
 
         security_output = await self.agent_runner.run("security_auditor", user_request, evidence)
         outputs["security_auditor"] = security_output
         timeline.append({"role": "security_auditor", "status": security_output["status"]})
+        self._checkpoint("security_review_completed", outputs, evidence, timeline)
         if security_output["status"] != "PASS" or str(
             security_output.get("deliverables", {}).get("security_decision", "")
         ).upper() not in {"PASS", "APPROVED"}:
@@ -366,6 +408,7 @@ class CompanyWorkflowEngine:
         customer_output = await self.agent_runner.run("customer_advocate", user_request, evidence)
         outputs["customer_advocate"] = customer_output
         timeline.append({"role": "customer_advocate", "status": customer_output["status"]})
+        self._checkpoint("customer_review_completed", outputs, evidence, timeline)
         if customer_output["status"] != "PASS" or str(
             customer_output.get("deliverables", {}).get("customer_review", "")
         ).upper() not in {"PASS", "APPROVED"}:
@@ -400,6 +443,7 @@ class CompanyWorkflowEngine:
         )
         outputs["release_manager"] = release_output
         timeline.append({"role": "release_manager", "status": release_output["status"]})
+        self._checkpoint("release_decision_completed", outputs, evidence, timeline)
         if release_output["status"] != "PASS" or str(
             release_output.get("deliverables", {}).get("release_decision", "")
         ).upper() not in {"PASS", "READY_FOR_HUMAN_APPROVAL"}:
@@ -429,4 +473,5 @@ class CompanyWorkflowEngine:
             "pull_request": pull_request,
             "next_action": "Human review required; no automatic merge or deployment occurred.",
         })
+        self._checkpoint("human_review_handoff_created", outputs, evidence, timeline, status="READY_FOR_HUMAN_APPROVAL")
         return workflow_result
