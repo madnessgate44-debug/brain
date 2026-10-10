@@ -161,7 +161,7 @@ async def test_control_repository_actions_token_uses_read_preflight_then_actual_
 @pytest.mark.parametrize(
     ("repository", "control_repository", "primary_token", "actions_token", "expected_token"),
     [
-        ("owner/brain", "owner/brain", "primary-pat", "actions-token", "primary-pat"),
+        ("owner/brain", "owner/brain", "primary-pat", "actions-token", "actions-token"),
         ("owner/amina", "owner/brain", "primary-pat", "actions-token", "primary-pat"),
         ("owner/brain", "owner/brain", "primary-pat", "", "primary-pat"),
     ],

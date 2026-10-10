@@ -110,7 +110,7 @@ async def test_pull_request_title_does_not_stringify_structured_summary():
         "owner/brain",
         "brain/test-branch",
         {
-            "summary": {"acceptance_criteria": ["A testable outcome"]},
+            "summary": {"objective": "Repeat the full end-to-end acceptance mission through every specialist."},
             "changed_files": ["docs/BRAIN_RUNTIME_VERIFICATION.md"],
             "test_evidence": {"run_url": "https://github.com/owner/brain/actions/runs/123"},
         },
