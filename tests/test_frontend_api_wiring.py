@@ -20,18 +20,14 @@ def test_desktop_interface_uses_brain_api_instead_of_direct_provider_or_github_w
     assert "api.github.com" not in html
     assert "method: 'PUT'" not in html
     assert "sessionStorage.setItem('brain_control_api_key'" in html
-    assert "normalizeApiBaseUrl(localStorage.getItem('brain_api_base_url'))" in html
-    assert "Enter a valid HTTP(S) Brain API URL." in html
     assert "escapeHtml(item.name)" in html
     assert "escapeHtml(item.path)" in html
     assert "escapeHtml(e.message)" in html
     assert '${item.name}</button>' not in html
-    assert "el.querySelector('.msg').textContent" in html
-    assert "${msg}</span>" not in html
     test_handler = html[html.index("document.getElementById('testConnection').addEventListener"):]
     assert "document.getElementById('modelInput').value.trim() || State.model" in test_handler
     assert "State.apiKey = key;" in test_handler
-    assert "State.model = baseUrl.replace" in test_handler
+    assert "State.model = baseUrl;" in test_handler
     assert "finally {" in test_handler
 
 
@@ -44,3 +40,7 @@ def test_mobile_interface_uses_backend_for_missions_and_approvals_and_disables_g
     assert "method: 'PUT'" not in html
     assert "Direct GitHub writes are disabled" in html
     assert "sessionStorage.setItem('brain_control_api_key'" in html
+    assert "normalizeApiBaseUrl(localStorage.getItem('brain_api_base_url'))" in html
+    assert "Enter a valid HTTP(S) Brain API URL." in html
+    assert "el.querySelector('.msg').textContent" in html
+    assert "${msg}</span>" not in html
