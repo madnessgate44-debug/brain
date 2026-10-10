@@ -27,7 +27,7 @@ class BrowserPolicyError(ValueError):
 
 MUTATING_ACTIONS = frozenset({"click", "type", "press", "select"})
 SUPPORTED_ACTIONS = frozenset(
-    {"navigate", "inspect", "extract_links", "click", "type", "press", "wait_for", "screenshot", "hover", "select", "scroll", "go_back", "go_forward", "reload"}
+    {"navigate", "inspect", "extract_links", "click", "type", "press", "wait_for", "screenshot", "hover", "select", "scroll", "go_back", "go_forward", "reload", "new_tab", "list_tabs", "switch_tab", "close_tab"}
 )
 MAX_ACTIONS = 25
 MAX_TEXT_CHARS = 12_000
@@ -170,6 +170,10 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
         if op == "navigate":
             if not isinstance(action.get("url"), str) or len(action["url"]) > 2048:
                 raise BrowserPolicyError(f"action {index} requires a valid url string")
+        elif op == "switch_tab":
+            tab_index = action.get("index")
+            if isinstance(tab_index, bool) or not isinstance(tab_index, int) or tab_index < 0:
+                raise BrowserPolicyError(f"action {index} requires a non-negative integer tab index")
         elif op in {"click", "type", "press", "wait_for", "hover", "select"}:
             if not isinstance(action.get("selector"), str) or not action["selector"].strip():
                 raise BrowserPolicyError(f"action {index} requires a selector")
@@ -235,7 +239,38 @@ class BrowserWorker:
         async with self._page_session() as page:
             for index, action in enumerate(validated):
                 try:
-                    result = await self._run_action(page, action)
+                    op = action["op"]
+                    if op == "new_tab":
+                        self._assert_current_page_allowed(page)
+                        context = page.context
+                        page = await context.new_page()
+                        page.set_default_timeout(8000)
+                        result = {"index": list(context.pages).index(page), "url": page.url}
+                    elif op == "list_tabs":
+                        result = await self._list_tabs(page)
+                    elif op == "switch_tab":
+                        context = page.context
+                        pages = list(context.pages)
+                        tab_index = action["index"]
+                        if tab_index >= len(pages):
+                            raise BrowserPolicyError("tab index does not exist")
+                        target = pages[tab_index]
+                        self._assert_current_page_allowed(target)
+                        page = target
+                        result = {"index": tab_index, "url": page.url, "title": await page.title()}
+                    elif op == "close_tab":
+                        context = page.context
+                        pages = list(context.pages)
+                        if len(pages) <= 1:
+                            raise BrowserPolicyError("cannot close the final browser tab")
+                        old_index = pages.index(page)
+                        await page.close()
+                        remaining = list(context.pages)
+                        page = remaining[min(old_index, len(remaining) - 1)]
+                        self._assert_current_page_allowed(page)
+                        result = {"closed": True, "active_index": remaining.index(page), "url": page.url}
+                    else:
+                        result = await self._run_action(page, action)
                     results.append({"index": index, "op": action["op"], "ok": True, "result": result})
                 except Exception as exc:
                     results.append({
@@ -297,6 +332,19 @@ class BrowserWorker:
                 yield page
             finally:
                 await context.close()
+
+    async def _list_tabs(self, page: Any) -> dict[str, Any]:
+        """List only public/blank tabs; omit disallowed URLs instead of exposing them."""
+        context = page.context
+        visible = []
+        skipped = 0
+        for index, candidate in enumerate(list(context.pages)):
+            url = candidate.url
+            if url != "about:blank" and not is_allowed_url(url, self.allowed_domains):
+                skipped += 1
+                continue
+            visible.append({"index": index, "url": url, "title": await candidate.title()})
+        return {"tabs": visible, "count": len(visible), "skipped_disallowed_tabs": skipped}
 
     def _assert_current_page_allowed(self, page: Any) -> None:
         current_url = page.url
