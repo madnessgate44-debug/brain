@@ -17,7 +17,7 @@ def test_documented_flat_environment_variables_are_loaded(monkeypatch, tmp_path)
     monkeypatch.setenv("RECOVERY_AUTO_RECOVER", "false")
     monkeypatch.setenv(
         "RECOVERY_RECOVERABLE_PHASES",
-        "EXECUTE,VALIDATE,WAITING_FOR_APPROVAL",
+        '["EXECUTE","VALIDATE","WAITING_FOR_APPROVAL"]',
     )
     monkeypatch.setenv("CONCURRENCY_MAX_ACTIVE_MISSIONS", "3")
     monkeypatch.setenv("MISSION_DEFAULTS_PRIORITY", "HIGH")
