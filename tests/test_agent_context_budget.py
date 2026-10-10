@@ -81,7 +81,11 @@ def test_review_and_quality_roles_do_not_receive_duplicate_full_change_set_conte
         {"path": "docs/report.md", "content_chars": 100000}
     ]
     assert len(reviewer["actual_diff"]) < 61000
+    assert reviewer["actual_diff_truncated"] is True
+    assert reviewer["diff_review_blocked"] is True
     assert len(qa["actual_diff"]) < 31000
+    assert qa["actual_diff_truncated"] is True
+    assert qa["diff_review_blocked"] is True
     assert "content" not in reviewer["change_set"]["files"][0]
     assert "content" in evidence["change_set"]["files"][0]
 
