@@ -202,3 +202,36 @@ async def test_inspection_reads_source_files_with_bounded_concurrency():
     assert snapshot["source_files_read"] == len(paths)
     assert set(gateway.read_paths) == set(paths)
     assert 1 < gateway.max_active_reads <= 8
+
+@pytest.mark.asyncio
+async def test_verification_runner_bootstrap_error_is_reported_as_terminal_failure():
+    class ExecutionErrorGateway(FakeGateway):
+        async def _request(self, method, path, **kwargs):
+            self.calls.append((method, path, kwargs))
+            if method == "POST" and path.endswith("/issues"):
+                return {"number": 43, "html_url": "https://github.com/owner/brain/issues/43"}
+            if method == "GET" and path.endswith("/issues/43/comments"):
+                return [{
+                    "body": (
+                        "## Brain remote test run\\n\\n"
+                        "**Result:** EXECUTION_ERROR\\n"
+                        "Workflow run: https://github.com/owner/brain/actions/runs/124"
+                    )
+                }]
+            raise AssertionError(f"Unexpected request: {method} {path}")
+
+    trigger_gateway = ExecutionErrorGateway("pat")
+    tools = GitHubCompanyTools(
+        gateway=FakeGateway("actions-token"),
+        verification_gateway=trigger_gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=1,
+    )
+
+    result = await tools.run_checks("owner/brain", "brain/test-branch")
+
+    assert result["executed"] is True
+    assert result["status"] == "FAIL"
+    assert result["reported_result"] == "EXECUTION_ERROR"
+    assert result["run_url"] == "https://github.com/owner/brain/actions/runs/124"
