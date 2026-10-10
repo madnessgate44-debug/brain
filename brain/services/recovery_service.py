@@ -1,8 +1,10 @@
 """Recovery service."""
 
 import logging
+from datetime import timedelta
 
 from brain.core.config import Config
+from brain.core.clock import utc_now
 from brain.domain.enums import MissionPhase, MissionStatus
 from brain.db.session import DatabaseSessionManager, get_db_session
 from brain.repositories.mission_repository import MissionRepository
@@ -40,8 +42,12 @@ class RecoveryService:
             event_repo = EventRepository(session)
             
             # Find missions in recoverable phases
+            heartbeat_cutoff = utc_now() - timedelta(
+                seconds=self.config.recovery.orphan_detection_grace_period_seconds
+            )
             recoverable_missions = await mission_repo.find_recoverable_missions(
-                self.recoverable_phases
+                self.recoverable_phases,
+                heartbeat_cutoff=heartbeat_cutoff,
             )
             
             if not recoverable_missions:
