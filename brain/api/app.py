@@ -1,6 +1,6 @@
 """FastAPI application factory."""
 
-from datetime import datetime
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,13 +55,22 @@ def create_app() -> FastAPI:
     # Store config in app state
     app.state.config = config
 
-    # Configure CORS
+    # Never combine wildcard origins with credentialed requests. Deployments can
+    # explicitly list trusted frontend origins via BRAIN_CORS_ORIGINS.
+    cors_origins = [
+        origin.strip()
+        for origin in os.getenv(
+            "BRAIN_CORS_ORIGINS",
+            "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000",
+        ).split(",")
+        if origin.strip()
+    ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Brain-API-Key", "Authorization"],
     )
 
     # Register routes
