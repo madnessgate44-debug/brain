@@ -978,13 +978,13 @@
                 if (path) {
                     const parent = path.split('/').slice(0, -1).join('/');
                     html +=
-                        `<button class="file-item folder" data-path="${parent}"><span class="icon">📁</span> ..</button>`;
+                        `<button class="file-item folder" data-path="${escapeHtml(parent)}"><span class="icon">📁</span> ..</button>`;
                 }
                 items.forEach(item => {
                     const icon = item.type === 'dir' ? '📁' : '📄';
                     const cls = item.type === 'dir' ? 'folder' : 'file';
                     html +=
-                        `<button class="file-item ${cls}" data-path="${item.path}" data-type="${item.type}"><span class="icon">${icon}</span> ${item.name}</button>`;
+                        `<button class="file-item ${cls}" data-path="${escapeHtml(item.path)}" data-type="${escapeHtml(item.type)}"><span class="icon">${icon}</span> ${escapeHtml(item.name)}</button>`;
                 });
 
                 if (!html) html =
@@ -1006,7 +1006,7 @@
 
             } catch (e) {
                 explorer.innerHTML =
-                    `<div class="empty-state"><span class="material-symbols-outlined">error</span><p>${e.message}</p></div>`;
+                    `<div class="empty-state"><span class="material-symbols-outlined">error</span><p>${escapeHtml(e.message)}</p></div>`;
             }
         }
 
@@ -1080,7 +1080,7 @@
                     <div class="reason">${escapeHtml(a.reason || 'No reason provided')}</div>
                     <div class="actions">
                         <button class="btn btn-success btn-sm approve-btn" data-id="${escapeHtml(a.id || i)}">Approve</button>
-                        <button class="btn btn-danger btn-sm reject-btn" data-id="${a.id || i}">Reject</button>
+                        <button class="btn btn-danger btn-sm reject-btn" data-id="${escapeHtml(a.id || i)}">Reject</button>
                     </div>
                 </div>
             `).join('');
