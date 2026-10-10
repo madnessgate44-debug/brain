@@ -172,3 +172,43 @@ async def test_specialist_prompt_uses_real_newlines_in_role_contract():
     assert "\\nScope applicability rule:" not in prompt
     assert "software company.\nYour responsibility:" in prompt
     assert "\\nYour responsibility:" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_customer_advocate_scope_rule_covers_non_ui_work():
+    """Documentation/test-only missions must not be blocked for lacking visual design."""
+    from brain.company.roles import ROLE_BY_KEY
+
+    class CapturingProvider:
+        def __init__(self):
+            self.system_prompts = []
+
+        async def complete(self, system_prompt, user_prompt):
+            self.system_prompts.append(system_prompt)
+            role = ROLE_BY_KEY["customer_advocate"]
+            return json.dumps({
+                "status": "PASS",
+                "deliverables": {key: "not applicable to documentation-only scope" for key in role.deliverables},
+                "findings": [],
+                "blockers": [],
+                "evidence_needed": [],
+            })
+
+    provider = CapturingProvider()
+    runner = SpecialistAgentRunner(provider)
+    await runner.run(
+        "customer_advocate",
+        "Create a documentation-only runtime verification report.",
+        {
+            "product_brief": "Record evidence accurately",
+            "acceptance_criteria": ["No unsupported claims"],
+            "screen_specification": "Not applicable: documentation-only work",
+            "change_set": {"files": [{"path": "docs/report.md", "content": "Evidence log"}]},
+            "test_results": {"status": "PASS", "executed": True},
+        },
+    )
+
+    prompt = provider.system_prompts[0]
+    assert "documentation-only" in prompt
+    assert "test-only" in prompt
+    assert "Do not invent UI work" in prompt
