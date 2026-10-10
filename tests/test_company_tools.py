@@ -58,7 +58,8 @@ async def test_verification_issue_uses_separate_pat_gateway():
     assert result["workflow_run_id"] == 123
     assert result["workflow_conclusion"] == "success"
     assert len(write_gateway.calls) == 0
-    assert [call[0] for call in trigger_gateway.calls] == ["POST", "GET"]
+    assert [call[0] for call in trigger_gateway.calls] == ["POST", "GET", "GET"]
+    assert trigger_gateway.calls[-1][1].endswith("/actions/runs/123")
 
 
 @pytest.mark.asyncio
