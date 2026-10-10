@@ -17,9 +17,9 @@ jobs:
     permissions:
       issues: write
     env:
-      BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
-      BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL }}
-      BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL }}
+      BRAIN_AI_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.BRAIN_AI_API_KEY }}
+      BRAIN_AI_BASE_URL: ${{ secrets.DEEPSEEK_API_KEY && 'https://api.deepseek.com/v1' || secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
+      BRAIN_AI_MODEL: ${{ secrets.DEEPSEEK_API_KEY && 'deepseek-chat' || secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
       BRAIN_CONTROL_API_KEY: brain-runtime-test-only-${{ github.run_id }}-${{ github.run_attempt }}
       DATABASE__SQLITE_PATH: ./test_workspace/db/chat-runtime-check.db
       WORKSPACE__ROOT: ./test_workspace
@@ -40,7 +40,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev]'
 
-      - name: Call the real Brain chat route and configured Gemini provider
+      - name: Call the real Brain chat route and configured model provider
         id: runtime
         shell: bash
         run: |
@@ -73,14 +73,15 @@ jobs:
                   failure_code = "ProviderConfigurationMissing"
                   raise RuntimeError(failure_code)
               with TestClient(create_app()) as client:
-                  before = client.get("/missions")
+                  auth_headers = {"X-Brain-API-Key": os.environ["BRAIN_CONTROL_API_KEY"]}
+                  before = client.get("/missions", headers=auth_headers)
                   if before.status_code != 200:
                       failure_code = "MissionBaselineHTTP" + str(before.status_code)
                       raise RuntimeError(failure_code)
                   mission_count_before = before.json().get("total")
                   response = client.post(
                       "/chat",
-                      headers={"X-Brain-API-Key": os.environ["BRAIN_CONTROL_API_KEY"]},
+                      headers=auth_headers,
                       json={"messages": [{"role": "user", "content": "Reply with exactly BRAIN_CHAT_OK"}]},
                   )
                   if response.status_code != 200:
@@ -90,7 +91,7 @@ jobs:
                   if "BRAIN_CHAT_OK" not in reply:
                       failure_code = "ModelResponseValidationFailed"
                       raise RuntimeError(failure_code)
-                  after = client.get("/missions")
+                  after = client.get("/missions", headers=auth_headers)
                   if after.status_code != 200 or after.json().get("total") != mission_count_before:
                       failure_code = "ChatUnexpectedlyChangedMissionState"
                       raise RuntimeError(failure_code)
