@@ -152,11 +152,12 @@ def _prepare_prompt_evidence(
             }
         elif role_key == "code_reviewer":
             changed = evidence.get("changed_files", [])
+            if not isinstance(changed, list):
+                changed = []
             selected = {
                 path: source_contents[path]
                 for path in changed
-                if isinstance(changed, list)
-                and isinstance(path, str)
+                if isinstance(path, str)
                 and isinstance(source_contents, dict)
                 and isinstance(source_contents.get(path), str)
                 and len(source_contents[path]) <= _REVIEW_DIFF_BUDGET_CHARS
@@ -184,7 +185,7 @@ def _prepare_prompt_evidence(
         limit = _REVIEW_DIFF_BUDGET_CHARS if role_key == "code_reviewer" else _OTHER_DIFF_BUDGET_CHARS
         if len(actual_diff) > limit:
             omitted_chars = len(actual_diff) - limit
-            prepared["actual_diff"] = actual_diff[:limit] + f"\\n[DIFF TRUNCATED: {omitted_chars} characters omitted from this role's context.]"
+            prepared["actual_diff"] = actual_diff[:limit] + f"\n[DIFF TRUNCATED: {omitted_chars} characters omitted from this role's context.]"
     return prepared
 
 
