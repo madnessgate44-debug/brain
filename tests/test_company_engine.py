@@ -2,7 +2,12 @@
 
 import pytest
 
-from brain.company.engine import CompanyWorkflowBlocked, CompanyWorkflowEngine, validate_change_set
+from brain.company.engine import (
+    CompanyWorkflowBlocked,
+    CompanyWorkflowEngine,
+    _compact_repository_snapshot,
+    validate_change_set,
+)
 
 
 class FakeAgentRunner:
@@ -334,3 +339,42 @@ async def test_engine_final_checkpoint_records_all_roles_and_human_approval_gate
     assert checkpoints[-1]["stage"] == "human_review_handoff_created"
     assert checkpoints[-1]["status"] == "READY_FOR_HUMAN_APPROVAL"
     assert len(checkpoints[-1]["completed_roles"]) == 9
+
+
+
+def test_repository_compactor_never_passes_truncated_files_as_complete_source():
+    large_path = "brain/large_module.py"
+    complete_large_source = "line of source\n" * 500
+    small_path = "README.md"
+    small_source = "# Brain\n"
+
+    snapshot = {
+        "repository": "owner/repository",
+        "default_branch": "main",
+        "base_commit": "abc123",
+        "files": [
+            {"path": large_path, "size": len(complete_large_source)},
+            {"path": small_path, "size": len(small_source)},
+        ],
+        "source_contents": {
+            large_path: complete_large_source,
+            small_path: small_source,
+        },
+        "source_manifest": {
+            "candidate_count": 2,
+            "read_count": 2,
+            "coverage_complete": True,
+            "failed_paths": {},
+        },
+    }
+
+    compacted = _compact_repository_snapshot(
+        snapshot,
+        f"Update {large_path}",
+        max_chars=1000,
+        max_files=10,
+    )
+
+    assert compacted["source_contents"] == {small_path: small_source}
+    assert large_path in compacted["source_manifest"]["model_context_omitted_paths"]
+    assert "model_context_omitted_or_truncated_paths" not in compacted["source_manifest"]
