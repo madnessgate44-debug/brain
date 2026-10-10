@@ -17,8 +17,8 @@ def _redact(value: str) -> str:
     for name, secret in os.environ.items():
         if secret and any(marker in name.upper() for marker in ("TOKEN", "API_KEY", "SECRET", "PASSWORD")):
             value = value.replace(secret, "[REDACTED]")
-    value = re.sub(r"(?i)(Bearer\\s+)[A-Za-z0-9._~+/-]+=*", r"\\1[REDACTED]", value)
-    value = re.sub(r"(?i)(api[_-]?key[\\s:=]+)[^\\s,;]+", r"\\1[REDACTED]", value)
+    value = re.sub(r"(?i)(Bearer\s+)[A-Za-z0-9._~+/-]+=*", r"\1[REDACTED]", value)
+    value = re.sub(r"(?i)(api[_-]?key[\s:=]+)[^\s,;]+", r"\1[REDACTED]", value)
     return value
 
 
