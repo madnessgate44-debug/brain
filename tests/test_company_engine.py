@@ -2,6 +2,7 @@
 
 import pytest
 
+from brain.company.agent_runner import _prepare_prompt_evidence
 from brain.company.engine import CompanyWorkflowBlocked, CompanyWorkflowEngine, validate_change_set
 
 
@@ -248,49 +249,68 @@ async def test_customer_gate_failure_reports_decision_and_counts():
 
 
 @pytest.mark.asyncio
-async def test_engine_bounds_repository_source_context_before_model_calls():
+async def test_engine_preserves_planned_source_files_for_role_specific_prompt_selection():
+    planned_path = "tests/test_company_run_issue_workflow.py"
+    target_path = "docs/BRAIN_RUNTIME_VERIFICATION.md"
+
     class CapturingRunner(FakeAgentRunner):
         def __init__(self):
             super().__init__()
-            self.first_evidence = None
+            self.developer_evidence = None
 
         async def run(self, role_key, user_request, evidence):
-            if self.first_evidence is None:
-                self.first_evidence = evidence
-            return await super().run(role_key, user_request, evidence)
+            output = await super().run(role_key, user_request, evidence)
+            if role_key == "architect":
+                output["deliverables"]["file_plan"] = [planned_path]
+            if role_key == "developer":
+                self.developer_evidence = evidence
+            return output
 
     class LargeRepositoryTools(FakeTools):
         async def inspect_repository(self, repository):
+            module_paths = [f"src/module_{i}.py" for i in range(80)]
+            paths = ["README.md", target_path, planned_path, *module_paths]
+            source_contents = {
+                "README.md": "readme evidence " * 1000,
+                target_path: "target file context",
+                planned_path: "def test_source_file_is_available():\n    assert True\n",
+                **{f"src/module_{i}.py": f"source evidence {i} " * 1000 for i in range(80)},
+            }
             return {
                 "repository": repository,
                 "default_branch": "main",
                 "base_commit": "abc123",
-                "files": [{"path": f"src/module_{i}.py", "size": 9000} for i in range(80)],
-                "source_contents": {
-                    **{"README.md": "readme evidence " * 1000},
-                    **{f"src/module_{i}.py": f"source evidence {i} " * 1000 for i in range(80)},
-                    "docs/BRAIN_RUNTIME_VERIFICATION.md": "target file context",
-                },
+                "files": [{"path": path, "size": len(source_contents[path])} for path in paths],
+                "source_contents": source_contents,
                 "source_manifest": {
-                    "candidate_count": 81,
-                    "read_count": 81,
+                    "candidate_count": len(paths),
+                    "read_count": len(paths),
                     "coverage_complete": True,
                     "failed_paths": {},
                     "omitted_by_aggregate_budget": [],
-                    "aggregate_bytes_read": 900000,
+                    "candidate_paths": paths,
+                    "read_paths": paths,
+                    "aggregate_bytes_read": sum(len(text) for text in source_contents.values()),
                 },
             }
 
     runner = CapturingRunner()
     engine = CompanyWorkflowEngine(runner, LargeRepositoryTools())
-    await engine.run(
-        "Create docs/BRAIN_RUNTIME_VERIFICATION.md with verified runtime evidence",
-        "owner/repository",
-    )
-    snapshot = runner.first_evidence["repository_snapshot"]
-    assert len(snapshot["source_contents"]) <= 20
-    assert sum(map(len, snapshot["source_contents"].values())) <= 41_000
-    assert "docs/BRAIN_RUNTIME_VERIFICATION.md" in snapshot["source_contents"]
+    objective = f"Create {target_path} with verified runtime evidence"
+    await engine.run(objective, "owner/repository")
+
+    snapshot = runner.developer_evidence["repository_snapshot"]
+    assert len(snapshot["source_contents"]) == 83
+    assert sum(map(len, snapshot["source_contents"].values())) > 41_000
+    assert planned_path in snapshot["source_contents"]
+    assert snapshot["source_manifest"]["source_contents_retained_count"] == 83
+    assert snapshot["source_manifest"]["source_selection_deferred_to_role_runner"] is True
     assert len(snapshot["files"]) <= 300
-    assert snapshot["source_manifest"]["model_context_char_limit"] == 40_000
-    assert len(snapshot["source_manifest"]["model_context_omitted_or_truncated_paths"]) > 0
+
+    # The actual role prompt still stays within its own budget and includes the
+    # architect-planned file, even though the user did not name that path.
+    prompt_evidence = _prepare_prompt_evidence("developer", objective, runner.developer_evidence)
+    prompt_snapshot = prompt_evidence["repository_snapshot"]
+    assert planned_path in prompt_snapshot["source_contents"]
+    assert prompt_snapshot["source_selection"]["omitted_explicit_paths"] == []
+    assert prompt_snapshot["source_selection"]["selected_chars"] <= 90_000

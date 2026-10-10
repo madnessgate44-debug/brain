@@ -263,6 +263,9 @@ def test_build_audit_source_chunks_compactly_preserves_paths_and_line_numbers():
     assert "FILE: src/b.ts" in rendered
     assert "L1: const a = 1;" in rendered
     assert "L2: const b = 2;" in rendered
+    # The chunk payload must contain real line breaks, never literal backslash-n text.
+    assert any("\n" in chunk["text"] for chunk in chunks)
+    assert all("\\n" not in chunk["text"] for chunk in chunks)
     assert len(chunks) > 1
     assert all(len(chunk["text"]) <= 80 for chunk in chunks)
 

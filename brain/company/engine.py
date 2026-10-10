@@ -58,59 +58,23 @@ def _gate_summary(output: dict[str, Any], decision_field: str) -> str:
 def _compact_repository_snapshot(
     snapshot: dict[str, Any],
     user_request: str,
-    max_chars: int = 40_000,
-    max_files: int = 20,
 ) -> dict[str, Any]:
-    """Bound repository context sent to every model call while retaining source evidence."""
+    """Retain complete repository source for later role-specific prompt selection.
+
+    GitHubCompanyTools already bounds the source inventory and aggregate bytes read.
+    Do not truncate source contents here: the architecture stage may plan a file that
+    was not explicitly named in the original request, and the developer must be able
+    to read that planned file. SpecialistAgentRunner performs bounded, role-specific
+    source selection immediately before each model call.
+    """
     source_contents = snapshot.get("source_contents", {})
     if not isinstance(source_contents, dict):
         source_contents = {}
-
-    explicit_paths = {
-        token.strip("`'\".,:;()[]{}")
-        for token in user_request.split()
-        if "/" in token and "." in token
+    source_contents = {
+        path: text
+        for path, text in source_contents.items()
+        if isinstance(path, str) and isinstance(text, str)
     }
-
-    def priority(path: str) -> tuple[int, int, str]:
-        lowered = path.casefold()
-        if path in explicit_paths:
-            group = 0
-        elif lowered in {"readme.md", "pyproject.toml", "package.json", "requirements.txt"}:
-            group = 1
-        elif any(part in {"tests", "test", "__tests__"} for part in lowered.split("/")):
-            group = 2
-        elif lowered.startswith(".github/workflows/"):
-            group = 3
-        else:
-            group = 4
-        return (group, len(path), path)
-
-    paths = sorted(
-        (path for path, content in source_contents.items() if isinstance(path, str) and isinstance(content, str)),
-        key=priority,
-    )
-    compact_contents: dict[str, str] = {}
-    omitted_paths: list[str] = []
-    remaining = max_chars
-    for path in paths:
-        if len(compact_contents) >= max_files or remaining <= 0:
-            omitted_paths.append(path)
-            continue
-        content = source_contents[path]
-        header = "FILE: " + path
-        budget = min(4_000, remaining - len(header))
-        if budget <= 0:
-            omitted_paths.append(path)
-            continue
-        truncated = len(content) > budget
-        excerpt = content[:budget]
-        if truncated:
-            excerpt += " [TRUNCATED: source excerpt capped for model context]"
-        compact_contents[path] = excerpt
-        remaining -= len(header) + min(len(content), budget)
-        if truncated:
-            omitted_paths.append(path)
 
     manifest = snapshot.get("source_manifest", {})
     if not isinstance(manifest, dict):
@@ -129,6 +93,16 @@ def _compact_repository_snapshot(
     failed_paths = manifest.get("failed_paths", {})
     if not isinstance(failed_paths, dict):
         failed_paths = {}
+    omitted = manifest.get("omitted_by_aggregate_budget", [])
+    if not isinstance(omitted, list):
+        omitted = []
+    candidate_paths = manifest.get("candidate_paths", [])
+    if not isinstance(candidate_paths, list):
+        candidate_paths = []
+    read_paths = manifest.get("read_paths", [])
+    if not isinstance(read_paths, list):
+        read_paths = list(source_contents)
+
     return {
         "repository": snapshot.get("repository"),
         "default_branch": snapshot.get("default_branch"),
@@ -136,26 +110,27 @@ def _compact_repository_snapshot(
         "truncated": snapshot.get("truncated", False),
         "source_files_read": snapshot.get("source_files_read", len(source_contents)),
         "files": compact_files,
-        "source_contents": compact_contents,
+        "source_contents": source_contents,
         "source_manifest": {
-            "candidate_count": manifest.get("candidate_count", len(paths)),
+            "candidate_count": manifest.get("candidate_count", len(candidate_paths)),
             "read_count": manifest.get("read_count", len(source_contents)),
             "coverage_complete": manifest.get("coverage_complete", False),
             "tree_truncated": manifest.get("tree_truncated", snapshot.get("truncated", False)),
             "aggregate_bytes_read": manifest.get("aggregate_bytes_read"),
             "failed_path_count": len(failed_paths),
             "failed_paths_sample": list(failed_paths)[:20],
-            "omitted_by_aggregate_budget_count": len(
-                manifest.get("omitted_by_aggregate_budget", [])
-                if isinstance(manifest.get("omitted_by_aggregate_budget", []), list)
-                else []
-            ),
-            "model_context_omitted_or_truncated_paths": omitted_paths,
-            "model_context_char_limit": max_chars,
-            "model_context_file_limit": max_files,
+            "omitted_by_aggregate_budget_count": len(omitted),
+            "candidate_paths": candidate_paths[:300],
+            "read_paths": read_paths[:300],
+            "source_contents_retained_count": len(source_contents),
+            "source_selection_deferred_to_role_runner": True,
+            "request_path_hints": sorted({
+                token.strip("`'\".,:;()[]{}")
+                for token in user_request.split()
+                if "/" in token and "." in token
+            }),
         },
     }
-
 
 def validate_change_set(change_set: Any) -> tuple[str, ...]:
     """Validate a model-proposed patch before any GitHub write is attempted."""
