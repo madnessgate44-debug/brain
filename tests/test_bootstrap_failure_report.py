@@ -258,3 +258,39 @@ def test_inline_fallback_runs_without_checked_out_helper(tmp_path):
     assert report["failed_steps"] == [{"step": "checkout", "outcome": "failure"}]
     assert report["impact"]["repository_mutation_status"].startswith("UNKNOWN")
     assert "Commit SHA: checkout-sha" in markdown
+
+
+def test_ensure_failure_reports_repairs_empty_json_object(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    markdown_path.write_text("pre-existing markdown report", encoding="utf-8")
+    json_path.write_text("{}", encoding="utf-8")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert markdown_path.read_text(encoding="utf-8") == "pre-existing markdown report"
+    assert json.loads(json_path.read_text(encoding="utf-8"))["status"] == "FAILED"
+
+
+def test_ensure_failure_reports_repairs_invalid_utf8_json(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    markdown_path.write_text("pre-existing markdown report", encoding="utf-8")
+    json_path.write_bytes(b"\\xff\\xfe")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert markdown_path.read_text(encoding="utf-8") == "pre-existing markdown report"
+    assert json.loads(json_path.read_text(encoding="utf-8"))["status"] == "FAILED"
