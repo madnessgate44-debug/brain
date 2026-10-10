@@ -31,10 +31,15 @@ async def lifespan(app: FastAPI):
     app.state.boot_service = boot_service
     app.state.boot_started_at = boot_service.boot_started_at
 
-    yield
-
-    # Shutdown
-    await db_manager.close()
+    try:
+        yield
+    finally:
+        # Stop background mission tasks before disposing their database connections.
+        # A cancelled runtime can be recovered on the next boot from persisted mission state.
+        try:
+            await boot_service.runtime_registry.stop_all()
+        finally:
+            await db_manager.close()
 
 
 def create_app() -> FastAPI:
