@@ -2,21 +2,25 @@
 
 ## Purpose
 
-The R&D agent continuously discovers potentially useful AI, coding, agent, developer-tool,
-and cloud-execution projects. It turns public repository metadata into an evidence-linked
-shortlist for further testing and capability improvements.
+The R&D agent discovers potentially useful AI, coding, agent, developer-tool, and cloud-execution
+projects. It turns repository metadata into an evidence-linked shortlist for further testing and
+capability improvements.
 
 ## Current implementation
 
 - Runs daily through GitHub Actions and can be started manually.
 - Searches a bounded set of public GitHub repository queries.
+- When the optional BRAIN_RD_GITHUB_TOKEN secret is configured, also searches private repositories
+  that the token is authorized to read.
+- The private-repository token must be dedicated, fine-grained, read-only, and limited to the
+  repositories the owner wants Brain to inspect. Do not reuse a broad write token for this purpose.
 - Deduplicates results and filters forks, archived repositories, and projects with no recent pushes.
 - Ranks candidates using transparent metadata signals: activity, stars, description, language, and license identifier.
-- Uses Brain's configured AI provider for a constrained relevance assessment when BRAIN_AI_API_KEY is available.
-- Validates model assessments against the discovered repository names; model output cannot invent a candidate.
+- Uses Brain's configured AI provider for a constrained relevance assessment of public metadata only.
+- Never sends private repository metadata to the external model.
+- Validates model assessments against the discovered public repository names; model output cannot invent a candidate.
 - Produces Markdown and JSON reports as downloadable workflow artifacts.
-- Records model availability and license uncertainty rather than silently treating either as verified.
-- Does not require a paid service, purchase credits, create accounts, or request write permissions.
+- Does not clone, install, import, or execute candidate repositories.
 
 ## Free-tier-first policy
 
@@ -27,17 +31,16 @@ workflow does not guarantee unlimited free execution.
 
 ## Security boundaries
 
-Discovery is read-only. The agent does not clone, install, import, or execute candidate code.
-It does not expose GitHub tokens or provider credentials to discovered repositories. Repository
-descriptions and model output are untrusted data, not instructions. A repository without a clear
-license is marked for review and must not be automatically imported.
+Discovery is read-only. It does not expose GitHub tokens or provider credentials to discovered
+repositories. Repository descriptions and model output are untrusted data, not instructions.
+A repository without a clear license is marked for review and must not be automatically imported.
 
 Before adding automatic cloud experiments, implement a separate disposable sandbox with no
 production credentials, strict time and storage limits, outbound-network restrictions where
 practical, and an independent report of commands and results. Only after a candidate passes
 license, dependency, security, and usefulness checks should Brain propose an integration pull
-request. A closed-source service may be integrated only through authorized access and documented
-free-tier terms; the agent must not bypass access controls.
+request. A closed-source service or private repository may be evaluated only through authorized
+access and documented license/free-tier terms; the agent must not bypass access controls.
 
 ## How to run
 
