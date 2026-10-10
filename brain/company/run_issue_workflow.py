@@ -76,12 +76,11 @@ async def build_gateway(
         and bool(control_repo)
         and repository.casefold() == control_repo
     )
-    # Prefer the configured PAT for mutating missions on the control repository because
-    # repository settings may forbid GITHUB_TOKEN from creating pull requests even when
-    # contents:write is granted. Keep the scoped Actions token as a fallback for bounded
-    # same-repository writes. A PAT is never used for another owner's repository.
+    # Use the workflow token for bounded contents writes to the control repository.
+    # Pull-request creation uses the separate configured PAT gateway because repository
+    # settings may forbid GITHUB_TOKEN from opening PRs. External repositories use the PAT.
     ordered_tokens = (
-        [("BRAIN_GITHUB_TOKEN", primary), ("BRAIN_GITHUB_ACTIONS_TOKEN", actions)]
+        [("BRAIN_GITHUB_ACTIONS_TOKEN", actions), ("BRAIN_GITHUB_TOKEN", primary)]
         if is_control_repo_write
         else [("BRAIN_GITHUB_TOKEN", primary), ("BRAIN_GITHUB_ACTIONS_TOKEN", actions)]
     )
@@ -174,12 +173,20 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         if primary_token
         else None
     )
+    pull_request_gateway = (
+        GitHubRepositoryGateway(token=primary_token, allowed_owner=os.environ.get(
+            "BRAIN_GITHUB_OWNER", "madnessgate44-debug"
+        ))
+        if primary_token
+        else gateway
+    )
     tools = GitHubCompanyTools(
         gateway=gateway,
         control_repository=control_repository,
         poll_seconds=5,
         timeout_seconds=900,
         verification_gateway=verification_gateway,
+        pull_request_gateway=pull_request_gateway,
     )
     provider = OpenAICompatibleProvider(
         api_key=os.environ["BRAIN_AI_API_KEY"],

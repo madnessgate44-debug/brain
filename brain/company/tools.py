@@ -20,9 +20,11 @@ class GitHubCompanyTools:
         poll_seconds: float = 5.0,
         timeout_seconds: float = 900.0,
         verification_gateway: GitHubRepositoryGateway | None = None,
+        pull_request_gateway: GitHubRepositoryGateway | None = None,
     ):
         self.gateway = gateway or GitHubRepositoryGateway()
         self.verification_gateway = verification_gateway or self.gateway
+        self.pull_request_gateway = pull_request_gateway or self.gateway
         self.control_repository = (
             control_repository or get_setting("BRAIN_CONTROL_REPOSITORY")
         )
@@ -152,7 +154,7 @@ class GitHubCompanyTools:
             "- Product/UX, architecture, independent review, QA, security, and customer gates passed.",
             "- Human review is required. Brain has not merged or deployed this change.",
         ])
-        return await self.gateway.create_pull_request(
+        return await self.pull_request_gateway.create_pull_request(
             repository=repository,
             branch=branch,
             title=f"Brain: {workflow_result.get('summary', 'Reviewed implementation')}"[:240],
