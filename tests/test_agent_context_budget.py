@@ -1,5 +1,7 @@
 """Prompt-budget regression tests for role-specific repository evidence."""
 
+import pytest
+
 from brain.company.agent_runner import AgentOutputError, SpecialistAgentRunner, _prepare_prompt_evidence, _select_source_contents
 
 
