@@ -18,7 +18,7 @@ import socket
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 
 class BrowserPolicyError(ValueError):
@@ -27,7 +27,7 @@ class BrowserPolicyError(ValueError):
 
 MUTATING_ACTIONS = frozenset({"click", "type", "press", "select"})
 SUPPORTED_ACTIONS = frozenset(
-    {"navigate", "inspect", "click", "type", "press", "wait_for", "screenshot", "hover", "select", "scroll", "go_back", "go_forward", "reload"}
+    {"navigate", "inspect", "extract_links", "click", "type", "press", "wait_for", "screenshot", "hover", "select", "scroll", "go_back", "go_forward", "reload"}
 )
 MAX_ACTIONS = 25
 MAX_TEXT_CHARS = 12_000
@@ -196,7 +196,7 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
             "attached", "detached", "visible", "hidden"
         }:
             raise BrowserPolicyError(f"action {index} has invalid wait state")
-        if op == "inspect":
+        if op in {"inspect", "extract_links"}:
             max_chars = action.get("max_chars", 5000)
             if not isinstance(max_chars, int) or not 1 <= max_chars <= MAX_TEXT_CHARS:
                 raise BrowserPolicyError(f"action {index} max_chars must be between 1 and {MAX_TEXT_CHARS}")
@@ -330,6 +330,27 @@ class BrowserWorker:
                 "title": await page.title(),
                 "text": (await page.locator("body").inner_text())[: action.get("max_chars", 5000)],
             }
+        if op == "extract_links":
+            self._assert_current_page_allowed(page)
+            raw_links = await page.locator("a[href]").evaluate_all(
+                """anchors => anchors.map(a => ({
+                    href: a.href || a.getAttribute('href') || '',
+                    text: (a.innerText || a.getAttribute('aria-label') || a.title || '').trim()
+                }))"""
+            )
+            links = []
+            seen = set()
+            for item in raw_links:
+                if not isinstance(item, dict):
+                    continue
+                href = urljoin(page.url, str(item.get("href", "")))
+                if not is_allowed_url(href, self.allowed_domains) or href in seen:
+                    continue
+                seen.add(href)
+                links.append({"url": href, "text": str(item.get("text", ""))[:300]})
+                if len(links) >= 50:
+                    break
+            return {"url": page.url, "links": links, "count": len(links)}
         if op in MUTATING_ACTIONS or op in {"wait_for", "screenshot", "hover", "scroll", "go_back", "go_forward", "reload"}:
             self._assert_current_page_allowed(page)
         if op == "go_back":
