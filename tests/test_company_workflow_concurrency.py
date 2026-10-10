@@ -23,7 +23,7 @@ def test_company_workflow_releases_lease_even_after_failure():
     assert "Release shared specialist workflow lock" in text
     assert "if: always() && steps.mission_lock.outputs.acquired == 'true'" in text
     assert "deleteRef" in text
-    assert "staleMs = 60 * 60 * 1000" in text
+    assert "staleMs = 95 * 60 * 1000" in text
 
 
 def test_waiting_for_shared_lease_is_bounded_and_reported():
