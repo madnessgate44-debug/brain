@@ -81,12 +81,14 @@ class SpecialistAgentRunner:
         if role_key in {"ux_designer", "customer_advocate"}:
             role_contract += (
                 "\nScope applicability rule: adapt deliverables to the explicit request. "
-                "For backend-only work or a request that explicitly excludes UI changes, do not "
-                "block because visual mockups, screen redesign, or a visual design system are "
-                "out of scope. Provide backend interaction journeys and API/response-state "
-                "specifications in the required fields; mark purely visual details as not "
-                "applicable with a short reason. Do not request user confirmation for a clear "
-                "scope boundary. Raise a blocker only for a real unresolved product requirement.\n"
+                "For backend-only, documentation-only, test-only, configuration-only, "
+                "infrastructure-only work, or a request that explicitly excludes UI changes, "
+                "do not block because visual mockups, screen redesign, a visual design system, "
+                "or user journey diagrams are out of scope. Describe only relevant user impact "
+                "and place concise non-UI interaction details in required fields where applicable; "
+                "mark purely visual details as not applicable with a short reason. Do not invent "
+                "UI work or request user confirmation for a clear scope boundary. Raise a blocker "
+                "only for a real unresolved product requirement.\n"
             )
         system_prompt = (
             "You are the " + role.title + " in a software company.\n"
