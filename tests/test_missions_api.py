@@ -85,6 +85,10 @@ def test_start_mission(client):
     assert data["status"] in ["RUNNING", "COMPLETED"]
     assert "runtime_id" in data
 
+    # A second request must never start a duplicate runtime or replay a completed mission.
+    repeated = client.post(f"/missions/{mission_id}/start")
+    assert repeated.status_code == 409
+
 
 def test_mission_events(client):
     """Test mission events endpoint."""
