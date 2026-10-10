@@ -204,7 +204,14 @@ class ResearchEvidenceCollector:
         searches: list[dict[str, str]] = []
         errors: list[str] = []
         seen: set[str] = set()
-        for query in _mission_queries(mission):
+        queries = _mission_queries(mission)
+        for query_index, query in enumerate(queries):
+            if len(searches) >= self.max_web_pages:
+                break
+            remaining_slots = self.max_web_pages - len(searches)
+            remaining_queries = len(queries) - query_index
+            query_limit = max(1, (remaining_slots + remaining_queries - 1) // remaining_queries)
+            added_for_query = 0
             try:
                 response = await client.get(SEARCH_URL, params={"q": query}, headers={"User-Agent": "Mozilla/5.0 Brain-RD/1.0", "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8"})
                 response.raise_for_status()
@@ -216,12 +223,11 @@ class ResearchEvidenceCollector:
                         continue
                     seen.add(url)
                     searches.append({"title": link["title"], "url": url, "query": query})
-                    if len(searches) >= self.max_web_pages:
+                    added_for_query += 1
+                    if len(searches) >= self.max_web_pages or added_for_query >= query_limit:
                         break
             except (httpx.HTTPError, ValueError):
                 errors.append("Search request failed for one query.")
-            if len(searches) >= self.max_web_pages:
-                break
 
         pages = await asyncio.gather(
             *(self._fetch_public_page(client, item) for item in searches),
