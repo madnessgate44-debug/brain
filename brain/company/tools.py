@@ -194,14 +194,17 @@ class GitHubCompanyTools:
                 body = comment.get("body", "")
                 if "## Brain remote test run" not in body:
                     continue
-                result_match = re.search(r"\*\*Result:\*\*\s*(PASS|FAIL)", body)
+                result_match = re.search(
+                    r"\*\*Result:\*\*\s*(PASS|FAIL|EXECUTION_ERROR)", body
+                )
                 run_match = re.search(r"https://github\.com/[^\s]+/actions/runs/\d+", body)
                 if not result_match:
                     continue
-                result = result_match.group(1)
+                reported_result = result_match.group(1)
                 return {
                     "executed": True,
-                    "status": result,
+                    "status": "PASS" if reported_result == "PASS" else "FAIL",
+                    "reported_result": reported_result,
                     "run_url": run_match.group(0) if run_match else None,
                     "issue_url": issue.get("html_url"),
                     "report": body,
