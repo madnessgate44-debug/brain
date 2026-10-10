@@ -155,3 +155,46 @@ async def test_control_repository_actions_token_uses_read_preflight_then_actual_
     )
 
     assert gateway.token == "actions-write"
+
+
+
+@pytest.mark.parametrize(
+    ("repository", "control_repository", "primary_token", "actions_token", "expected_token"),
+    [
+        ("owner/brain", "owner/brain", "primary-pat", "actions-token", "actions-token"),
+        ("owner/amina", "owner/brain", "primary-pat", "actions-token", "primary-pat"),
+        ("owner/brain", "owner/brain", "primary-pat", "", "primary-pat"),
+    ],
+)
+def test_pull_request_gateway_uses_credential_scoped_to_target_repository(
+    monkeypatch, repository, control_repository, primary_token, actions_token, expected_token
+):
+    monkeypatch.setattr(workflow, "GitHubRepositoryGateway", FakeGateway)
+    fallback = FakeGateway("fallback", "owner")
+
+    gateway = workflow.build_pull_request_gateway(
+        repository=repository,
+        owner="owner",
+        primary_token=primary_token,
+        actions_token=actions_token,
+        control_repository=control_repository,
+        fallback_gateway=fallback,
+    )
+
+    assert gateway.token == expected_token
+
+
+def test_pull_request_gateway_uses_fallback_when_no_primary_pat_exists(monkeypatch):
+    monkeypatch.setattr(workflow, "GitHubRepositoryGateway", FakeGateway)
+    fallback = FakeGateway("fallback-actions", "owner")
+
+    gateway = workflow.build_pull_request_gateway(
+        repository="owner/amina",
+        owner="owner",
+        primary_token="",
+        actions_token="actions-token",
+        control_repository="owner/brain",
+        fallback_gateway=fallback,
+    )
+
+    assert gateway is fallback

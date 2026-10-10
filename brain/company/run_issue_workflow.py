@@ -134,6 +134,31 @@ async def build_gateway(
     )
 
 
+def build_pull_request_gateway(
+    repository: str,
+    owner: str,
+    primary_token: str,
+    actions_token: str,
+    control_repository: str,
+    fallback_gateway: GitHubRepositoryGateway,
+) -> GitHubRepositoryGateway:
+    """Choose the credential suited to PR creation in the target repository.
+
+    The Actions token has explicit pull-requests:write permission in the control
+    workflow, so prefer it for PRs in the control repository. It cannot be used
+    across other repositories; those continue to use the configured PAT.
+    """
+    if (
+        actions_token
+        and control_repository
+        and repository.casefold() == control_repository.casefold()
+    ):
+        return GitHubRepositoryGateway(token=actions_token, allowed_owner=owner)
+    if primary_token:
+        return GitHubRepositoryGateway(token=primary_token, allowed_owner=owner)
+    return fallback_gateway
+
+
 async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[str, Any] | None = None) -> dict[str, Any]:
     events = events if events is not None else []
     started = datetime.now(timezone.utc).isoformat()
@@ -173,12 +198,13 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         if primary_token
         else None
     )
-    pull_request_gateway = (
-        GitHubRepositoryGateway(token=primary_token, allowed_owner=os.environ.get(
-            "BRAIN_GITHUB_OWNER", "madnessgate44-debug"
-        ))
-        if primary_token
-        else gateway
+    pull_request_gateway = build_pull_request_gateway(
+        repository=repository,
+        owner=os.environ.get("BRAIN_GITHUB_OWNER", "madnessgate44-debug"),
+        primary_token=primary_token,
+        actions_token=os.environ.get("BRAIN_GITHUB_ACTIONS_TOKEN", "").strip(),
+        control_repository=control_repository,
+        fallback_gateway=gateway,
     )
     tools = GitHubCompanyTools(
         gateway=gateway,
