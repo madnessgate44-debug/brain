@@ -4,18 +4,21 @@ on:
   issues:
     types: [opened]
 
-permissions:
-  contents: read
-  issues: write
+permissions: {}
 
 jobs:
   browser-task:
-    if: github.event.issue.user.login == github.repository_owner && contains(github.event.issue.body, '/brain browser')
+    if: github.event.issue.user.login == github.repository_owner && github.event.sender.login == github.repository_owner && contains(github.event.issue.body, '/brain browser')
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out repository
+      - name: Check out repository without persisted credentials
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
