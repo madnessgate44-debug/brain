@@ -103,8 +103,8 @@ async def test_read_only_mission_uses_read_access_without_write_preflight(monkey
 
 
 @pytest.mark.asyncio
-async def test_control_repository_write_prefers_scoped_actions_token(monkeypatch):
-    """Use the workflow's contents:write token for writes to its own repository."""
+async def test_control_repository_write_prefers_primary_token_for_pull_request_creation(monkeypatch):
+    """Use the configured PAT so repo settings cannot block the final PR step."""
     monkeypatch.setattr(workflow, "GitHubRepositoryGateway", FakeGateway)
 
     gateway = await workflow.build_gateway(
@@ -116,7 +116,7 @@ async def test_control_repository_write_prefers_scoped_actions_token(monkeypatch
         control_repository="owner/brain",
     )
 
-    assert gateway.token == "actions-write"
+    assert gateway.token == "primary-write"
 
 
 @pytest.mark.asyncio
@@ -148,7 +148,7 @@ async def test_control_repository_actions_token_uses_read_preflight_then_actual_
     gateway = await workflow.build_gateway(
         repository="owner/brain",
         owner="owner",
-        primary_token="primary-write",
+        primary_token="no-write",
         actions_token="actions-write",
         capability_plan=plan_capabilities("create file docs/guide.md"),
         control_repository="owner/brain",
