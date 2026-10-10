@@ -206,10 +206,15 @@ def _prepare_prompt_evidence(
 
     actual_diff = prepared.get("actual_diff")
     if isinstance(actual_diff, str):
+        prepared["actual_diff_truncated"] = False
+        prepared["actual_diff_original_chars"] = len(actual_diff)
         limit = _REVIEW_DIFF_BUDGET_CHARS if role_key == "code_reviewer" else _OTHER_DIFF_BUDGET_CHARS
         if len(actual_diff) > limit:
             omitted_chars = len(actual_diff) - limit
+            prepared["actual_diff_truncated"] = True
             prepared["actual_diff"] = actual_diff[:limit] + f"\n[DIFF TRUNCATED: {omitted_chars} characters omitted from this role's context.]"
+            if role_key in {"code_reviewer", "qa_engineer", "security_auditor", "customer_advocate", "release_manager"}:
+                prepared["diff_review_blocked"] = True
     return prepared
 
 
@@ -301,6 +306,11 @@ class SpecialistAgentRunner:
                 f"must be exactly one of these enum values: {allowed}. Do not put a sentence, "
                 "summary, or explanation in this field. Put reasoning in findings, blockers, "
                 "evidence_needed, or the role's separate explanatory deliverables.\n"
+            )
+        if role_key in {"code_reviewer", "qa_engineer", "security_auditor", "customer_advocate", "release_manager"}:
+            role_contract += (
+                "\\nDiff completeness rule: if diff_review_blocked is true or actual_diff_truncated is true, "
+                "do not approve this gate. Return BLOCKED or NEEDS_WORK and identify the missing diff evidence.\\n"
             )
         if role_key in {"ux_designer", "customer_advocate"}:
             role_contract += (
