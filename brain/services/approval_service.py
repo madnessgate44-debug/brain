@@ -1,5 +1,6 @@
 """Approval service."""
 
+import json
 import logging
 from typing import Optional
 
@@ -55,7 +56,7 @@ class ApprovalService:
             approval_type=data.approval_type,
             reason=data.reason,
             expires_at=expires_at,
-            payload_json=str(data.payload) if data.payload else None,
+            payload_json=json.dumps(data.payload, ensure_ascii=False) if data.payload else None,
         )
         await self.mission_repo.update_approval_state(
             mission_id, ApprovalStatus.PENDING.value
@@ -66,7 +67,7 @@ class ApprovalService:
             message="Approval requested: " + data.approval_type.value,
             phase=MissionPhase.WAITING_FOR_APPROVAL.value,
             severity=EventSeverity.INFO,
-            payload_json=str({"approval_id": approval.id, "reason": data.reason}),
+            payload_json=json.dumps({"approval_id": approval.id, "reason": data.reason}, ensure_ascii=False),
         )
         return ApprovalRequestResponse(**approval.to_dict())
 
@@ -100,11 +101,11 @@ class ApprovalService:
             message="Approval " + mission_state.lower(),
             phase=MissionPhase.WAITING_FOR_APPROVAL.value,
             severity=EventSeverity.INFO,
-            payload_json=str({
+            payload_json=json.dumps({
                 "approval_id": approval_id,
                 "approved": data.approved,
                 "response_note": data.response_note,
-            }),
+            }, ensure_ascii=False),
         )
         logger.info(
             "Approval %s responded: %s",
