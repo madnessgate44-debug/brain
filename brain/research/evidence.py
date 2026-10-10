@@ -192,7 +192,7 @@ class ResearchEvidenceCollector:
         seen: set[str] = set()
         for query in _mission_queries(mission):
             try:
-                response = await client.get(SEARCH_URL, params={"q": query}, headers={"User-Agent": "Mozilla/5.0 Brain-RD/1.0"})
+                response = await client.get(SEARCH_URL, params={"q": query}, headers={"User-Agent": "Mozilla/5.0 Brain-RD/1.0", "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8"})
                 response.raise_for_status()
                 parser = _SearchResultParser()
                 parser.feed(response.text[:1_000_000])
@@ -241,7 +241,7 @@ class ResearchEvidenceCollector:
         url = item["url"]
         if not _public_http_url(url):
             return None
-        response = await client.get(url, headers={"User-Agent": "Mozilla/5.0 Brain-RD/1.0"}, follow_redirects=False)
+        response = await client.get(url, headers={"User-Agent": "Mozilla/5.0 Brain-RD/1.0", "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8"}, follow_redirects=False)
         if response.is_redirect:
             return {
                 "title": item["title"], "url": url, "query": item["query"],
