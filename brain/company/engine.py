@@ -89,7 +89,7 @@ def _compact_repository_snapshot(
             omitted_paths.append(path)
             continue
         content = source_contents[path]
-        header = f"FILE: {path}\\n"
+        header = "FILE: " + path
         budget = min(4_000, remaining - len(header))
         if budget <= 0:
             omitted_paths.append(path)
@@ -97,7 +97,7 @@ def _compact_repository_snapshot(
         truncated = len(content) > budget
         excerpt = content[:budget]
         if truncated:
-            excerpt += "\\n[TRUNCATED: source excerpt capped for model context]"
+            excerpt += " [TRUNCATED: source excerpt capped for model context]"
         compact_contents[path] = excerpt
         remaining -= len(header) + min(len(content), budget)
         if truncated:
