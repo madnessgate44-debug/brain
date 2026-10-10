@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from brain.api.routes import health, missions, approvals, artifacts, events, company_workflows, browser, browser_planning
+from brain.api.routes import (
+    health, missions, approvals, artifacts, events, company_workflows, browser, browser_planning, chat,
+)
 from brain.core.config import load_config
 from brain.core.logging import setup_logging
 from brain.db.session import DatabaseSessionManager
@@ -18,19 +20,19 @@ async def lifespan(app: FastAPI):
     # Startup
     config = app.state.config
     setup_logging(config)
-    
+
     # Initialize database
     db_manager = DatabaseSessionManager(config.database.sqlite_path)
     app.state.db_manager = db_manager
-    
+
     # Run boot service
     boot_service = BootService(config, db_manager)
     await boot_service.boot()
     app.state.boot_service = boot_service
     app.state.boot_started_at = boot_service.boot_started_at
-    
+
     yield
-    
+
     # Shutdown
     await db_manager.close()
 
@@ -38,16 +40,16 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
     config = load_config()
-    
+
     app = FastAPI(
         title="Brain V1 API",
         version="0.1.0",
         lifespan=lifespan
     )
-    
+
     # Store config in app state
     app.state.config = config
-    
+
     # Configure CORS
     app.add_middleware(
         CORSMiddleware,
@@ -56,7 +58,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Register routes
     app.include_router(health.router)
     app.include_router(missions.router)
@@ -67,5 +69,6 @@ def create_app() -> FastAPI:
     app.include_router(company_workflows.router)
     app.include_router(browser.router)
     app.include_router(browser_planning.router)
-    
+    app.include_router(chat.router)
+
     return app
