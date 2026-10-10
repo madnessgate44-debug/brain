@@ -331,6 +331,50 @@ async def test_agent_includes_public_source_evidence_without_claiming_code_audit
     assert "[Browser Automation Engineer]" in markdown
 
 
+def test_mission_web_queries_ignore_narrative_boilerplate():
+    queries = evidence_module._mission_queries(
+        "Design Tomatom, a free-first browser automation platform. Investigate browser extensions, security, and GitHub Actions persistence."
+    )
+    assert queries[0] == "open source browser automation Playwright Chromium agent"
+    assert all("design first" not in query.casefold() for query in queries)
+
+
+@pytest.mark.asyncio
+async def test_job_market_filter_drops_unrelated_results():
+    seen_queries = []
+
+    def handler(request):
+        seen_queries.append(request.url.params.get("search"))
+        return httpx.Response(200, json={"jobs": [
+            {
+                "title": "Frontend Web Application Developer",
+                "company_name": "Example A",
+                "url": "https://example.com/frontend",
+                "tags": ["React", "CSS"],
+                "description": "Build responsive frontend interfaces.",
+            },
+            {
+                "title": "Browser Automation Engineer",
+                "company_name": "Example B",
+                "url": "https://example.com/browser",
+                "tags": ["Playwright", "Python"],
+                "description": "Build reliable browser automation and test workflows.",
+            },
+        ]})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        result = await ResearchEvidenceCollector()._jobs(
+            client,
+            "Build Tomatom browser automation, extensions, and Playwright support.",
+        )
+    finally:
+        await client.aclose()
+    assert seen_queries == ["browser automation playwright"]
+    assert result["sample_count"] == 1
+    assert result["jobs"][0]["company"] == "Example B"
+
+
 @pytest.mark.asyncio
 async def test_public_web_research_searches_and_fetches_pages(monkeypatch):
     monkeypatch.setattr(evidence_module, "_public_http_url", lambda url: url.startswith("https://"))
