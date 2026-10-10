@@ -287,3 +287,14 @@ async def test_verification_runner_bootstrap_error_is_reported_as_terminal_failu
     assert result["status"] == "FAIL"
     assert result["reported_result"] == "EXECUTION_ERROR"
     assert result["run_url"] == "https://github.com/owner/brain/actions/runs/124"
+
+
+
+def test_company_tools_defaults_control_repository_from_owner(monkeypatch):
+    monkeypatch.setenv("BRAIN_CONTROL_REPOSITORY", "")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "")
+    monkeypatch.setenv("BRAIN_GITHUB_OWNER", "example-owner")
+
+    tools = GitHubCompanyTools(gateway=object())
+
+    assert tools.control_repository == "example-owner/brain"
