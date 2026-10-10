@@ -79,9 +79,12 @@ class ApprovalRepository:
     ) -> Optional[ApprovalModel]:
         """Respond to an approval request."""
         status = ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED
-        await self.session.execute(
+        result = await self.session.execute(
             update(ApprovalModel)
-            .where(ApprovalModel.id == approval_id)
+            .where(
+                ApprovalModel.id == approval_id,
+                ApprovalModel.status == ApprovalStatus.PENDING.value,
+            )
             .values(
                 status=status.value,
                 responded_at=utc_now(),
@@ -89,4 +92,6 @@ class ApprovalRepository:
             )
         )
         await self.session.flush()
+        if result.rowcount != 1:
+            return None
         return await self.get_by_id(approval_id)
