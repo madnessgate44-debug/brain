@@ -1,18 +1,17 @@
 """Authenticated endpoint for starting a software-company workflow."""
 
-import hmac
-import os
-
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from brain.api.deps import get_mission_service, get_runtime_registry
+from brain.api.deps import get_mission_service, get_runtime_registry, require_control_key
 from brain.runtime.runtime_registry import RuntimeRegistry
 from brain.schemas.mission import MissionCreate
 from brain.services.mission_service import MissionService
-from brain.company.settings import get_setting
-
-router = APIRouter(prefix="/company-workflows", tags=["company-workflows"])
+router = APIRouter(
+    prefix="/company-workflows",
+    tags=["company-workflows"],
+    dependencies=[Depends(require_control_key)],
+)
 
 
 class CompanyWorkflowCreate(BaseModel):
@@ -28,21 +27,8 @@ async def start_company_workflow(
     data: CompanyWorkflowCreate,
     service: MissionService = Depends(get_mission_service),
     registry: RuntimeRegistry = Depends(get_runtime_registry),
-    api_key: str | None = Header(default=None, alias="X-Brain-API-Key"),
 ):
     """Queue the specialist pipeline and return the durable mission identifier."""
-    expected_key = get_setting("BRAIN_CONTROL_API_KEY")
-    if not expected_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Company workflow control is disabled until BRAIN_CONTROL_API_KEY is configured.",
-        )
-    if not api_key or not hmac.compare_digest(api_key, expected_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Brain control key.",
-        )
-
     try:
         mission = await service.create_mission(
             MissionCreate(
