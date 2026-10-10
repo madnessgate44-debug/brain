@@ -2,7 +2,7 @@
 
 import json
 
-from brain.company.agent_runner import _prepare_prompt_evidence
+from brain.company.agent_runner import _prepare_prompt_evidence, _select_source_contents
 
 
 def _snapshot(source_contents):
@@ -109,9 +109,7 @@ def test_developer_context_prioritizes_architect_file_plan():
         "src/planned.py": "planned implementation\\n" * 1000,
         "src/other.py": "other implementation\\n" * 1000,
     }
-    selected = __import__(
-        "brain.company.agent_runner", fromlist=["_select_source_contents"]
-    )._select_source_contents(
+    selected = _select_source_contents(
         contents,
         "Implement a change with unrelated request wording.",
         planned_files=["src/planned.py"],
