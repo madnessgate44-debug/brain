@@ -340,6 +340,40 @@ def test_mission_web_queries_ignore_narrative_boilerplate():
 
 
 @pytest.mark.asyncio
+async def test_public_web_research_distributes_page_budget_across_queries(monkeypatch):
+    monkeypatch.setattr(evidence_module, "_public_http_url", lambda url: url.startswith("https://"))
+    seen_queries = []
+
+    def handler(request):
+        if request.url.host == "html.duckduckgo.com":
+            query = request.url.params["q"]
+            seen_queries.append(query)
+            index = len(seen_queries)
+            links = "".join(
+                f'<a class="result__a" href="https://source{index}-{item}.example/page">Source {index}-{item}</a>'
+                for item in range(5)
+            )
+            return httpx.Response(200, text=links)
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            text="<html><main><h1>Public evidence</h1><p>Bounded source excerpt.</p></main></html>",
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        result = await ResearchEvidenceCollector(max_web_pages=8)._web_research(
+            client,
+            "Design a browser automation agent with extensions, GitHub Actions hosting, and Playwright job skills.",
+        )
+    finally:
+        await client.aclose()
+    assert len(seen_queries) == 4
+    assert result["pages_fetched"] == 8
+    assert {item["query"] for item in result["sources"]} == set(seen_queries)
+
+
+@pytest.mark.asyncio
 async def test_job_market_filter_drops_unrelated_results():
     seen_queries = []
 
