@@ -23,6 +23,7 @@ _DECISION_VALUES = {
 
 
 _SOURCE_BUDGET_CHARS = 90000
+_ARCHITECT_SOURCE_BUDGET_CHARS = 30000
 _REVIEW_DIFF_BUDGET_CHARS = 60000
 _OTHER_DIFF_BUDGET_CHARS = 30000
 _SOURCE_INDEX_LIMIT = 160
@@ -137,17 +138,19 @@ def _prepare_prompt_evidence(
         }
         snapshot_view["file_index"] = file_index
         snapshot_view["source_manifest"] = _compact_source_manifest(manifest)
-        if role_key == "developer":
+        if role_key in {"architect", "developer"}:
+            budget = _ARCHITECT_SOURCE_BUDGET_CHARS if role_key == "architect" else _SOURCE_BUDGET_CHARS
             selected = _select_source_contents(
                 source_contents,
                 user_request,
                 evidence.get("changed_files"),
+                max_chars=budget,
             )
             snapshot_view["source_contents"] = selected
             snapshot_view["source_selection"] = {
                 "selected_file_count": len(selected),
                 "selected_chars": sum(len(content) for content in selected.values()),
-                "budget_chars": _SOURCE_BUDGET_CHARS,
+                "budget_chars": budget,
                 "note": "Only complete files selected by task relevance are supplied; use the manifest to identify omitted context.",
             }
         elif role_key == "code_reviewer":
