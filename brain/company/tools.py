@@ -25,9 +25,16 @@ class GitHubCompanyTools:
         self.gateway = gateway or GitHubRepositoryGateway()
         self.verification_gateway = verification_gateway or self.gateway
         self.pull_request_gateway = pull_request_gateway or self.gateway
-        self.control_repository = (
-            control_repository or get_setting("BRAIN_CONTROL_REPOSITORY")
+        configured_control_repository = (
+            control_repository
+            or get_setting("BRAIN_CONTROL_REPOSITORY")
+            or os.getenv("GITHUB_REPOSITORY", "")
         )
+        if not configured_control_repository:
+            configured_control_repository = (
+                f"{get_setting('BRAIN_GITHUB_OWNER', 'madnessgate44-debug')}/brain"
+            )
+        self.control_repository = configured_control_repository.strip()
         self.poll_seconds = poll_seconds
         self.timeout_seconds = timeout_seconds
 
