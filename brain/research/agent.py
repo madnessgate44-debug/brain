@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
@@ -27,21 +28,22 @@ _MISSION_GROUPS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
 
 def mission_relevance(candidate: dict[str, Any], mission: str) -> tuple[int, list[str]]:
     """Estimate mission fit from public metadata; this is not a code-quality verdict."""
-    mission_text = mission.casefold().replace("-", " ").replace("/", " ")
+    mission_tokens = set(re.findall(r"[a-z0-9]+", mission.casefold()))
     candidate_text = " ".join([
         str(candidate.get("full_name", "")),
         str(candidate.get("description", "")),
         " ".join(str(topic) for topic in candidate.get("topics", []) if isinstance(topic, str)),
-    ]).casefold().replace("-", " ").replace("/", " ")
+    ]).casefold()
+    candidate_tokens = set(re.findall(r"[a-z0-9]+", candidate_text))
     active_groups = [
         (name, weight, terms)
         for name, weight, terms in _MISSION_GROUPS
-        if any(term in mission_text for term in terms)
+        if any(term in mission_tokens for term in terms)
     ]
     matches: list[str] = []
     score = 0
     for name, weight, terms in active_groups:
-        if any(term in candidate_text for term in terms):
+        if any(term in candidate_tokens for term in terms):
             matches.append(name)
             score += weight
     return min(100, score), matches
@@ -340,6 +342,20 @@ def render_markdown(report: dict[str, Any]) -> str:
     if isinstance(job_market, dict) and job_market.get("limitation"):
         lines.append(f"- Job sample limitation: {job_market['limitation']}")
     lines.append("")
+    lines.extend([
+        "",
+        "## Recommendation and roadmap",
+        "",
+        str(report.get("recommendation_summary", "No mission-specific recommendation was generated.")),
+        "",
+        "### Next steps",
+        "",
+    ])
+    roadmap = report.get("roadmap", [])
+    if roadmap:
+        lines.extend(f"{index}. {step}" for index, step in enumerate(roadmap, start=1))
+    else:
+        lines.append("No roadmap steps were generated.")
     lines.extend(["", "## Candidate shortlist", ""])
     candidates = report.get("candidates", [])
     if not candidates:
@@ -351,7 +367,9 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.extend([
             f"### [{name}]({url})",
             f"- Visibility: {visibility}",
-            f"- Heuristic score: {item.get('heuristic_score', 0)}/100",
+            f"- Mission fit: {item.get('mission_relevance_score', 0)}/100 "
+            f"(matched: {', '.join(item.get('mission_relevance_matches', [])) or 'no mission terms'})",
+            f"- Metadata quality score: {item.get('heuristic_score', 0)}/100",
             f"- Stars: {item.get('stars', 0)}; language: {item.get('language') or 'unknown'}",
             f"- License identifier: {item.get('license', 'NOASSERTION')} "
             f"({item.get('license_status', 'review_required')})",
