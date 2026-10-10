@@ -195,9 +195,10 @@ async def build_gateway(
         and bool(control_repo)
         and repository.casefold() == control_repo
     )
-    # Use the workflow token for bounded contents writes to the control repository.
-    # Pull-request creation uses the separate configured PAT gateway because repository
-    # settings may forbid GITHUB_TOKEN from opening PRs. External repositories use the PAT.
+    # Use the workflow token for ordinary bounded source/test writes to the control repository.
+    # GitHub workflow-file changes require additional workflow authority, so
+    # GitHubCompanyTools.apply_change_set routes .github/workflows paths through the PAT.
+    # Pull-request creation uses the separate configured gateway; external repositories use the PAT.
     ordered_tokens = (
         [("BRAIN_GITHUB_ACTIONS_TOKEN", actions), ("BRAIN_GITHUB_TOKEN", primary)]
         if is_control_repo_write
