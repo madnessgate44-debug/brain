@@ -44,3 +44,44 @@ def test_started_mission_persists_artifact_and_completion():
         assert events.status_code == 200
         event_types = {item["event_type"] for item in events.json()}
         assert {"worker_started", "artifact_created", "mission_phase_changed"} <= event_types
+
+
+def test_failed_mission_persists_detailed_diagnostic_artifacts():
+    """Any mission worker failure should persist a readable and machine-readable report."""
+    app = create_app()
+    with TestClient(app) as client:
+        created = client.post(
+            "/missions",
+            json={
+                "title": "Failure diagnostic verification",
+                "objective": "Exercise the mission failure-report path",
+                "metadata": {"workflow_type": "software_company"},
+            },
+        )
+        assert created.status_code == 201
+        mission_id = created.json()["id"]
+
+        started = client.post(f"/missions/{mission_id}/start")
+        assert started.status_code == 200
+
+        mission = None
+        for _ in range(40):
+            response = client.get(f"/missions/{mission_id}")
+            assert response.status_code == 200
+            mission = response.json()
+            if mission["status"] == "FAILED":
+                break
+            time.sleep(0.05)
+
+        assert mission is not None
+        assert mission["status"] == "FAILED", mission
+
+        artifacts = client.get(f"/missions/{mission_id}/artifacts")
+        assert artifacts.status_code == 200
+        names = {item["logical_name"] for item in artifacts.json()}
+        assert {"failure-diagnostic.json", "failure-report.md"} <= names
+
+        events = client.get(f"/missions/{mission_id}/events")
+        assert events.status_code == 200
+        event_types = {item["event_type"] for item in events.json()}
+        assert {"mission_failed", "failure_diagnostic_created"} <= event_types
