@@ -99,10 +99,32 @@ jobs:
                   'impact': {'success_claimed': False, 'repository_mutation_status': 'UNKNOWN; inspect job logs', 'tests_status': 'UNKNOWN; mission runner may not have started'},
                   'recovery': {'attempted': False, 'next_step': 'Inspect the failed step and its complete Actions logs. The normal mission diagnostic was not produced.'},
               }
-              with open('brain-company-result.json', 'w', encoding='utf-8') as handle:
-                  json.dump(report, handle, ensure_ascii=False, indent=2)
-              with open('brain-company-result.md', 'w', encoding='utf-8') as handle:
-                  handle.write('# Brain execution failure report\n\n**Status: FAILED — workflow bootstrap did not produce a mission report.**\n\n## Workflow context\n\n' + json.dumps(report['runtime'], indent=2) + '\n\n## Step outcomes\n\n' + json.dumps(report['step_outcomes'], indent=2) + '\n\n## Failure interpretation\n\n' + report['failure']['message'] + '\n\n## Next action\n\n' + report['recovery']['next_step'] + '\n')
+              if not os.path.exists('brain-company-result.json'):
+                  with open('brain-company-result.json', 'w', encoding='utf-8') as handle:
+                      json.dump(report, handle, ensure_ascii=False, indent=2)
+              if not os.path.exists('brain-company-result.md'):
+                  with open('brain-company-result.md', 'w', encoding='utf-8') as handle:
+                      handle.write('\\n'.join([
+                          '# Brain execution failure report',
+                          '',
+                          '**Status: FAILED — workflow bootstrap did not produce a mission report.**',
+                          '',
+                          '## Workflow context',
+                          '',
+                          json.dumps(report['runtime'], indent=2),
+                          '',
+                          '## Step outcomes',
+                          '',
+                          json.dumps(report['step_outcomes'], indent=2),
+                          '',
+                          '## Failure interpretation',
+                          '',
+                          report['failure']['message'],
+                          '',
+                          '## Next action',
+                          '',
+                          report['recovery']['next_step'],
+                      ]) + '\\n')
           PY
       - name: Upload execution report
         if: always()
