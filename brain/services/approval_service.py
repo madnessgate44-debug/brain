@@ -55,6 +55,8 @@ class ApprovalService:
                 "Approval requests must be created before mission execution; "
                 f"mission status is {mission.status}."
             )
+        if mission.approval_state == ApprovalStatus.PENDING.value:
+            raise ValueError("Mission already has a pending approval request.")
 
         expires_at = parse_iso(data.expires_at) if data.expires_at else None
         if expires_at is not None:
