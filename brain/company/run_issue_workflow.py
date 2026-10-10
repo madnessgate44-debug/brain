@@ -59,7 +59,7 @@ def request_from_issue() -> tuple[str, str, int]:
     repository = os.environ.get("BRAIN_TARGET_REPOSITORY", "").strip()
     if not repository:
         import re
-        match = re.search(r"(?im)^repository:\\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\\s*$", body)
+        match = re.search(r"(?im)^repository:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
         repository = match.group(1) if match else ""
     if not repository or "/" not in repository:
         raise RuntimeError("Add a repository: owner/name line to the issue body.")
@@ -67,7 +67,7 @@ def request_from_issue() -> tuple[str, str, int]:
         raise RuntimeError("Target repository must belong to the Brain repository owner.")
     objective = body.split("/brain simulate", 1)[1].strip()
     import re
-    objective = re.sub(r"(?im)^repository:\\s*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\s*$", "", objective).strip()
+    objective = re.sub(r"(?im)^repository:\s*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\s*$", "", objective).strip()
     if objective.lower().startswith("objective:"):
         objective = objective[len("objective:"):].strip()
     if not objective:
@@ -158,7 +158,7 @@ def main() -> None:
                 "",
                 result.get("report", "No audit report was returned."),
             ]
-            report_path.write_text("\\n".join(metadata) + "\\n", encoding="utf-8")
+            report_path.write_text("\n".join(metadata) + "\n", encoding="utf-8")
             print(report_path.read_text(encoding="utf-8"))
             return
 
@@ -184,7 +184,7 @@ def main() -> None:
             "", "## Next action",
             result.get("next_action", "Review the saved JSON artifact and logs."),
         ])
-        report_path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+        report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(report_path.read_text(encoding="utf-8"))
     except Exception as exc:
         safe_message = str(exc)
@@ -193,10 +193,10 @@ def main() -> None:
             if secret:
                 safe_message = safe_message.replace(secret, "[REDACTED]")
         report_path.write_text(
-            "# Brain company workflow result\\n\\n"
-            "**Status: BLOCKED / FAILED**\\n\\n"
-            f"**Reason:** {safe_message[:1200]}\\n\\n"
-            "No successful completion is claimed. Inspect the workflow job logs for sanitized execution details.\\n",
+            "# Brain company workflow result\n\n"
+            "**Status: BLOCKED / FAILED**\n\n"
+            f"**Reason:** {safe_message[:1200]}\n\n"
+            "No successful completion is claimed. Inspect the workflow job logs for sanitized execution details.\n",
             encoding="utf-8",
         )
         json_path.write_text(
