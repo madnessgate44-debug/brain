@@ -163,6 +163,16 @@ def _prepare_prompt_evidence(
                 planned_files=evidence.get("file_plan"),
             )
             snapshot_view["source_contents"] = selected
+            indexed_paths = {
+                item.get("path")
+                for item in files
+                if isinstance(item, dict) and isinstance(item.get("path"), str)
+            }
+            available_source_paths = (
+                set(source_contents)
+                if isinstance(source_contents, dict)
+                else set()
+            )
             snapshot_view["source_selection"] = {
                 "selected_file_count": len(selected),
                 "selected_chars": sum(len(content) for content in selected.values()),
@@ -171,11 +181,7 @@ def _prepare_prompt_evidence(
                     {
                         path
                         for path in explicit_context_paths
-                        if path in {
-                            item.get("path")
-                            for item in files
-                            if isinstance(item, dict) and isinstance(item.get("path"), str)
-                        }
+                        if path in indexed_paths | available_source_paths
                         and path not in selected
                     }
                     | (
