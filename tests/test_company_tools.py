@@ -12,6 +12,11 @@ class FakeGateway:
         self.name = name
         self.calls = []
 
+    def _validate_repository(self, repository):
+        if repository != "owner/brain":
+            raise RuntimeError("repository owner is not allowed")
+        return ("owner", "brain")
+
     async def _request(self, method, path, **kwargs):
         self.calls.append((method, path, kwargs))
         if method == "POST" and path.endswith("/issues"):
