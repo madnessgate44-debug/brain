@@ -136,3 +136,60 @@ def test_workflow_wires_helper_and_retains_checkout_safe_fallback():
     assert "GITHUB_REF_NAME" in workflow
     assert "failed_steps" in workflow
     assert "GITHUB_EVENT_PATH" in workflow
+
+
+def test_inline_fallback_runs_without_checked_out_helper(tmp_path):
+    import os
+    import subprocess
+    import sys
+    import textwrap
+    from pathlib import Path
+
+    workflow = Path(".github/workflows/brain-chat-company-workflow.yml").read_text(encoding="utf-8")
+    lines = workflow.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.strip() == "python3 - <<'PY'")
+    end = next(i for i in range(start + 1, len(lines)) if lines[i].strip() == "PY")
+    script = textwrap.dedent("\n".join(lines[start + 1 : end]))
+
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps({"action": "opened", "issue": {"number": 154}}),
+        encoding="utf-8",
+    )
+    env = {
+        **os.environ,
+        "GITHUB_EVENT_PATH": str(event_path),
+        "GITHUB_REPOSITORY": "madnessgate44-debug/brain",
+        "GITHUB_SHA": "checkout-sha",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_REF_NAME": "main",
+        "GITHUB_RUN_ID": "98765",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_WORKFLOW": "Brain Chat Company Workflow",
+        "GITHUB_EVENT_NAME": "issues",
+        "GITHUB_SERVER_URL": "https://github.com",
+        "RUNNER_OS": "Linux",
+        "CHECKOUT_OUTCOME": "failure",
+        "SETUP_PYTHON_OUTCOME": "success",
+        "INSTALL_OUTCOME": "skipped",
+        "LOCK_OUTCOME": "skipped",
+        "RUN_OUTCOME": "skipped",
+    }
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads((tmp_path / "brain-company-result.json").read_text(encoding="utf-8"))
+    markdown = (tmp_path / "brain-company-result.md").read_text(encoding="utf-8")
+    assert report["runtime"]["commit_sha"] == "checkout-sha"
+    assert report["runtime"]["issue_number"] == 154
+    assert report["failed_steps"] == [{"step": "checkout", "outcome": "failure"}]
+    assert report["impact"]["repository_mutation_status"].startswith("UNKNOWN")
+    assert "Commit SHA: checkout-sha" in markdown
