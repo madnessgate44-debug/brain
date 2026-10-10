@@ -161,7 +161,7 @@ async def execute_research(payload: dict[str, Any], output_dir: Path) -> dict[st
                 f"- **Start URL:** {payload['start_url']}",
                 "- **Execution:** Not started. No website changes were made.",
                 "",
-                "Review the exact proposed actions below. To execute a mutating task, create a separate issue with /brain browser and this JSON only after explicitly approving every action.",
+                "Review the exact proposed actions below. This issue workflow never executes mutating actions. To run an approved mutation, use the authenticated /browser/tasks API only after explicitly approving the exact action list; the API requires the owner control key and records a signed mission.",
                 "",
                 json.dumps(copy_payload, ensure_ascii=False, indent=2),
                 "",
