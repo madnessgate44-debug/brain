@@ -358,3 +358,30 @@ def test_audit_source_chunks_preserve_real_line_breaks_and_line_numbers():
         "L1: first line",
         "L2: second line",
     ]
+
+
+
+def test_audit_source_chunks_preserve_entire_long_lines():
+    long_line = "".join(str(index % 10) for index in range(8_000))
+    chunks = workflow.build_audit_source_chunks(
+        {"src/long_line.py": "before = 1\n" + long_line + "\nafter = 2"},
+        max_chars=5_000,
+        max_line_chars=1_000,
+    )
+
+    rendered_chunks = [chunk["text"] for chunk in chunks]
+    rendered = "\n".join(rendered_chunks)
+
+    assert all(len(chunk) <= 5_000 for chunk in rendered_chunks)
+    assert "[LINE TRUNCATED FOR PROMPT SIZE]" not in rendered
+    assert long_line not in rendered  # The line is segmented to fit bounded chunks.
+    for segment_index in range(1, 9):
+        assert f"L2 [segment {segment_index}/8]:" in rendered
+    assert "L1: before = 1" in rendered
+    assert "L3: after = 2" in rendered
+    recovered = "".join(
+        line.split(": ", 1)[1]
+        for line in rendered.splitlines()
+        if line.startswith("L2 [segment ")
+    )
+    assert recovered == long_line
