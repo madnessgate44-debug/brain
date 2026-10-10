@@ -13,7 +13,7 @@ from brain.company.mission_capabilities import plan_capabilities
 
 from brain.company.agent_runner import SpecialistAgentRunner
 from brain.company.engine import CompanyWorkflowEngine
-from brain.company.github_gateway import GitHubGatewayError, GitHubRepositoryGateway
+from brain.company.github_gateway import GitHubRepositoryGateway
 from brain.company.llm_provider import OpenAICompatibleProvider
 from brain.company.tools import GitHubCompanyTools
 
@@ -54,13 +54,15 @@ def request_from_issue() -> tuple[str, str, int]:
     return repository, objective, int(issue.get("number", 0))
 
 
-async def run(events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[str, Any] | None = None) -> dict[str, Any]:
     events = events if events is not None else []
     started = datetime.now(timezone.utc).isoformat()
     repository, objective, issue_number = request_from_issue()
     mission = {"repository": repository, "objective": objective, "issue_number": issue_number}
     plan = plan_capabilities(objective)
     mission["capability_plan"] = {"mode": plan.mode, "required_capabilities": list(plan.required_capabilities), "rationale": plan.rationale}
+    if mission_context is not None:
+        mission_context.update(mission)
     events.append({"timestamp": started, "stage": "capability_planning", "status": "PASS", "detail": json.dumps(mission["capability_plan"])})
     if not os.environ.get("BRAIN_AI_API_KEY"):
         raise RuntimeError("BRAIN_AI_API_KEY is not configured; model invocation is required.")
@@ -163,7 +165,7 @@ def main() -> None:
     events: list[dict[str, Any]] = []
     mission: dict[str, Any] = {}
     try:
-        result = asyncio.run(run(events))
+        result = asyncio.run(run(events, mission))
         mission = {
             "repository": result.get("repository"),
             "mode": result.get("mode", "implementation"),
