@@ -43,6 +43,8 @@ class GitHubCompanyTools:
             "vite.config.ts", "vite.config.js", "tsconfig.json", "server.ts",
             "server.js", "next.config.js", "next.config.ts", "pytest.ini",
             "vitest.config.ts", "jest.config.js", "playwright.config.ts",
+            ".env.example", "alembic.ini", "Dockerfile", "render.yaml",
+            "Procfile", "requirements.txt", "runtime.txt", "Makefile",
         }
         excluded_parts = {
             "node_modules", "dist", "build", "coverage", ".git", "generated",
@@ -52,10 +54,19 @@ class GitHubCompanyTools:
         for item in snapshot["files"]:
             path = item["path"]
             parts = {part.casefold() for part in path.split("/")}
-            in_scope_tree = path.startswith(("src/", "brain/", "tests/", "test/", "scripts/", ".github/workflows/"))
+            in_scope_tree = path.startswith((
+                "src/", "brain/", "tests/", "test/", "scripts/",
+                ".github/workflows/", "alembic/", "docs/",
+            ))
             test_tree = any(part in {"tests", "test", "__tests__"} for part in parts)
-            is_source = path.endswith(source_suffixes) and in_scope_tree
-            is_root_config = path in root_files or path.startswith(".github/workflows/")
+            is_source = path.endswith(source_suffixes) and (
+                in_scope_tree or "/" not in path
+            )
+            is_root_config = (
+                path in root_files
+                or path.startswith(".github/workflows/")
+                or path.startswith(".github/dependabot.")
+            )
             if parts.intersection(excluded_parts):
                 continue
             if is_source or is_root_config or test_tree:
