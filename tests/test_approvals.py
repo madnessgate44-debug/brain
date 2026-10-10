@@ -72,3 +72,22 @@ def test_respond_to_approval(client):
     approval = response.json()
     assert approval["status"] == "APPROVED"
     assert approval["response_note"] == "Plan looks good"
+
+
+def test_list_pending_approvals(client):
+    """The mobile client can load approval state from Brain's API."""
+    mission_response = client.post(
+        "/missions",
+        json={"title": "Approval list test", "objective": "List pending approvals"},
+    )
+    assert mission_response.status_code == 201
+    mission_id = mission_response.json()["id"]
+    created = client.post(
+        f"/missions/{mission_id}/approvals",
+        json={"approval_type": ApprovalType.PLAN_REVIEW.value, "reason": "Verify API listing"},
+    )
+    assert created.status_code == 200
+
+    response = client.get("/approvals?status_filter=PENDING")
+    assert response.status_code == 200
+    assert any(item["id"] == created.json()["id"] for item in response.json())
