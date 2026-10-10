@@ -111,7 +111,7 @@ def test_shutdown_cancels_active_mission_runtime(monkeypatch):
 
     monkeypatch.setattr(MissionRuntime, "run", wait_until_cancelled)
     app = create_app()
-    with TestClient(app) as test_client:
+    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as test_client:
         created = test_client.post(
             "/missions",
             json={"title": "Shutdown test", "objective": "Exercise runtime cleanup"},
