@@ -104,7 +104,7 @@ jobs:
                       json.dump(report, handle, ensure_ascii=False, indent=2)
               if not os.path.exists('brain-company-result.md'):
                   with open('brain-company-result.md', 'w', encoding='utf-8') as handle:
-                      handle.write('\\n'.join([
+                      handle.write('\n'.join([
                           '# Brain execution failure report',
                           '',
                           '**Status: FAILED — workflow bootstrap did not produce a mission report.**',
@@ -124,7 +124,7 @@ jobs:
                           '## Next action',
                           '',
                           report['recovery']['next_step'],
-                      ]) + '\\n')
+                      ]) + '\n')
           PY
       - name: Upload execution report
         if: always()
