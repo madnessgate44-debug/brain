@@ -168,6 +168,7 @@ async def test_inspection_reads_all_in_scope_source_and_test_files_and_reports_c
             "package.json", "README.md", "brain-app.html", "brain-ui-mobile.html",
             "alembic/versions/001_initial_schema.py", "docs/operations.md",
             "scripts/deploy.sh", "src/db/schema.sql",
+            ".gitignore", "Dockerfile.prod", "uv.lock",
             ".github/workflows/ci.yml", "render.yaml",
             "dist/bundle.js", "node_modules/pkg/index.js",
         ]
@@ -182,7 +183,8 @@ async def test_inspection_reads_all_in_scope_source_and_test_files_and_reports_c
         if path.startswith(("src/", "alembic/", "docs/", "scripts/", ".github/workflows/"))
         or path in {
             "package.json", "README.md", "brain-app.html",
-            "brain-ui-mobile.html", "render.yaml",
+            "brain-ui-mobile.html", "render.yaml", ".gitignore",
+            "Dockerfile.prod", "uv.lock",
         }
     ]
     assert set(gateway.read_paths) == set(expected)
