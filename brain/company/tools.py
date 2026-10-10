@@ -161,10 +161,10 @@ class GitHubCompanyTools:
             json={
                 "title": f"Brain verification {uuid.uuid4().hex[:8]}",
                 "body": (
-                    "/brain test\n\n"
-                    f"repository: {repository}\n"
-                    f"branch: {branch}\n\n"
-                    "brain-internal-verification: true\n"
+                    "/brain test\\n\\n"
+                    f"repository: {repository}\\n"
+                    f"branch: {branch}\\n\\n"
+                    "brain-internal-verification: true\\n"
                     "Automated company-workflow verification. Do not run arbitrary commands."
                 ),
             },
@@ -183,65 +183,58 @@ class GitHubCompanyTools:
                 body = comment.get("body", "")
                 if "## Brain remote test run" not in body:
                     continue
-
-                # 1. Verify comment author must be trusted GitHub Actions bot
-                user_info = comment.get("user") or {}
-                author_login = (user_info.get("login") or "").casefold()
-                if author_login != "github-actions[bot]".casefold():
+                if (comment.get("user") or {}).get("login", "").casefold() != "github-actions[bot]":
                     continue
 
-                result_match = re.search(r"\*\*Result:\*\*\s*(PASS|FAIL)", body)
-                run_match = re.search(r"https://github\.com/([^/]+/[^/]+)/actions/runs/(\d+)", body)
-                if not result_match or not run_match:
+                result_match = re.search(r"\\*\\*Result:\\*\\*\\s*(PASS|FAIL|EXECUTION_ERROR)\\b", body)
+                run_match = re.search(
+                    rf"https://github\\.com/{re.escape(owner)}/{re.escape(name)}/actions/runs/(\\d+)",
+                    body,
+                )
+                target_line = next(
+                    (
+                        line.partition("**Target repository:**")[2].strip().strip("`")
+                        for line in body.splitlines()
+                        if line.startswith("**Target repository:**")
+                    ),
+                    "",
+                )
+                branch_line = next(
+                    (
+                        line.partition("**Target branch:**")[2].strip().strip("`")
+                        for line in body.splitlines()
+                        if line.startswith("**Target branch:**")
+                    ),
+                    "",
+                )
+                if not (result_match and run_match and target_line and branch_line):
+                    continue
+                if target_line.casefold() != repository.casefold() or branch_line != branch:
                     continue
 
-                reported_result = result_match.group(1)
-                run_url = run_match.group(0)
-                run_id = run_match.group(2)
-
-                # 2. Inspect the actual GitHub Actions run via REST API against control repo
+                run_id = int(run_match.group(1))
                 try:
                     run_data = await trigger_gateway._request(
-                        "GET",
-                        f"/repos/{owner}/{name}/actions/runs/{run_id}",
+                        "GET", f"/repos/{owner}/{name}/actions/runs/{run_id}"
                     )
                 except Exception:
                     continue
-
-                # 3. Validate run attributes strictly
                 if not isinstance(run_data, dict):
                     continue
-
-                if run_data.get("status") != "completed":
+                if run_data.get("path") != expected_workflow_path:
+                    continue
+                if run_data.get("event") != "issues" or run_data.get("status") != "completed":
                     continue
 
-                if run_data.get("event") != "issues":
-                    continue
-
-                path_val = run_data.get("path") or run_data.get("workflow_file_path") or ""
-                if not path_val.endswith("brain-task-runner.yml"):
-                    continue
-
-                # Validate target repository matching head_repository or head_branch metadata if present
-                head_repo = run_data.get("head_repository") or {}
-                head_repo_full = head_repo.get("full_name")
-                if head_repo_full and head_repo_full.casefold() != repository.casefold():
-                    continue
-
-                head_branch = run_data.get("head_branch") or run_data.get("branch")
-                if head_branch and head_branch != branch:
-                    continue
-
-                conclusion = run_data.get("conclusion")
-                if reported_result == "PASS" and conclusion != "success":
-                    continue
-                if reported_result == "FAIL" and conclusion == "success":
+                reported_result = result_match.group(1)
+                expected_conclusion = "success" if reported_result == "PASS" else "failure"
+                if run_data.get("conclusion") != expected_conclusion:
                     continue
 
                 return {
                     "executed": True,
                     "status": reported_result,
-                    "run_url": run_url,
+                    "run_url": run_match.group(0),
                     "issue_url": issue.get("html_url"),
                     "report": body,
                     "branch": branch,
