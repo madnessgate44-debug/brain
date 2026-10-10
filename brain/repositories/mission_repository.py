@@ -199,16 +199,23 @@ class MissionRepository:
     async def find_recoverable_missions(
         self,
         recoverable_phases: List[str],
+        heartbeat_cutoff: Optional[datetime] = None,
     ) -> List[MissionModel]:
-        """Find missions in recoverable phases."""
-        # Only running missions are orphaned by a process restart. Pending or
-        # paused missions are durable states and must not be replayed repeatedly.
-        query = select(MissionModel).where(
-            and_(
-                MissionModel.phase.in_(recoverable_phases),
-                MissionModel.status == MissionStatus.RUNNING.value,
+        """Find interrupted running missions whose heartbeat is stale."""
+        # Pending or paused missions are durable states. A recent heartbeat may
+        # belong to another live process, so only recover stale or heartbeat-less runs.
+        conditions = [
+            MissionModel.phase.in_(recoverable_phases),
+            MissionModel.status == MissionStatus.RUNNING.value,
+        ]
+        if heartbeat_cutoff is not None:
+            conditions.append(
+                or_(
+                    MissionModel.last_heartbeat_at.is_(None),
+                    MissionModel.last_heartbeat_at < heartbeat_cutoff,
+                )
             )
-        )
+        query = select(MissionModel).where(and_(*conditions))
         result = await self.session.execute(query)
         return result.scalars().all()
     
