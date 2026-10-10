@@ -1,7 +1,8 @@
 """API dependencies."""
 
+import hmac
 from typing import AsyncGenerator, Optional
-from fastapi import Depends, Request
+from fastapi import Depends, Header, HTTPException, Request, status
 
 from brain.db.session import DatabaseSessionManager, get_db_session
 from brain.repositories.mission_repository import MissionRepository
@@ -14,6 +15,24 @@ from brain.services.approval_service import ApprovalService
 from brain.services.artifact_service import ArtifactService
 from brain.runtime.runtime_registry import RuntimeRegistry
 from brain.storage.artifact_store import ArtifactStore
+from brain.company.settings import get_setting
+
+
+async def require_control_key(
+    api_key: str | None = Header(default=None, alias="X-Brain-API-Key"),
+) -> None:
+    """Require the shared control key for mission and state-changing API routes."""
+    expected_key = get_setting("BRAIN_CONTROL_API_KEY")
+    if not expected_key or len(expected_key) < 24:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Brain control API is disabled: configure BRAIN_CONTROL_API_KEY with at least 24 characters.",
+        )
+    if not api_key or not hmac.compare_digest(api_key, expected_key):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Brain control key.",
+        )
 
 
 async def get_db(request: Request) -> AsyncGenerator:
