@@ -26,7 +26,7 @@ async def require_control_key(
     if not expected_key or len(expected_key) < 24:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Brain control API is disabled until a key of at least 24 characters is configured.",
+            detail="Brain control API is disabled: configure BRAIN_CONTROL_API_KEY with at least 24 characters.",
         )
     if not api_key or not hmac.compare_digest(api_key, expected_key):
         raise HTTPException(
