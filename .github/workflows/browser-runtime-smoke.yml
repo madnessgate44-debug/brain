@@ -1,6 +1,8 @@
 name: Browser runtime smoke test
 
 on:
+  push:
+    branches: [main, "brain/**"]
   workflow_dispatch:
   pull_request:
     branches: [main]
