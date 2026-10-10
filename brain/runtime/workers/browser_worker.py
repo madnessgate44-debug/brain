@@ -167,6 +167,14 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
         if op not in SUPPORTED_ACTIONS:
             raise BrowserPolicyError(f"action {index} has unsupported op")
         action = dict(raw)
+        if "timeout_ms" in action and (
+            isinstance(action["timeout_ms"], bool)
+            or not isinstance(action["timeout_ms"], int)
+            or not 1 <= action["timeout_ms"] <= 20_000
+        ):
+            raise BrowserPolicyError(
+                f"action {index} timeout_ms must be an integer between 1 and 20000"
+            )
         if op == "navigate":
             if not isinstance(action.get("url"), str) or len(action["url"]) > 2048:
                 raise BrowserPolicyError(f"action {index} requires a valid url string")
@@ -182,6 +190,8 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
         if op == "type":
             if not isinstance(action.get("text"), str) or len(action["text"]) > 20_000:
                 raise BrowserPolicyError(f"action {index} requires text no longer than 20000 characters")
+            if "clear" in action and not isinstance(action["clear"], bool):
+                raise BrowserPolicyError(f"action {index} clear must be a boolean")
         if op == "select" and (
             not isinstance(action.get("value"), str) or len(action["value"]) > 5000
         ):
@@ -202,7 +212,7 @@ def validate_browser_actions(actions: Any) -> list[dict[str, Any]]:
             raise BrowserPolicyError(f"action {index} has invalid wait state")
         if op in {"inspect", "extract_links"}:
             max_chars = action.get("max_chars", 5000)
-            if not isinstance(max_chars, int) or not 1 <= max_chars <= MAX_TEXT_CHARS:
+            if isinstance(max_chars, bool) or not isinstance(max_chars, int) or not 1 <= max_chars <= MAX_TEXT_CHARS:
                 raise BrowserPolicyError(f"action {index} max_chars must be between 1 and {MAX_TEXT_CHARS}")
         validated.append(action)
     return validated
