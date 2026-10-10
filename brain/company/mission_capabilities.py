@@ -27,6 +27,11 @@ def plan_capabilities(objective: str) -> CapabilityPlan:
     A mission requesting both inspection and changes is classified as mutating.
     """
     objective_text = objective or ""
+    # Remove standalone constraint lines before classifying positive mission intent.
+    objective_text = "\n".join(
+        line for line in objective_text.splitlines()
+        if not re.match(r"^\s*(?:[-*]\s*)?(?:do not|don't|never|must not)\b", line, re.IGNORECASE)
+    )
     # Explicitly negated actions describe constraints, not requested mutations.
     objective_text = re.sub(
         r"\b(?:do not|don't|never|no need to)\s+(?:[a-z]+\s+){0,2}"
