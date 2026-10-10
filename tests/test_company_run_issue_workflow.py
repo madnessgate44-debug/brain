@@ -348,3 +348,13 @@ def test_issue_parser_rejects_non_owner_issue(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError, match="Only an issue opened by the repository owner"):
         workflow.request_from_issue()
+
+def test_audit_source_chunks_preserve_real_line_breaks_and_line_numbers():
+    chunks = workflow.build_audit_source_chunks({"brain/example.py": "first line\\nsecond line\\n"})
+
+    assert len(chunks) == 1
+    assert chunks[0]["text"].splitlines() == [
+        "FILE: brain/example.py",
+        "L1: first line",
+        "L2: second line",
+    ]
