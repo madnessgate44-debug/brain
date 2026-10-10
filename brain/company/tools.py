@@ -67,24 +67,47 @@ class GitHubCompanyTools:
         total_bytes = 0
         aggregate_limit = 2_200_000
         omitted_by_budget: list[str] = []
-        for index, path in enumerate(candidates):
-            if total_bytes >= aggregate_limit:
-                omitted_by_budget.extend(candidates[index:])
-                break
+        read_concurrency = 8
+
+        async def read_candidate(path: str, remaining_bytes: int) -> tuple[str, str | None, str | None]:
             try:
-                text = await self.gateway.read_file(
-                    repository, path, max_bytes=min(200_000, aggregate_limit - total_bytes)
+                value = await self.gateway.read_file(
+                    repository, path, max_bytes=min(200_000, remaining_bytes)
                 )
+                return path, value, None
             except GitHubGatewayError as exc:
-                errors[path] = str(exc)
-                continue
-            size = len(text.encode("utf-8"))
-            if total_bytes + size > aggregate_limit:
-                omitted_by_budget.append(path)
-                omitted_by_budget.extend(candidates[index + 1:])
+                return path, None, str(exc)
+
+        stop_reading = False
+        for batch_start in range(0, len(candidates), read_concurrency):
+            if total_bytes >= aggregate_limit:
+                omitted_by_budget.extend(candidates[batch_start:])
                 break
-            contents[path] = text
-            total_bytes += size
+            batch = candidates[batch_start:batch_start + read_concurrency]
+            remaining_bytes = aggregate_limit - total_bytes
+            results = await asyncio.gather(
+                *(read_candidate(path, remaining_bytes) for path in batch)
+            )
+            for offset, (path, text, error) in enumerate(results):
+                if total_bytes >= aggregate_limit:
+                    omitted_by_budget.extend(candidates[batch_start + offset:])
+                    stop_reading = True
+                    break
+                if error is not None:
+                    errors[path] = error
+                    continue
+                if text is None:
+                    errors[path] = "GitHub returned no text content."
+                    continue
+                size = len(text.encode("utf-8"))
+                if total_bytes + size > aggregate_limit:
+                    omitted_by_budget.extend(candidates[batch_start + offset:])
+                    stop_reading = True
+                    break
+                contents[path] = text
+                total_bytes += size
+            if stop_reading:
+                break
 
         snapshot["source_contents"] = contents
         snapshot["source_files_read"] = len(contents)
