@@ -359,3 +359,25 @@ def test_ensure_failure_reports_repairs_invalid_utf8_json(tmp_path):
     assert created is True
     assert markdown_path.read_text(encoding="utf-8") == "pre-existing markdown report"
     assert json.loads(json_path.read_text(encoding="utf-8"))["status"] == "FAILED"
+
+
+def test_ensure_failure_reports_repairs_zero_byte_markdown_preserves_valid_json(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+    valid_report = build_bootstrap_failure_report(BASE_ENV, {"issue": {"number": 154}})
+    original_json = json.dumps(valid_report)
+    json_path.write_text(original_json, encoding="utf-8")
+    markdown_path.write_bytes(b"")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    assert json_path.read_text(encoding="utf-8") == original_json
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert "# Brain execution failure report" in markdown
+    assert "Commit SHA: abc123" in markdown
