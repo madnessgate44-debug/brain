@@ -8,10 +8,18 @@ from brain.schemas.approval import (
     ApprovalResponseCreate,
 )
 from brain.services.approval_service import ApprovalService
-from brain.api.deps import get_approval_service
+from brain.api.deps import get_approval_service, require_control_key
 
-router = APIRouter(prefix="/approvals", tags=["approvals"])
-mission_router = APIRouter(prefix="/missions", tags=["approvals"])
+router = APIRouter(
+    prefix="/approvals",
+    tags=["approvals"],
+    dependencies=[Depends(require_control_key)],
+)
+mission_router = APIRouter(
+    prefix="/missions",
+    tags=["approvals"],
+    dependencies=[Depends(require_control_key)],
+)
 
 
 @router.post("/missions/{mission_id}/approvals", response_model=ApprovalRequestResponse)
