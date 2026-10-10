@@ -61,7 +61,7 @@ jobs:
             const lockRef = 'heads/brain-company-workflow-lock';
             const lockFullRef = 'refs/' + lockRef;
             const timeoutMs = 35 * 60 * 1000;
-            const staleMs = 60 * 60 * 1000;
+            const staleMs = 95 * 60 * 1000;
             const started = Date.now();
             const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -93,6 +93,15 @@ jobs:
               if (existing) {
                 if (Number.isFinite(existing.acquiredAt) && Date.now() - existing.acquiredAt > staleMs) {
                   try {
+                    const currentRef = await github.rest.git.getRef({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      ref: lockRef
+                    });
+                    if (currentRef.data.object.sha !== existing.sha) {
+                      await sleep(1000);
+                      continue;
+                    }
                     await github.rest.git.deleteRef({
                       owner: context.repo.owner,
                       repo: context.repo.repo,
