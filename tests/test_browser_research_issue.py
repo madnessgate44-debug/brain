@@ -24,7 +24,7 @@ def valid_body():
     )
 
 
-def test_parses_owner_authored_research_request():
+def test_parses_owner_authored_and_owner_triggered_research_request():
     payload = parse_research_payload(event_for(valid_body()), "madnessgate44-debug")
     assert payload["title"] == "Inspect Playwright documentation"
     assert payload["start_url"] == "https://playwright.dev/docs/test-retries"
