@@ -35,8 +35,13 @@ class GitHubCompanyTools:
         """Build a multi-pass source inventory; disclose every candidate not read."""
         snapshot = await self.gateway.inspect_repository(repository, max_files=1000)
         source_suffixes = (
-            ".tsx", ".ts", ".jsx", ".js", ".py", ".css", ".html", ".json",
-            ".md", ".yml", ".yaml", ".toml",
+            ".py", ".pyi", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx",
+            ".vue", ".svelte", ".html", ".css", ".scss", ".sass", ".less",
+            ".json", ".jsonc", ".md", ".mdx", ".yml", ".yaml", ".toml",
+            ".sh", ".bash", ".zsh", ".ps1", ".sql", ".xml", ".ini", ".cfg",
+            ".go", ".rs", ".java", ".kt", ".kts", ".swift", ".rb", ".php",
+            ".c", ".h", ".cc", ".cpp", ".hpp", ".cs", ".dart", ".ex", ".exs",
+            ".erl", ".hs", ".pl", ".r", ".scala", ".gradle",
         )
         root_files = {
             "README.md", "package.json", "pyproject.toml", "index.html",
