@@ -234,3 +234,34 @@ def test_markdown_report_warns_that_discovery_is_not_a_security_audit():
     markdown = render_markdown(report)
     assert "No candidate code was executed" in markdown
     assert "not an approval to import or execute code" in markdown
+
+
+@pytest.mark.asyncio
+async def test_mission_is_preserved_in_report_and_markdown():
+    class FakeDiscovery:
+        token = ""
+
+        async def search(self, max_candidates=30):
+            return []
+
+    mission = "Research Tomatom browser extensions and free hosting limits."
+    report = await ResearchAndDevelopmentAgent(discovery=FakeDiscovery()).run(mission=mission)
+    markdown = render_markdown(report)
+
+    assert report["mission"] == mission
+    assert report["research_scope"]["source_code_and_documentation"] == "not inspected by this version"
+    assert "job descriptions" in markdown
+    assert "not independently investigated" in markdown
+
+
+def test_mission_discovery_adds_bounded_targeted_query():
+    discovery = GitHubRepositoryDiscovery(mission="Tomatom browser extensions free hosting limits")
+    words = []
+    stop_words = {"about", "after", "also", "and", "are", "build", "built", "can", "could", "design", "find", "from", "free", "give", "into", "mission", "need", "our", "that", "the", "their", "them", "then", "this", "through", "tools", "with", "would", "your", "brain", "tomatom", "research", "investigate", "return"}
+    for raw_word in discovery.mission.lower().replace("/", " ").replace("-", " ").split():
+        word = "".join(ch for ch in raw_word if ch.isalnum())
+        if len(word) >= 4 and word not in stop_words and word not in words:
+            words.append(word)
+        if len(words) >= 5:
+            break
+    assert words == ["browser", "extensions", "hosting", "limits"]
