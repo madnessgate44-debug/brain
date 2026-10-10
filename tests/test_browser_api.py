@@ -11,9 +11,9 @@ from brain.api.app import create_app
 
 def _payload(**overrides):
     payload = {
-        "title": "Inspect ChatGPT",
-        "objective": "Open ChatGPT and inspect the current page without sending a message",
-        "actions": [{"op": "navigate", "url": "https://chatgpt.com/"}],
+        "title": "Inspect public example page",
+        "objective": "Open a public example page and inspect its response",
+        "actions": [{"op": "navigate", "url": "https://example.com/"}],
     }
     payload.update(overrides)
     return payload
@@ -104,7 +104,7 @@ def test_browser_endpoint_requires_approval_for_mutating_actions(monkeypatch, ac
 
 def test_browser_mission_runs_through_mission_runtime_and_records_report(monkeypatch):
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "x" * 32)
-    monkeypatch.setenv("BRAIN_BROWSER_ALLOWED_DOMAINS", "chatgpt.com,*.chatgpt.com")
+    monkeypatch.setenv("BRAIN_BROWSER_ALLOWED_DOMAINS", "example.com")
 
     async def fake_execute(self, actions, owner_approved=False):
         return {
@@ -113,7 +113,7 @@ def test_browser_mission_runs_through_mission_runtime_and_records_report(monkeyp
             "completed_actions": len(actions),
             "requested_actions": len(actions),
             "results": [{"index": 0, "op": "navigate", "ok": True, "result": {
-                "url": "https://chatgpt.com/", "title": "ChatGPT", "http_status": 200
+                "url": "https://example.com/", "title": "Example Domain", "http_status": 200
             }}],
         }
 
