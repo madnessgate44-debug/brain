@@ -157,7 +157,11 @@ def test_inline_fallback_runs_without_checked_out_helper(tmp_path):
         encoding="utf-8",
     )
     env = {
-        **os.environ,
+        key: os.environ[key]
+        for key in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
+        if key in os.environ
+    }
+    env.update({
         "GITHUB_EVENT_PATH": str(event_path),
         "GITHUB_REPOSITORY": "madnessgate44-debug/brain",
         "GITHUB_SHA": "checkout-sha",
@@ -174,7 +178,7 @@ def test_inline_fallback_runs_without_checked_out_helper(tmp_path):
         "INSTALL_OUTCOME": "skipped",
         "LOCK_OUTCOME": "skipped",
         "RUN_OUTCOME": "skipped",
-    }
+    })
 
     result = subprocess.run(
         [sys.executable, "-c", script],
