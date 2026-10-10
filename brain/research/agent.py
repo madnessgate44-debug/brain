@@ -107,8 +107,9 @@ class ResearchAndDevelopmentAgent:
                 "repository_metadata": "searched and scored",
                 "source_code": "not audited; no third-party code executed",
                 "repository_documentation": "public README excerpts collected when available",
+                "general_web_browsing": evidence.get("web_research", {}).get("status", "unknown"),
                 "job_descriptions_and_live_skill_requirements": evidence.get("job_market", {}).get("status", "unknown"),
-                "hosting_prices_and_free_tier_terms": "not independently verified",
+                "hosting_prices_and_free_tier_terms": "searched where public pages are returned; not independently verified",
                 "limitations": [
                     "GitHub repository metadata is a discovery signal, not source-level evidence.",
                     "This report does not establish job-market requirements or verify hosting terms.",
@@ -226,6 +227,11 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Public README excerpts collected: {report.get('evidence', {}).get('repository_documentation_count', 0)}",
         f"- Job-market sample status: {report.get('evidence', {}).get('job_market', {}).get('status', 'not collected')}",
         "",
+        f"- General web research status: {report.get(\'evidence\', {}).get(\'web_research\', {}).get(\'status\', \'not collected\')}",
+        f"- Public pages fetched: {report.get(\'evidence\', {}).get(\'web_research\', {}).get(\'pages_fetched\', 0)}",
+        "",
+        "### General web research",
+        "",
         "### Public repository documentation",
         "",
     ]
@@ -243,6 +249,22 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"  - Excerpt: {excerpt}",
             f"  - Boundary: {item.get('evidence_boundary', 'documentation only; not a code audit')}",
         ])
+    web_research = evidence.get("web_research", {})
+    for source in web_research.get("sources", [])[:8] if isinstance(web_research, dict) else []:
+        if not isinstance(source, dict):
+            continue
+        title = str(source.get("title", "Web source")).replace("[", "\\[").replace("]", "\\]")
+        url = str(source.get("url", ""))
+        excerpt = str(source.get("excerpt", ""))[:700]
+        for char in ("\\\\", "`", "*", "_", "[", "]"):
+            excerpt = excerpt.replace(char, "\\" + char)
+        lines.extend([
+            f"- [{title}]({url}) — {source.get('status', 'unknown')}",
+            f"  - Search query: {source.get('query', 'not recorded')}",
+            f"  - Excerpt: {excerpt or 'No readable excerpt retrieved.'}",
+        ])
+    for limitation in web_research.get("limitations", []) if isinstance(web_research, dict) else []:
+        lines.append(f"- Limitation: {limitation}")
     lines.extend(["", "### Job-market sample", ""])
     job_market = evidence.get("job_market", {})
     for job in job_market.get("jobs", [])[:10] if isinstance(job_market, dict) else []:
