@@ -267,14 +267,25 @@ def test_build_audit_source_chunks_compactly_preserves_paths_and_line_numbers():
     assert all(len(chunk["text"]) <= 80 for chunk in chunks)
 
 
-def test_build_audit_source_chunks_marks_truncated_long_lines():
+def test_build_audit_source_chunks_preserves_long_lines_in_segments():
+    long_line = "x" * 100
     chunks = workflow.build_audit_source_chunks(
-        {"src/large.ts": "x" * 100},
+        {"src/large.ts": long_line},
         max_chars=200,
         max_line_chars=20,
     )
 
-    assert "[LINE TRUNCATED FOR PROMPT SIZE]" in chunks[0]["text"]
+    rendered = "\n".join(chunk["text"] for chunk in chunks)
+    assert "[LINE TRUNCATED FOR PROMPT SIZE]" not in rendered
+    assert all(len(chunk["text"]) <= 200 for chunk in chunks)
+    for segment_index in range(1, 6):
+        assert f"L1 [segment {segment_index}/5]:" in rendered
+    recovered = "".join(
+        line.split(": ", 1)[1]
+        for line in rendered.splitlines()
+        if line.startswith("L1 [segment ")
+    )
+    assert recovered == long_line
 
 
 
