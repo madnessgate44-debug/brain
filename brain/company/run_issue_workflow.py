@@ -106,7 +106,7 @@ def build_audit_source_chunks(
     def flush() -> None:
         nonlocal current, current_size, chunk_number
         if current:
-            chunks.append({"chunk_id": f"source-{chunk_number:03d}", "text": "\\n".join(current)})
+            chunks.append({"chunk_id": f"source-{chunk_number:03d}", "text": "\n".join(current)})
             chunk_number += 1
         current = []
         current_size = 0

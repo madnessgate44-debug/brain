@@ -181,17 +181,51 @@ class GitHubCompanyTools:
             )
             for comment in comments:
                 body = comment.get("body", "")
+                # A matching comment from a user is not evidence that tests passed.
+                if (comment.get("user") or {}).get("login") != "github-actions[bot]":
+                    continue
                 if "## Brain remote test run" not in body:
                     continue
-                result_match = re.search(r"\*\*Result:\*\*\s*(PASS|FAIL)", body)
-                run_match = re.search(r"https://github\.com/[^\s]+/actions/runs/\d+", body)
-                if not result_match:
+                result_match = re.search(r"\*\*Result:\*\*\s*(PASS|FAIL|EXECUTION_ERROR)", body)
+                run_match = re.search(
+                    rf"https://github\.com/{re.escape(owner)}/{re.escape(name)}/actions/runs/(\d+)",
+                    body,
+                )
+                target_line = next(
+                    (line.partition("**Target repository:**")[2].strip().strip("`")
+                     for line in body.splitlines() if line.startswith("**Target repository:**")),
+                    "",
+                )
+                branch_line = next(
+                    (line.partition("**Target branch:**")[2].strip().strip("`")
+                     for line in body.splitlines() if line.startswith("**Target branch:**")),
+                    "",
+                )
+                if not (result_match and run_match and target_line and branch_line):
+                    continue
+                if target_line.casefold() != repository.casefold():
+                    continue
+                if branch_line != branch:
+                    continue
+                run_id = int(run_match.group(1))
+                run = await trigger_gateway._request(
+                    "GET", f"/repos/{owner}/{name}/actions/runs/{run_id}"
+                )
+                if run.get("path") != ".github/workflows/brain-task-runner.yml":
+                    continue
+                if run.get("event") != "issues" or run.get("status") != "completed":
                     continue
                 result = result_match.group(1)
+                expected_conclusion = "success" if result == "PASS" else "failure"
+                if run.get("conclusion") != expected_conclusion:
+                    continue
                 return {
                     "executed": True,
                     "status": result,
-                    "run_url": run_match.group(0) if run_match else None,
+                    "run_url": run_match.group(0),
+                    "workflow_run_id": run_id,
+                    "workflow_path": run.get("path"),
+                    "workflow_conclusion": run.get("conclusion"),
                     "issue_url": issue.get("html_url"),
                     "report": body,
                     "branch": branch,

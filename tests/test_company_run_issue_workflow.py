@@ -252,6 +252,17 @@ def test_pull_request_gateway_uses_fallback_when_no_primary_pat_exists(monkeypat
 
 
 
+def test_build_audit_source_chunks_uses_real_newline_separators():
+    chunks = workflow.build_audit_source_chunks(
+        {"src/a.py": "first line\nsecond line\n"},
+        max_chars=1000,
+    )
+    assert len(chunks) == 1
+    rendered = chunks[0]["text"]
+    assert "FILE: src/a.py\nL1: first line\nL2: second line" in rendered
+    assert "\\n" not in rendered
+
+
 def test_build_audit_source_chunks_compactly_preserves_paths_and_line_numbers():
     chunks = workflow.build_audit_source_chunks({
         "src/a.ts": "const a = 1;\nconst b = 2;\n",
