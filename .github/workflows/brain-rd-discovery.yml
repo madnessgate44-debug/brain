@@ -37,6 +37,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e .
       - name: Run bounded R&D discovery
+        env:
+          BRAIN_RD_GITHUB_TOKEN: ${{ secrets.BRAIN_RD_GITHUB_TOKEN }}
         run: python -m brain.research.cli --max-candidates 30 --output-dir .
       - name: Add shortlist to workflow summary
         if: always()
