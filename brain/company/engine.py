@@ -50,6 +50,111 @@ def _gate_summary(output: dict[str, Any], decision_field: str) -> str:
     )
 
 
+def _compact_repository_snapshot(
+    snapshot: dict[str, Any],
+    user_request: str,
+    max_chars: int = 40_000,
+    max_files: int = 20,
+) -> dict[str, Any]:
+    """Bound repository context sent to every model call while retaining source evidence."""
+    import re
+
+    source_contents = snapshot.get("source_contents", {})
+    if not isinstance(source_contents, dict):
+        source_contents = {}
+
+    explicit_paths = set(
+        re.findall(
+            r"(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\\.[A-Za-z0-9_.-]+",
+            user_request,
+        )
+    )
+
+    def priority(path: str) -> tuple[int, int, str]:
+        lowered = path.casefold()
+        if path in explicit_paths:
+            group = 0
+        elif lowered in {"readme.md", "pyproject.toml", "package.json", "requirements.txt"}:
+            group = 1
+        elif any(part in {"tests", "test", "__tests__"} for part in lowered.split("/")):
+            group = 2
+        elif lowered.startswith(".github/workflows/"):
+            group = 3
+        else:
+            group = 4
+        return (group, len(path), path)
+
+    paths = sorted(
+        (path for path, content in source_contents.items() if isinstance(path, str) and isinstance(content, str)),
+        key=priority,
+    )
+    compact_contents: dict[str, str] = {}
+    omitted_paths: list[str] = []
+    remaining = max_chars
+    for path in paths:
+        if len(compact_contents) >= max_files or remaining <= 0:
+            omitted_paths.append(path)
+            continue
+        content = source_contents[path]
+        header = f"FILE: {path}\\n"
+        budget = min(4_000, remaining - len(header))
+        if budget <= 0:
+            omitted_paths.append(path)
+            continue
+        truncated = len(content) > budget
+        excerpt = content[:budget]
+        if truncated:
+            excerpt += "\\n[TRUNCATED: source excerpt capped for model context]"
+        compact_contents[path] = excerpt
+        remaining -= len(header) + min(len(content), budget)
+        if truncated:
+            omitted_paths.append(path)
+
+    manifest = snapshot.get("source_manifest", {})
+    if not isinstance(manifest, dict):
+        manifest = {}
+    files = snapshot.get("files", [])
+    if not isinstance(files, list):
+        files = []
+    compact_files = [
+        {
+            "path": item.get("path"),
+            "size": item.get("size"),
+        }
+        for item in files[:300]
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    ]
+    failed_paths = manifest.get("failed_paths", {})
+    if not isinstance(failed_paths, dict):
+        failed_paths = {}
+    return {
+        "repository": snapshot.get("repository"),
+        "default_branch": snapshot.get("default_branch"),
+        "base_commit": snapshot.get("base_commit"),
+        "truncated": snapshot.get("truncated", False),
+        "source_files_read": snapshot.get("source_files_read", len(source_contents)),
+        "files": compact_files,
+        "source_contents": compact_contents,
+        "source_manifest": {
+            "candidate_count": manifest.get("candidate_count", len(paths)),
+            "read_count": manifest.get("read_count", len(source_contents)),
+            "coverage_complete": manifest.get("coverage_complete", False),
+            "tree_truncated": manifest.get("tree_truncated", snapshot.get("truncated", False)),
+            "aggregate_bytes_read": manifest.get("aggregate_bytes_read"),
+            "failed_path_count": len(failed_paths),
+            "failed_paths_sample": list(failed_paths)[:20],
+            "omitted_by_aggregate_budget_count": len(
+                manifest.get("omitted_by_aggregate_budget", [])
+                if isinstance(manifest.get("omitted_by_aggregate_budget", []), list)
+                else []
+            ),
+            "model_context_omitted_or_truncated_paths": omitted_paths,
+            "model_context_char_limit": max_chars,
+            "model_context_file_limit": max_files,
+        },
+    }
+
+
 class CompanyWorkflowEngine:
     """Run specialist roles in order, with bounded repair and evidence-based release."""
 
@@ -73,11 +178,12 @@ class CompanyWorkflowEngine:
             raise ValueError("repository must be in owner/repository format")
 
         repository_snapshot = await self.tools.inspect_repository(repository)
+        model_snapshot = _compact_repository_snapshot(repository_snapshot, user_request)
         evidence: dict[str, Any] = {
             **(initial_evidence or {}),
             "user_request": user_request,
             "repository": repository,
-            "repository_snapshot": repository_snapshot,
+            "repository_snapshot": model_snapshot,
         }
         outputs: dict[str, Any] = {}
         timeline: list[dict[str, Any]] = []
