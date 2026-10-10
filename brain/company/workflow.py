@@ -61,8 +61,15 @@ def evaluate_release_gate(evidence: dict[str, Any]) -> GateDecision:
             blockers.append(f"{key} has no recognized decision format")
 
     test_results = evidence.get("test_results")
-    if isinstance(test_results, dict) and test_results.get("executed") is not True:
-        blockers.append("QA evidence does not confirm tests were actually executed")
+    if not isinstance(test_results, dict):
+        blockers.append("QA evidence must be a structured result from the real check runner")
+    else:
+        if test_results.get("executed") is not True:
+            blockers.append("QA evidence does not confirm tests were actually executed")
+        if str(test_results.get("status", "")).strip().upper() != "PASS":
+            blockers.append("QA execution result did not pass")
+        if not isinstance(test_results.get("run_url"), str) or not test_results["run_url"].startswith("https://"):
+            blockers.append("QA evidence is missing a verifiable HTTPS workflow run URL")
 
     review = evidence.get("review_decision")
     if isinstance(review, dict) and review.get("reviewer_role") == "developer":
