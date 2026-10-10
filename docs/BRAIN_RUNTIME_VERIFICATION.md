@@ -17,7 +17,7 @@ This operational report documents verified execution results, past failure inves
 ## 3. Historical Failures and Remediation
 
 - **Customer-Review Decision-Format Defect:** [Attempt Run 38035265565](https://github.com/madnessgate44-debug/brain/actions/runs/38035265565) failed due to strict validation expectations on decision formats; fixed in [Pull Request #73](https://github.com/madnessgate44-debug/brain/pull/73).
-- **Temporary Rate-Limit Failure:** [Attempt Run 38035279284](https://github.com/madnessgate44-debug/brain/actions/runs/38035279284) encountered upstream model provider rate limits (HTTP 429), addressed via retry and native fallback logic.
+- **Temporary Rate-Limit Failure:** [Attempt Run 38035279284](https://github.com/madnessgate44-debug/brain/actions/runs/38035279284) encountered upstream model provider rate limits (HTTP 429). Retry and native fallback logic ran, but that attempt still failed; quota availability remains an external dependency.
 - **Workflow-Token PR-Permission Failure:** [Attempt Run 38035578614](https://github.com/madnessgate44-debug/brain/actions/runs/38035578614) failed because the workflow token could not create a PR. [PR #76](https://github.com/madnessgate44-debug/brain/pull/76) separated content-write and PR credentials in code, but the configured PAT also lacks PR-creation permission; the permission blocker remains unresolved inside the Actions workflow.
 
 ## 4. Production and Hosting Boundaries
