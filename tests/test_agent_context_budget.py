@@ -86,3 +86,18 @@ def test_review_and_quality_roles_do_not_receive_duplicate_full_change_set_conte
     assert len(qa["actual_diff"]) < 31000
     assert "content" not in reviewer["change_set"]["files"][0]
     assert "content" in evidence["change_set"]["files"][0]
+
+
+def test_developer_gets_multiple_fallback_files_when_no_path_matches_the_request():
+    contents = {
+        "src/alpha.py": "alpha\n" * 1000,
+        "src/beta.py": "beta\n" * 1000,
+        "src/gamma.py": "gamma\n" * 1000,
+    }
+    prepared = _prepare_prompt_evidence(
+        "developer",
+        "Implement an unrelated task whose terms do not match any path.",
+        {"repository_snapshot": _snapshot(contents)},
+    )
+    selected = prepared["repository_snapshot"]["source_contents"]
+    assert len(selected) == 3
