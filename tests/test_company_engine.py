@@ -292,3 +292,42 @@ async def test_engine_bounds_repository_source_context_before_model_calls():
     assert len(snapshot["files"]) <= 300
     assert snapshot["source_manifest"]["model_context_char_limit"] == 40_000
     assert len(snapshot["source_manifest"]["model_context_omitted_or_truncated_paths"]) > 0
+
+
+
+@pytest.mark.asyncio
+async def test_engine_checkpoints_prior_agent_outputs_before_later_stage_failure():
+    checkpoints = []
+    engine = CompanyWorkflowEngine(
+        FakeAgentRunner(),
+        FakeTools(test_status="FAIL"),
+        checkpoint_callback=checkpoints.append,
+    )
+
+    with pytest.raises(CompanyWorkflowBlocked, match="checks failed"):
+        await engine.run("Build a small feature", "owner/repository")
+
+    assert checkpoints
+    checkpoint = checkpoints[-1]
+    assert checkpoint["stage"] == "test_execution_completed"
+    assert checkpoint["test_evidence"]["status"] == "FAIL"
+    assert {"product_owner", "ux_designer", "architect", "developer", "code_reviewer"} <= set(
+        checkpoint["role_outputs"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_engine_final_checkpoint_records_all_roles_and_human_approval_gate():
+    checkpoints = []
+    engine = CompanyWorkflowEngine(
+        FakeAgentRunner(),
+        FakeTools(),
+        checkpoint_callback=checkpoints.append,
+    )
+
+    result = await engine.run("Build a small feature", "owner/repository")
+
+    assert result["status"] == "READY_FOR_HUMAN_APPROVAL"
+    assert checkpoints[-1]["stage"] == "human_review_handoff_created"
+    assert checkpoints[-1]["status"] == "READY_FOR_HUMAN_APPROVAL"
+    assert len(checkpoints[-1]["completed_roles"]) == 9
