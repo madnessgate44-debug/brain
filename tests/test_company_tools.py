@@ -53,6 +53,21 @@ class FakeGateway:
         raise AssertionError(f"Unexpected request: {method} {path}")
 
 
+class RecordingWriteGateway:
+    def __init__(self, name):
+        self.name = name
+        self.calls = []
+
+    async def apply_change_set(self, **kwargs):
+        self.calls.append(kwargs)
+        return {
+            "branch": kwargs["branch_name"],
+            "commit_sha": "test-commit",
+            "changed_files": [item["path"] for item in kwargs["change_set"]["files"]],
+            "diff": "test diff",
+        }
+
+
 @pytest.mark.asyncio
 async def test_verification_issue_uses_separate_pat_gateway():
     """PAT-created issue events can trigger the test workflow; GITHUB_TOKEN events cannot."""
@@ -407,3 +422,51 @@ async def test_inspection_reads_source_files_with_bounded_concurrency():
     assert snapshot["source_files_read"] == len(paths)
     assert set(gateway.read_paths) == set(paths)
     assert 1 < gateway.max_active_reads <= 8
+
+
+@pytest.mark.asyncio
+async def test_workflow_file_changes_use_pat_gateway_with_workflow_scope():
+    actions_gateway = RecordingWriteGateway("actions-token")
+    pat_gateway = RecordingWriteGateway("primary-pat")
+    tools = GitHubCompanyTools(
+        gateway=actions_gateway,
+        verification_gateway=pat_gateway,
+        control_repository="owner/brain",
+    )
+
+    result = await tools.apply_change_set(
+        {
+            "summary": "Add bootstrap diagnostics",
+            "files": [{
+                "path": ".github/workflows/brain-chat-company-workflow.yml",
+                "content": "name: Brain workflow\\n",
+            }],
+        },
+        "owner/brain",
+    )
+
+    assert actions_gateway.calls == []
+    assert len(pat_gateway.calls) == 1
+    assert result["changed_files"] == [".github/workflows/brain-chat-company-workflow.yml"]
+
+
+@pytest.mark.asyncio
+async def test_regular_source_changes_keep_using_actions_gateway():
+    actions_gateway = RecordingWriteGateway("actions-token")
+    pat_gateway = RecordingWriteGateway("primary-pat")
+    tools = GitHubCompanyTools(
+        gateway=actions_gateway,
+        verification_gateway=pat_gateway,
+        control_repository="owner/brain",
+    )
+
+    await tools.apply_change_set(
+        {
+            "summary": "Fix source code",
+            "files": [{"path": "brain/company/tools.py", "content": "pass\\n"}],
+        },
+        "owner/brain",
+    )
+
+    assert len(actions_gateway.calls) == 1
+    assert pat_gateway.calls == []
