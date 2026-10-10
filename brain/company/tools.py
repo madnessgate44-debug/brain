@@ -76,7 +76,7 @@ class GitHubCompanyTools:
                 ".github/workflows/", "alembic/", "docs/",
             ))
             test_tree = any(part in {"tests", "test", "__tests__"} for part in parts)
-            is_source = path.endswith(source_suffixes) and (
+            is_source = path.casefold().endswith(source_suffixes) and (
                 in_scope_tree or "/" not in path
             )
             is_root_config = (
