@@ -49,6 +49,11 @@ class ApprovalService:
         mission = await self.mission_repo.get_by_id(mission_id)
         if not mission:
             raise ValueError(f"Mission {mission_id} not found")
+        if mission.status != "PENDING":
+            raise ValueError(
+                "Approval requests must be created before mission execution; "
+                f"mission status is {mission.status}."
+            )
 
         expires_at = parse_iso(data.expires_at) if data.expires_at else None
         approval = await self.approval_repo.create(
