@@ -34,6 +34,10 @@ class CompanyWorkflowTools(Protocol):
 class CompanyWorkflowBlocked(RuntimeError):
     """Raised when a workflow cannot safely advance to the next stage."""
 
+    def __init__(self, message: str, *, stage_evidence: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.stage_evidence = stage_evidence or {}
+
 
 
 
@@ -233,10 +237,20 @@ class CompanyWorkflowEngine:
         for role_key in WORKFLOW_ORDER[:3]:
             output = await self.agent_runner.run(role_key, user_request, evidence)
             outputs[role_key] = output
-            timeline.append({"role": role_key, "status": output["status"]})
+            timeline.append({
+                "role": role_key, "status": output["status"],
+                "findings": output.get("findings", []),
+                "blockers": output.get("blockers", []),
+                "evidence_needed": output.get("evidence_needed", []),
+            })
             if output["status"] != "PASS":
                 raise CompanyWorkflowBlocked(
-                    f"{role_key} did not pass: {output.get('blockers', [])}"
+                    f"{role_key} did not pass: {output.get('blockers', [])}",
+                    stage_evidence={
+                        "stopped_at": role_key, "timeline": timeline,
+                        "role_outputs": outputs,
+                        "repository_mutation_started": False, "tests_started": False,
+                    },
                 )
             evidence.update(output["deliverables"])
 
