@@ -273,7 +273,7 @@ async def test_engine_preserves_planned_source_files_for_role_specific_prompt_se
             source_contents = {
                 "README.md": "readme evidence " * 1000,
                 target_path: "target file context",
-                planned_path: "def test_source_file_is_available():\\n    assert True\\n",
+                planned_path: "def test_source_file_is_available():\n    assert True\n",
                 **{f"src/module_{i}.py": f"source evidence {i} " * 1000 for i in range(80)},
             }
             return {
