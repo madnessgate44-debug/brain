@@ -161,10 +161,10 @@ class GitHubCompanyTools:
             json={
                 "title": f"Brain verification {uuid.uuid4().hex[:8]}",
                 "body": (
-                    "/brain test\\n\\n"
-                    f"repository: {repository}\\n"
-                    f"branch: {branch}\\n\\n"
-                    "brain-internal-verification: true\\n"
+                    "/brain test\n\n"
+                    f"repository: {repository}\n"
+                    f"branch: {branch}\n\n"
+                    "brain-internal-verification: true\n"
                     "Automated company-workflow verification. Do not run arbitrary commands."
                 ),
             },
@@ -186,9 +186,9 @@ class GitHubCompanyTools:
                 if (comment.get("user") or {}).get("login", "").casefold() != "github-actions[bot]":
                     continue
 
-                result_match = re.search(r"\\*\\*Result:\\*\\*\\s*(PASS|FAIL|EXECUTION_ERROR)\\b", body)
+                result_match = re.search(r"\*\*Result:\*\*\s*(PASS|FAIL|EXECUTION_ERROR)\b", body)
                 run_match = re.search(
-                    rf"https://github\\.com/{re.escape(owner)}/{re.escape(name)}/actions/runs/(\\d+)",
+                    rf"https://github\.com/{re.escape(owner)}/{re.escape(name)}/actions/runs/(\d+)",
                     body,
                 )
                 target_line = next(
