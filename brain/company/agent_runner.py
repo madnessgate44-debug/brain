@@ -75,21 +75,21 @@ class SpecialistAgentRunner:
             )
         elif role_key == "qa_engineer":
             role_contract = (
-                "\\nUse the supplied test_results from the real check runner. Do not invent "
+                "\nUse the supplied test_results from the real check runner. Do not invent "
                 "test runs or mark unexecuted checks as passing.\n"
             )
         if role_key in {"ux_designer", "customer_advocate"}:
             role_contract += (
-                "\\nScope applicability rule: adapt deliverables to the explicit request. "
+                "\nScope applicability rule: adapt deliverables to the explicit request. "
                 "For backend-only work or a request that explicitly excludes UI changes, do not "
                 "block because visual mockups, screen redesign, or a visual design system are "
                 "out of scope. Provide backend interaction journeys and API/response-state "
                 "specifications in the required fields; mark purely visual details as not "
                 "applicable with a short reason. Do not request user confirmation for a clear "
-                "scope boundary. Raise a blocker only for a real unresolved product requirement.\\n"
+                "scope boundary. Raise a blocker only for a real unresolved product requirement.\n"
             )
         system_prompt = (
-            "You are the " + role.title + " in a software company.\\n"
+            "You are the " + role.title + " in a software company.\n"
             "Your responsibility: " + role.mission + "\n"
             "Use only supplied evidence. Distinguish facts, assumptions, and unknowns. "
             "Never claim that code was changed, tests were executed, a website was viewed, "
@@ -120,7 +120,7 @@ class SpecialistAgentRunner:
             # Never silently extract JSON from prose or retry indefinitely.
             repair_system_prompt = (
                 system_prompt
-                + "\\nYour previous response failed strict validation: "
+                + "\nYour previous response failed strict validation: "
                 + str(first_error)
                 + ". Return one corrected JSON object only. Preserve the required schema; "
                 + "do not add markdown fences or explanatory prose."
