@@ -94,6 +94,7 @@ class GitHubCompanyTools:
                     "/brain test\n\n"
                     f"repository: {repository}\n"
                     f"branch: {branch}\n\n"
+                    "brain-internal-verification: true\n"
                     "Automated company-workflow verification. Do not run arbitrary commands."
                 ),
             },
