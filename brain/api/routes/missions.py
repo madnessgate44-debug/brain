@@ -12,9 +12,13 @@ from brain.schemas.mission import (
 )
 from brain.services.mission_service import MissionService
 from brain.runtime.runtime_registry import RuntimeRegistry
-from brain.api.deps import get_mission_service, get_runtime_registry
+from brain.api.deps import get_mission_service, get_runtime_registry, require_control_key
 
-router = APIRouter(prefix="/missions", tags=["missions"])
+router = APIRouter(
+    prefix="/missions",
+    tags=["missions"],
+    dependencies=[Depends(require_control_key)],
+)
 
 
 @router.post("", response_model=MissionResponse, status_code=status.HTTP_201_CREATED)
