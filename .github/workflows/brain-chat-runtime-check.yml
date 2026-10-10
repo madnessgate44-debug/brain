@@ -17,9 +17,9 @@ jobs:
     permissions:
       issues: write
     env:
-      BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
-      BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL }}
-      BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL }}
+      BRAIN_AI_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.BRAIN_AI_API_KEY }}
+      BRAIN_AI_BASE_URL: ${{ secrets.DEEPSEEK_API_KEY && 'https://api.deepseek.com/v1' || secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
+      BRAIN_AI_MODEL: ${{ secrets.DEEPSEEK_API_KEY && 'deepseek-chat' || secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
       BRAIN_CONTROL_API_KEY: brain-runtime-test-only-${{ github.run_id }}-${{ github.run_attempt }}
       DATABASE__SQLITE_PATH: ./test_workspace/db/chat-runtime-check.db
       WORKSPACE__ROOT: ./test_workspace
