@@ -130,7 +130,9 @@ def test_workflow_wires_helper_and_retains_checkout_safe_fallback():
 
     assert "python3 scripts/write_bootstrap_failure_report.py" in workflow
     assert "Checkout itself can fail" in workflow
+    assert "python3 - <<" in workflow
     assert "GITHUB_SHA" in workflow
+    assert '"ref": os.environ.get("GITHUB_REF"' in workflow
     assert "GITHUB_REF_NAME" in workflow
     assert "failed_steps" in workflow
     assert "GITHUB_EVENT_PATH" in workflow
