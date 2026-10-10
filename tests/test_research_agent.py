@@ -249,9 +249,10 @@ async def test_mission_is_preserved_in_report_and_markdown():
     markdown = render_markdown(report)
 
     assert report["mission"] == mission
-    assert report["research_scope"]["source_code_and_documentation"] == "not inspected by this version"
+    assert report["research_scope"]["source_code"] == "not audited; no third-party code executed"
     assert "job descriptions" in markdown
-    assert "not independently investigated" in markdown
+    assert "not independently investigated" not in markdown
+    assert "bounded job-board sample" in markdown
 
 
 def test_mission_discovery_adds_bounded_targeted_query():
