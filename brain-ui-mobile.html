@@ -758,9 +758,11 @@
             const icons = { success: 'check_circle', error: 'error', info: 'info' };
             el.innerHTML = `
                 <span class="material-symbols-outlined icon">${icons[type] || 'info'}</span>
-                <span class="msg">${msg}</span>
-                <button class="close" onclick="this.parentElement.remove()">✕</button>
+                <span class="msg"></span>
+                <button class="close" type="button">✕</button>
             `;
+            el.querySelector('.msg').textContent = String(msg ?? '');
+            el.querySelector('.close').addEventListener('click', () => el.remove());
             container.appendChild(el);
             setTimeout(() => { if (el.parentElement) el.remove(); }, 5000);
         }
