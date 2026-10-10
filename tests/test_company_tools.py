@@ -21,7 +21,7 @@ class FakeGateway:
                 "user": {"login": "github-actions[bot]"},
                 "body": (
                     "## Brain remote test run\n\n"
-                    "**Target repository:** owner/project\n"
+                    "**Target repository:** owner/brain\n"
                     "**Target branch:** `brain/test-branch`\n"
                     "**Result:** PASS\n"
                     "Workflow run: https://github.com/owner/brain/actions/runs/123"
