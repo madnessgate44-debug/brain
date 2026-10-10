@@ -42,7 +42,6 @@ jobs:
 
       - name: Plan and execute bounded public research
         id: research
-        continue-on-error: true
         env:
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
