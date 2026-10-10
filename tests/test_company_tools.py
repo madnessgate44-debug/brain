@@ -131,7 +131,7 @@ async def test_inspection_marks_aggregate_budget_omissions_instead_of_claiming_c
     class LargeInspectionGateway(FakeInspectionGateway):
         async def read_file(self, repository, path, max_bytes=200_000):
             self.read_paths.append(path)
-            return "x" * min(max_bytes, 29_000)
+            return "x" * min(max_bytes, 60_000)
 
     paths = [f"src/file{i}.ts" for i in range(60)]
     gateway = LargeInspectionGateway(paths)
@@ -143,3 +143,21 @@ async def test_inspection_marks_aggregate_budget_omissions_instead_of_claiming_c
     assert manifest["read_count"] < manifest["candidate_count"]
     assert manifest["omitted_by_aggregate_budget"]
     assert manifest["coverage_complete"] is False
+
+
+
+@pytest.mark.asyncio
+async def test_inspection_reads_a_single_source_file_larger_than_thirty_kilobytes():
+    class LargeFileGateway(FakeInspectionGateway):
+        async def read_file(self, repository, path, max_bytes=200_000):
+            self.read_paths.append(path)
+            return "x" * 50_000
+
+    gateway = LargeFileGateway(["src/services/largeService.ts"])
+    tools = GitHubCompanyTools(gateway=gateway)
+
+    snapshot = await tools.inspect_repository("owner/amina")
+
+    assert snapshot["source_files_read"] == 1
+    assert len(snapshot["source_contents"]["src/services/largeService.ts"]) == 50_000
+    assert snapshot["source_manifest"]["coverage_complete"] is True
