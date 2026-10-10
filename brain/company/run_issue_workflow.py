@@ -76,11 +76,12 @@ async def build_gateway(
         and bool(control_repo)
         and repository.casefold() == control_repo
     )
-    # GITHUB_TOKEN is scoped to this workflow's repository and has explicit contents:write
-    # permission. Prefer it only for writes to that same repository. For other repositories,
-    # retain the configured PAT first because GITHUB_TOKEN cannot cross repository boundaries.
+    # Prefer the configured PAT for mutating missions on the control repository because
+    # repository settings may forbid GITHUB_TOKEN from creating pull requests even when
+    # contents:write is granted. Keep the scoped Actions token as a fallback for bounded
+    # same-repository writes. A PAT is never used for another owner's repository.
     ordered_tokens = (
-        [("BRAIN_GITHUB_ACTIONS_TOKEN", actions), ("BRAIN_GITHUB_TOKEN", primary)]
+        [("BRAIN_GITHUB_TOKEN", primary), ("BRAIN_GITHUB_ACTIONS_TOKEN", actions)]
         if is_control_repo_write
         else [("BRAIN_GITHUB_TOKEN", primary), ("BRAIN_GITHUB_ACTIONS_TOKEN", actions)]
     )
