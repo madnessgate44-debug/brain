@@ -166,3 +166,18 @@ def test_start_mission_does_not_replay_paused_approval_workflow(client):
 
     assert response.status_code == 409
     assert "only PENDING missions can start" in response.json()["detail"]
+
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["limit=0", "limit=501", "offset=-1"],
+)
+def test_mission_and_event_pagination_rejects_unbounded_values(client, query):
+    assert client.get(f"/missions?{query}").status_code == 422
+    created = client.post(
+        "/missions",
+        json={"title": "Pagination test", "objective": "Verify bounded event queries"},
+    )
+    mission_id = created.json()["id"]
+    assert client.get(f"/missions/{mission_id}/events?{query}").status_code == 422
