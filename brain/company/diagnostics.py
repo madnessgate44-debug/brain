@@ -22,6 +22,17 @@ def _redact(value: str) -> str:
     return value
 
 
+
+def _sanitize(value: Any) -> Any:
+    """Recursively redact secret-bearing strings before serializing report data."""
+    if isinstance(value, str):
+        return _redact(value)
+    if isinstance(value, dict):
+        return {str(key): _sanitize(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_sanitize(item) for item in value]
+    return value
+
 def failure_report(
     exc: BaseException,
     *,
@@ -34,10 +45,7 @@ def failure_report(
     frames = traceback.extract_tb(exc.__traceback__) if exc.__traceback__ else []
     last_frame = frames[-1] if frames else None
     rendered_traceback = _redact("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
-    event_log = [
-        {key: _redact(str(value)) if isinstance(value, str) else value for key, value in event.items()}
-        for event in (events or [])
-    ]
+    event_log = [_sanitize(event) for event in (events or [])]
     return {
         "schema_version": "1.0",
         "status": "FAILED",
@@ -47,7 +55,7 @@ def failure_report(
             "traceback": rendered_traceback,
             "probable_location": f"{last_frame.filename}:{last_frame.lineno}" if last_frame else None,
         },
-        "mission": mission or {},
+        "mission": _sanitize(mission or {}),
         "timeline": event_log,
         "runtime": {
             "started_at": started_at,
