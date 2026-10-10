@@ -82,8 +82,14 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
         )
         try:
             if plan.mode == "mutating":
-                await candidate.verify_write_access(repository)
-                detail = f"{label} passed target repository write preflight."
+                permission_result = await candidate.verify_write_access(repository)
+                if permission_result.get("write_access") is True:
+                    detail = f"{label} confirmed push permission for target repository {repository}."
+                else:
+                    detail = (
+                        f"{label} can read target repository {repository}; GitHub did not expose push "
+                        "permission metadata, so the requested write operation remains the authoritative check."
+                    )
             else:
                 snapshot = await candidate.inspect_repository(repository, max_files=1)
                 detail = f"{label} passed target repository read preflight; default branch={snapshot.get('default_branch')}."
