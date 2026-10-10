@@ -377,4 +377,4 @@ def test_repository_compactor_never_passes_truncated_files_as_complete_source():
 
     assert compacted["source_contents"] == {small_path: small_source}
     assert large_path in compacted["source_manifest"]["model_context_omitted_paths"]
-    assert "model_context_omitted_or_truncated_paths" not in compacted["source_manifest"]
+    assert compacted["source_manifest"]["model_context_omitted_or_truncated_paths"] == [large_path]
