@@ -33,6 +33,11 @@ def _sanitize(value: Any) -> Any:
         return [_sanitize(item) for item in value]
     return value
 
+
+def sanitize_diagnostic_value(value: Any) -> Any:
+    """Expose the secret-safe sanitizer for intermediate checkpoint artifacts."""
+    return _sanitize(value)
+
 def failure_report(
     exc: BaseException,
     *,

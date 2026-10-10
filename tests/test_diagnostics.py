@@ -33,3 +33,18 @@ def test_failure_artifacts_write_markdown_and_json(tmp_path):
         write_failure_artifacts(exc, report_path=md, json_path=js, events=[])
     assert "Full traceback" in md.read_text()
     assert json.loads(js.read_text())["failure"]["type"] == "ValueError"
+
+
+
+def test_checkpoint_sanitizer_redacts_secrets_recursively(monkeypatch):
+    from brain.company.diagnostics import sanitize_diagnostic_value
+
+    secret = "checkpoint-secret-value"
+    monkeypatch.setenv("BRAIN_GITHUB_TOKEN", secret)
+    value = sanitize_diagnostic_value({
+        "role_outputs": [{"text": f"authorization bearer {secret}"}],
+        "metadata": {"api_key": secret},
+    })
+    rendered = json.dumps(value)
+    assert secret not in rendered
+    assert "[REDACTED]" in rendered

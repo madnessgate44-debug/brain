@@ -275,6 +275,7 @@ jobs:
           path: |
             brain-company-result.md
             brain-company-result.json
+            brain-company-checkpoint.json
           if-no-files-found: warn
           retention-days: 14
 
