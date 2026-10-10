@@ -23,7 +23,7 @@ async def _run(max_candidates: int) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Discover and evaluate public technology repositories.")
+    parser = argparse.ArgumentParser(description="Discover and evaluate technology repositories.")
     parser.add_argument("--max-candidates", type=int, default=30)
     parser.add_argument("--output-dir", default=".")
     args = parser.parse_args()
