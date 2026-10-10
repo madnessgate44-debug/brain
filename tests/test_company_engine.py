@@ -105,6 +105,47 @@ class FakeTools:
         }
 
 
+class InvalidFirstChangeSetRunner(FakeAgentRunner):
+    """Simulate a model returning an empty patch before correcting itself."""
+
+    def __init__(self, always_invalid=False):
+        super().__init__()
+        self.developer_calls = 0
+        self.always_invalid = always_invalid
+
+    async def run(self, role_key, user_request, evidence):
+        output = await super().run(role_key, user_request, evidence)
+        if role_key == "developer":
+            self.developer_calls += 1
+            if self.always_invalid or self.developer_calls == 1:
+                output["deliverables"]["change_set"] = {"files": []}
+        return output
+
+
+@pytest.mark.asyncio
+async def test_engine_repairs_invalid_change_set_before_writing():
+    runner = InvalidFirstChangeSetRunner()
+    tools = FakeTools()
+    result = await CompanyWorkflowEngine(runner, tools, max_repair_cycles=1).run(
+        "Build a small feature", "owner/repository"
+    )
+    assert result["status"] == "READY_FOR_HUMAN_APPROVAL"
+    assert runner.developer_calls == 2
+    assert tools.apply_count == 1
+
+
+@pytest.mark.asyncio
+async def test_engine_stops_before_writing_when_change_set_stays_invalid():
+    runner = InvalidFirstChangeSetRunner(always_invalid=True)
+    tools = FakeTools()
+    with pytest.raises(CompanyWorkflowBlocked, match="remained invalid after repair limit"):
+        await CompanyWorkflowEngine(runner, tools, max_repair_cycles=1).run(
+            "Build a small feature", "owner/repository"
+        )
+    assert runner.developer_calls == 2
+    assert tools.apply_count == 0
+
+
 @pytest.mark.asyncio
 async def test_engine_runs_specialists_and_stops_at_human_approval():
     runner = FakeAgentRunner()
