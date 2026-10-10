@@ -490,6 +490,12 @@
         State.repoName = parts[1] || '';
     }
 
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, ch => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[ch]));
+    }
+
     // ============================================================
     // TOAST
     // ============================================================
@@ -584,14 +590,14 @@
         list.innerHTML = State.missions.map((m) => `
             <div class="mission-item">
                 <div class="top">
-                    <span class="title">${m.title || 'Untitled'}</span>
-                    <span class="badge ${(m.status || 'pending').toLowerCase()}">${m.status || 'PENDING'}</span>
+                    <span class="title">${escapeHtml(m.title || 'Untitled')}</span>
+                    <span class="badge ${escapeHtml(String(m.status || 'pending').toLowerCase())}">${escapeHtml(m.status || 'PENDING')}</span>
                 </div>
-                <div style="font-size:0.75rem;color:#94a3b8;margin:2px 0;">${m.objective || ''}</div>
+                <div style="font-size:0.75rem;color:#94a3b8;margin:2px 0;">${escapeHtml(m.objective || '')}</div>
                 <div class="meta">
-                    <span>Phase: ${m.phase || 'INTAKE'}</span>
-                    <span>Priority: ${m.priority || 'MEDIUM'}</span>
-                    <span>Risk: ${m.risk_level || 'LOW'}</span>
+                    <span>Phase: ${escapeHtml(m.phase || 'INTAKE')}</span>
+                    <span>Priority: ${escapeHtml(m.priority || 'MEDIUM')}</span>
+                    <span>Risk: ${escapeHtml(m.risk_level || 'LOW')}</span>
                     <span>Loop: ${m.current_loop_iteration || 0}/${m.max_loop_iterations || 10}</span>
                 </div>
             </div>
