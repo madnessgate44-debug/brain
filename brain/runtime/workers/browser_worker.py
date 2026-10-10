@@ -383,7 +383,7 @@ class BrowserWorker:
         if op == "navigate":
             if not is_allowed_url(action["url"], self.allowed_domains):
                 raise BrowserPolicyError("navigation URL is outside the configured public-domain allowlist")
-            response = await page.goto(action["url"], wait_until="domcontentloaded", timeout=20_000)
+            response = await page.goto(action["url"], wait_until="domcontentloaded", timeout=action.get("timeout_ms", 20_000))
             self._assert_current_page_allowed(page)
             return {
                 "url": page.url,
@@ -421,15 +421,15 @@ class BrowserWorker:
         if op in MUTATING_ACTIONS or op in {"wait_for", "screenshot", "hover", "scroll", "go_back", "go_forward", "reload"}:
             self._assert_current_page_allowed(page)
         if op == "go_back":
-            response = await page.go_back(wait_until="domcontentloaded", timeout=20_000)
+            response = await page.go_back(wait_until="domcontentloaded", timeout=action.get("timeout_ms", 20_000))
             self._assert_current_page_allowed(page)
             return {"url": page.url, "title": await page.title(), "http_status": getattr(response, "status", None)}
         if op == "go_forward":
-            response = await page.go_forward(wait_until="domcontentloaded", timeout=20_000)
+            response = await page.go_forward(wait_until="domcontentloaded", timeout=action.get("timeout_ms", 20_000))
             self._assert_current_page_allowed(page)
             return {"url": page.url, "title": await page.title(), "http_status": getattr(response, "status", None)}
         if op == "reload":
-            response = await page.reload(wait_until="domcontentloaded", timeout=20_000)
+            response = await page.reload(wait_until="domcontentloaded", timeout=action.get("timeout_ms", 20_000))
             self._assert_current_page_allowed(page)
             return {"url": page.url, "title": await page.title(), "http_status": getattr(response, "status", None)}
         if op == "scroll":
