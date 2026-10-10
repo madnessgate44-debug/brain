@@ -196,7 +196,7 @@ async def test_worker_runs_actions_in_order_and_returns_evidence(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_worker_refuses_automated_interaction_with_consumer_ai_chat(monkeypatch):
+async def test_worker_allows_consumer_ai_chat_by_default():
     page = FakePage()
     page.url = "https://chatgpt.com/"
     worker = BrowserWorker(
@@ -204,11 +204,24 @@ async def test_worker_refuses_automated_interaction_with_consumer_ai_chat(monkey
         page_session_factory=fake_session_factory(page),
     )
     result = await worker.execute([{"op": "inspect"}])
+    assert result["status"] == "succeeded"
+    assert result["results"][0]["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_worker_can_block_consumer_ai_chat_when_explicitly_configured():
+    page = FakePage()
+    page.url = "https://chatgpt.com/"
+    worker = BrowserWorker(
+        allowed_domains=["chatgpt.com", "*.chatgpt.com"],
+        page_session_factory=fake_session_factory(page),
+        block_consumer_ai=True,
+    )
+    result = await worker.execute([{"op": "inspect"}])
     assert result["status"] == "failed"
     assert result["results"][0]["error"] == "BrowserPolicyError"
     assert "provider-supported integration" in result["results"][0]["message"]
     assert page.actions == []
-
 
 @pytest.mark.asyncio
 async def test_worker_rejects_mutating_actions_without_owner_approval():
