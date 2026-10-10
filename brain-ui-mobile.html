@@ -783,6 +783,7 @@
             setToken(t) { this._token = t; },
             setRepo(r) { this._repo = r; },
             async _req(path, opts = {}) {
+                if ((opts.method || 'GET') !== 'GET') throw new Error('GitHub access is read-only in this interface.');
                 const url = path.startsWith('http') ? path : `https://api.github.com${path}`;
                 const res = await fetch(url, {
                     headers: {
@@ -803,15 +804,7 @@
                 return this._req(`/repos/${owner}/${repo}/contents/${path}?ref=main`);
             },
             async putFile(path, content, message, sha = null) {
-                throw new Error('GitHub editing is disabled here. Use a reviewed Brain workflow instead.');
-                const [owner, repo] = this._repo.split('/');
-                const body = {
-                    message: message || 'Update via Brain UI',
-                    content: btoa(unescape(encodeURIComponent(content))),
-                    branch: 'main'
-                };
-                if (sha) body.sha = sha;
-                return this._req(`/repos/${owner}/${repo}/contents/${path}`, { method: 'PUT', body });
+                throw new Error('Direct GitHub writes are disabled. Use a reviewed Brain workflow instead.');
             },
             async getTree(path = '') {
                 const [owner, repo] = this._repo.split('/');
