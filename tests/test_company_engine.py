@@ -112,6 +112,9 @@ def test_validate_change_set_rejects_unsafe_and_duplicate_paths():
             {"path": "brain/safe.py", "content": "pass"},
             {"path": "brain/safe.py", "content": "again"},
             {"path": "brain\\unsafe.py", "content": "pass"},
+            {"path": ".git/config", "content": "pass"},
+            {"path": ".GIT/config", "content": "pass"},
+            {"path": "src/.git/config", "content": "pass"},
         ]
     })
     assert any("unsafe" in error for error in errors)
