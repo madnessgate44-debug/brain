@@ -284,7 +284,8 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
 
 
 
-        audit_brief = objective.split("\n\nAUDIT RERUN REQUEST", 1)[0]\n        chunks = build_audit_source_chunks(snapshot["source_contents"])
+        audit_brief = objective.split("\n\nAUDIT RERUN REQUEST", 1)[0]
+        chunks = build_audit_source_chunks(snapshot["source_contents"])
         if not chunks:
             raise RuntimeError("Repository inspection produced no source evidence chunks.")
         evidence_summaries: list[dict[str, str]] = []
