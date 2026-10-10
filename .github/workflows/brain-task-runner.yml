@@ -8,7 +8,7 @@ permissions: {}
 
 jobs:
   prepare:
-    if: github.event.issue.state == 'open' && github.event.issue.user.login == github.repository_owner && contains(github.event.issue.body, '/brain test')
+    if: github.event.issue.state == 'open' && (github.event.issue.user.login == github.repository_owner || (github.event.issue.user.login == 'github-actions[bot]' && contains(github.event.issue.body, 'brain-internal-verification: true'))) && contains(github.event.issue.body, '/brain test')
     runs-on: ubuntu-latest
     permissions: {}
     outputs:
@@ -29,6 +29,14 @@ jobs:
           body = event["issue"].get("body") or ""
           current = os.environ["GITHUB_REPOSITORY"]
           owner = current.split("/", 1)[0]
+          actor = (event["issue"].get("user") or {}).get("login", "")
+          internal_verification = "brain-internal-verification: true" in body
+          if actor.casefold() != owner.casefold() and not (
+              actor == "github-actions[bot]" and internal_verification
+          ):
+              raise SystemExit("Only owner issues or marked internal verification issues are allowed.")
+          if actor == "github-actions[bot]" and not internal_verification:
+              raise SystemExit("Bot-authored test issues require the internal verification marker.")
           match = re.search(r"(?im)^(?:repository|repo):\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
           target = match.group(1) if match else current
           branch_match = re.search(r"(?im)^branch:\s*(brain/[A-Za-z0-9._/-]+)\s*$", body)
