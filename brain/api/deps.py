@@ -86,7 +86,14 @@ async def get_mission_service(
 ) -> MissionService:
     """Get mission service with a session factory for background execution."""
     session_factory = request.app.state.db_manager.get_session_factory()
-    return MissionService(mission_repo, event_repo, artifact_store, session_factory)
+    heartbeat_interval = request.app.state.config.concurrency.heartbeat_interval_seconds
+    return MissionService(
+        mission_repo,
+        event_repo,
+        artifact_store,
+        session_factory,
+        heartbeat_interval_seconds=heartbeat_interval,
+    )
 
 
 async def get_event_service(
