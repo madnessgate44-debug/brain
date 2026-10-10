@@ -113,10 +113,16 @@ def render_failure_markdown(report: Mapping[str, Any]) -> str:
     else:
         failed_text = "- No failed step outcome was captured; inspect the complete Actions logs."
 
-    outcomes = report.get("step_outcomes", {})
-    outcome_text = "\n".join(
-        f"- {step}: {outcome}" for step, outcome in outcomes.items()
-    ) or "- No step outcomes captured."
+    outcomes = report.get(
+        "step_outcomes",
+        report.get("stage_outcomes", {}),
+    )
+    if isinstance(outcomes, dict):
+        outcome_text = "\n".join(
+            f"- {step}: {outcome}" for step, outcome in outcomes.items()
+        ) or "- No step outcomes captured."
+    else:
+        outcome_text = str(outcomes)
 
     return (
         "# Brain execution failure report\n\n"
@@ -143,6 +149,49 @@ def render_failure_markdown(report: Mapping[str, Any]) -> str:
     )
 
 
+def is_structurally_valid_report(parsed: Any) -> bool:
+    """Validate supported report shapes without rejecting real mission reports.
+
+    Supported shapes:
+    - Fallback report: schema_version plus runtime, failure, and impact structures.
+    - Mission report: non-empty status plus sufficient mission context/evidence
+      such as base_commit, branch, stage_outcomes, test_results, pull_request,
+      or post_pr_verification (or additional keys like report, metadata, findings).
+    """
+    if not isinstance(parsed, dict):
+        return False
+
+    # Check for Fallback Report shape
+    has_schema_version = bool(parsed.get("schema_version"))
+    has_runtime = isinstance(parsed.get("runtime"), dict)
+    has_failure = isinstance(parsed.get("failure"), dict)
+    has_impact = isinstance(parsed.get("impact"), dict)
+    if has_schema_version and has_runtime and has_failure and has_impact:
+        return True
+
+    # Check for Mission Report shape
+    status = parsed.get("status")
+    if not isinstance(status, str) or not status.strip():
+        return False
+
+    mission_context_keys = {
+        "base_commit",
+        "branch",
+        "stage_outcomes",
+        "test_results",
+        "pull_request",
+        "post_pr_verification",
+        "report",
+        "metadata",
+        "findings",
+        "changes",
+        "repository",
+        "objective",
+    }
+    has_context = any(key in parsed for key in mission_context_keys)
+    return has_context
+
+
 def ensure_failure_reports(
     env: Mapping[str, str] | None = None,
     event_payload: Mapping[str, Any] | None = None,
@@ -160,7 +209,7 @@ def ensure_failure_reports(
             content = report_path.read_text(encoding="utf-8")
             if content.strip():
                 parsed = json.loads(content)
-                if isinstance(parsed, dict) and isinstance(parsed.get("status"), str) and parsed.get("status"):
+                if is_structurally_valid_report(parsed):
                     json_valid = True
                     report_data = parsed
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):

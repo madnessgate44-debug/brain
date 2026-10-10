@@ -3,6 +3,7 @@ import json
 from scripts.write_bootstrap_failure_report import (
     build_bootstrap_failure_report,
     ensure_failure_reports,
+    is_structurally_valid_report,
     render_failure_markdown,
 )
 
@@ -381,3 +382,120 @@ def test_ensure_failure_reports_repairs_zero_byte_markdown_preserves_valid_json(
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "# Brain execution failure report" in markdown
     assert "Commit SHA: abc123" in markdown
+
+
+# --- New Regression Tests for Iteration 8 Mandate ---
+
+
+def test_status_only_json_with_existing_markdown_is_rejected_and_repaired(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+
+    existing_md = "# Original Mission Summary\nAll tasks completed successfully."
+    markdown_path.write_text(existing_md, encoding="utf-8")
+
+    # Status-only JSON object (syntactically valid JSON, but structurally incomplete)
+    json_path.write_text('{"status":"PASS"}', encoding="utf-8")
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is True
+    # Existing Markdown must be preserved byte-for-byte
+    assert markdown_path.read_text(encoding="utf-8") == existing_md
+    # Incomplete status-only JSON must be replaced with conservative structured failure report
+    repaired = json.loads(json_path.read_text(encoding="utf-8"))
+    assert repaired["status"] == "FAILED"
+    assert repaired["failure"]["type"] == "WorkflowBootstrapFailure"
+
+
+def test_valid_fallback_report_preservation(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+
+    fallback_data = build_bootstrap_failure_report(BASE_ENV, {"issue": {"number": 154}})
+    original_json = json.dumps(fallback_data)
+    valid_md = render_failure_markdown(fallback_data)
+
+    json_path.write_text(original_json, encoding="utf-8")
+    markdown_path.write_text(valid_md, encoding="utf-8")
+
+    assert is_structurally_valid_report(fallback_data) is True
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is False
+    assert json_path.read_text(encoding="utf-8") == original_json
+    assert markdown_path.read_text(encoding="utf-8") == valid_md
+
+
+def test_valid_mission_report_preservation(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+
+    mission_data = {
+        "status": "PASS",
+        "base_commit": "abc123",
+        "branch": "brain/mission-1",
+        "stage_outcomes": {"developer": "success", "code_reviewer": "success"},
+        "test_results": {"status": "PASS", "executed": True},
+        "pull_request": {"url": "https://github.com/pull/1"},
+        "post_pr_verification": {"passed": True},
+        "report": "Mission completed successfully with all evidence."
+    }
+    original_json = json.dumps(mission_data)
+    existing_md = "# Mission Success Report\nAll requirements met."
+
+    json_path.write_text(original_json, encoding="utf-8")
+    markdown_path.write_text(existing_md, encoding="utf-8")
+
+    assert is_structurally_valid_report(mission_data) is True
+
+    created = ensure_failure_reports(
+        BASE_ENV,
+        {"issue": {"number": 154}},
+        markdown_path=markdown_path,
+        json_path=json_path,
+    )
+
+    assert created is False
+    assert json_path.read_text(encoding="utf-8") == original_json
+    assert markdown_path.read_text(encoding="utf-8") == existing_md
+
+
+def test_malformed_and_incomplete_json_repair_variants(tmp_path):
+    markdown_path = tmp_path / "brain-company-result.md"
+    json_path = tmp_path / "brain-company-result.json"
+
+    existing_md = "# Existing Notes\nDo not overwrite me."
+
+    for bad_json in [
+        '{"status":""}',
+        '{"status": "FAILED"}',
+        '{"message": "missing status and context"}',
+        '[]',
+        '"just a string"',
+    ]:
+        markdown_path.write_text(existing_md, encoding="utf-8")
+        json_path.write_text(bad_json, encoding="utf-8")
+
+        created = ensure_failure_reports(
+            BASE_ENV,
+            {"issue": {"number": 154}},
+            markdown_path=markdown_path,
+            json_path=json_path,
+        )
+
+        assert created is True
+        assert markdown_path.read_text(encoding="utf-8") == existing_md
+        repaired = json.loads(json_path.read_text(encoding="utf-8"))
+        assert repaired["status"] == "FAILED"
