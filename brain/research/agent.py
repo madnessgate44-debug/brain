@@ -30,10 +30,7 @@ _MISSION_GROUPS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
 
 def mission_relevance(candidate: dict[str, Any], mission: str) -> tuple[int, list[str]]:
     """Estimate mission fit from public metadata; not a code-quality or security verdict."""
-    mission_text = " ".join([
-        mission,
-        " ".join(str(topic) for topic in candidate.get("topics", []) if isinstance(topic, str)),
-    ]).casefold()
+    mission_text = mission.casefold()
     candidate_text = " ".join([
         str(candidate.get("full_name", "")),
         str(candidate.get("description", "")),
@@ -41,23 +38,31 @@ def mission_relevance(candidate: dict[str, Any], mission: str) -> tuple[int, lis
     ]).casefold()
     mission_tokens = set(re.findall(r"[a-z0-9]+", mission_text))
     candidate_tokens = set(re.findall(r"[a-z0-9]+", candidate_text))
+    normalized_candidate = " " + " ".join(re.findall(r"[a-z0-9]+", candidate_text)) + " "
+
+    def matches_term(term: str, tokens: set[str], normalized: str) -> bool:
+        if " " in term or "-" in term:
+            phrase = " " + " ".join(re.findall(r"[a-z0-9]+", term.casefold())) + " "
+            return phrase in normalized
+        return term in tokens
+
     active_groups = [
         (name, weight, terms)
         for name, weight, terms in _MISSION_GROUPS
-        if any(term in mission_tokens for term in terms)
+        if any(matches_term(term, mission_tokens, " " + " ".join(re.findall(r"[a-z0-9]+", mission_text)) + " ") for term in terms)
     ]
     matches: list[str] = []
     score = 0
     for name, weight, terms in active_groups:
-        if any(term in candidate_tokens for term in terms):
+        if any(matches_term(term, candidate_tokens, normalized_candidate) for term in terms):
             matches.append(name)
             score += weight
     # An extension-only project can be useful, but it should not outrank a
     # browser-control project just because the mission also mentions extensions.
-    has_browser_control = any(term in candidate_tokens for term in (
+    has_browser_control = any(matches_term(term, candidate_tokens, normalized_candidate) for term in (
         "browser", "playwright", "chromium", "puppeteer", "selenium", "cdp", "webextension"
     ))
-    has_automation = any(term in candidate_tokens for term in (
+    has_automation = any(matches_term(term, candidate_tokens, normalized_candidate) for term in (
         "automation", "automate", "automated", "rpa", "browser-use", "computer-use"
     ))
     if not has_browser_control:
