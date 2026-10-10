@@ -224,7 +224,7 @@ class GitHubCompanyTools:
             summary = next(
                 (
                     summary.get(key)
-                    for key in ("title", "summary", "objective", "name")
+                    for key in ("title", "summary", "name")
                     if isinstance(summary.get(key), str) and summary.get(key).strip()
                 ),
                 None,
