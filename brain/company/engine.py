@@ -89,23 +89,19 @@ def _compact_repository_snapshot(
     omitted_paths: list[str] = []
     remaining = max_chars
     for path in paths:
-        if len(compact_contents) >= max_files or remaining <= 0:
+        if len(compact_contents) >= max_files:
             omitted_paths.append(path)
             continue
         content = source_contents[path]
         header = "FILE: " + path
-        budget = min(4_000, remaining - len(header))
-        if budget <= 0:
+        required_chars = len(header) + len(content)
+        # Never expose a partial file under its original path: downstream agents
+        # may use source_contents as the complete original when proposing replacements.
+        if required_chars > remaining:
             omitted_paths.append(path)
             continue
-        truncated = len(content) > budget
-        excerpt = content[:budget]
-        if truncated:
-            excerpt += " [TRUNCATED: source excerpt capped for model context]"
-        compact_contents[path] = excerpt
-        remaining -= len(header) + min(len(content), budget)
-        if truncated:
-            omitted_paths.append(path)
+        compact_contents[path] = content
+        remaining -= required_chars
 
     manifest = snapshot.get("source_manifest", {})
     if not isinstance(manifest, dict):
@@ -145,7 +141,7 @@ def _compact_repository_snapshot(
                 if isinstance(manifest.get("omitted_by_aggregate_budget", []), list)
                 else []
             ),
-            "model_context_omitted_or_truncated_paths": omitted_paths,
+            "model_context_omitted_paths": omitted_paths,
             "model_context_char_limit": max_chars,
             "model_context_file_limit": max_files,
         },
