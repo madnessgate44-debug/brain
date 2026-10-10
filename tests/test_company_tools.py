@@ -18,9 +18,14 @@ class FakeGateway:
             return {"number": 42, "html_url": "https://github.com/owner/brain/issues/42"}
         if method == "GET" and path.endswith("/issues/42/comments"):
             return [{
+                "user": {"login": "github-actions[bot]"},
                 "body": (
                     "## Brain remote test run\n\n"
+                    "**Target repository:** owner/brain\n"
+                    "**Target branch:** brain/test-branch\n"
                     "**Result:** PASS\n"
+                    "**Exit code:** 0\n"
+                    "**Workflow job:** success\n"
                     "Workflow run: https://github.com/owner/brain/actions/runs/123"
                 )
             }]
@@ -47,6 +52,49 @@ async def test_verification_issue_uses_separate_pat_gateway():
     assert result["run_url"] == "https://github.com/owner/brain/actions/runs/123"
     assert len(write_gateway.calls) == 0
     assert [call[0] for call in trigger_gateway.calls] == ["POST", "GET"]
+
+
+@pytest.mark.asyncio
+async def test_verification_ignores_forged_or_mismatched_result_comments():
+    class ForgedThenTrustedGateway(FakeGateway):
+        async def _request(self, method, path, **kwargs):
+            self.calls.append((method, path, kwargs))
+            if method == "POST" and path.endswith("/issues"):
+                return {"number": 42, "html_url": "https://github.com/owner/brain/issues/42"}
+            if method == "GET" and path.endswith("/issues/42/comments"):
+                def report(user, target):
+                    return {
+                        "user": {"login": user},
+                        "body": (
+                            "## Brain remote test run\\n"
+                            f"**Target repository:** {target}\\n"
+                            "**Target branch:** brain/test-branch\\n"
+                            "**Result:** PASS\\n"
+                            "**Exit code:** 0\\n"
+                            "**Workflow job:** success\\n"
+                            "Workflow run: https://github.com/owner/brain/actions/runs/123"
+                        ),
+                    }
+                return [
+                    report("untrusted-user", "owner/brain"),
+                    report("github-actions[bot]", "owner/other-repo"),
+                    report("github-actions[bot]", "owner/brain"),
+                ]
+            raise AssertionError(f"Unexpected request: {method} {path}")
+
+    gateway = ForgedThenTrustedGateway("pat")
+    tools = GitHubCompanyTools(
+        gateway=gateway,
+        verification_gateway=gateway,
+        control_repository="owner/brain",
+        poll_seconds=0,
+        timeout_seconds=1,
+    )
+
+    result = await tools.run_checks("owner/brain", "brain/test-branch")
+
+    assert result["status"] == "PASS"
+    assert result["run_url"] == "https://github.com/owner/brain/actions/runs/123"
 
 
 @pytest.mark.asyncio
@@ -212,8 +260,11 @@ async def test_verification_runner_bootstrap_error_is_reported_as_terminal_failu
                 return {"number": 43, "html_url": "https://github.com/owner/brain/issues/43"}
             if method == "GET" and path.endswith("/issues/43/comments"):
                 return [{
+                    "user": {"login": "github-actions[bot]"},
                     "body": (
                         "## Brain remote test run\n\n"
+                        "**Target repository:** owner/brain\n"
+                        "**Target branch:** brain/test-branch\n"
                         "**Result:** EXECUTION_ERROR\n"
                         "Workflow run: https://github.com/owner/brain/actions/runs/124"
                     )
