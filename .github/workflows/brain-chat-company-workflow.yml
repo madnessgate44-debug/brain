@@ -204,6 +204,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+            const { selectMatchingWorkflowRuns, evaluatePostPrVerification } = require('./scripts/post_pr_verification.js');
             const resultPath = 'brain-company-result.json';
             const markdownPath = 'brain-company-result.md';
             if (!fs.existsSync(resultPath)) {
@@ -219,64 +220,180 @@ jobs:
               core.info('No successfully created review PR; skipping post-PR verification.');
               return;
             }
+
             const workflowIds = ['brain-ci.yml', 'tests.yml', 'browser-runtime-smoke.yml'];
             const dispatchStartedAt = {};
             const outcomes = [];
-            for (const workflowId of workflowIds) {
-              dispatchStartedAt[workflowId] = Date.now() - 5000;
-              try {
-                await github.rest.actions.createWorkflowDispatch({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  workflow_id: workflowId,
-                  ref: branch
-                });
-                core.info('Dispatched ' + workflowId + ' for ' + branch + '.');
-              } catch (error) {
-                outcomes.push({workflow: workflowId, status: 'DISPATCH_FAILED', conclusion: null, url: null, error: String(error.message || error).slice(0, 500)});
+            let initialPr = null;
+            let expectedHeadSha = null;
+            let expectedHeadRef = null;
+            try {
+              initialPr = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber
+              });
+              expectedHeadSha = initialPr.data.head.sha;
+              expectedHeadRef = initialPr.data.head.ref;
+            } catch (error) {
+              outcomes.push({
+                workflow: 'PR_HEAD_LOOKUP',
+                status: 'LOOKUP_FAILED',
+                error: String(error.message || error).slice(0, 500)
+              });
+            }
+
+            const canDispatch = Boolean(expectedHeadSha && expectedHeadRef === branch);
+            if (!canDispatch) {
+              outcomes.push({
+                workflow: 'PR_HEAD_REF',
+                status: 'HEAD_REF_MISMATCH',
+                expected_ref: branch,
+                actual_ref: expectedHeadRef,
+                expected_head_sha: expectedHeadSha
+              });
+              for (const workflowId of workflowIds) {
+                outcomes.push({workflow: workflowId, status: 'NOT_DISPATCHED', conclusion: null, url: null});
+              }
+            } else {
+              for (const workflowId of workflowIds) {
+                dispatchStartedAt[workflowId] = Date.now() - 5000;
+                try {
+                  await github.rest.actions.createWorkflowDispatch({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    workflow_id: workflowId,
+                    ref: branch
+                  });
+                  core.info('Dispatched ' + workflowId + ' for ' + branch + ' at expected head ' + expectedHeadSha + '.');
+                } catch (error) {
+                  outcomes.push({
+                    workflow: workflowId,
+                    status: 'DISPATCH_FAILED',
+                    conclusion: null,
+                    url: null,
+                    error: String(error.message || error).slice(0, 500)
+                  });
+                }
+              }
+
+              const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+              for (const workflowId of workflowIds) {
+                if (outcomes.some(item => item.workflow === workflowId)) continue;
+                const deadline = Date.now() + 8 * 60 * 1000;
+                let completed = null;
+                while (Date.now() < deadline) {
+                  let response;
+                  try {
+                    response = await github.rest.actions.listWorkflowRuns({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      workflow_id: workflowId,
+                      branch,
+                      event: 'workflow_dispatch',
+                      per_page: 20
+                    });
+                  } catch (error) {
+                    outcomes.push({
+                      workflow: workflowId,
+                      status: 'LIST_FAILED',
+                      conclusion: null,
+                      url: null,
+                      error: String(error.message || error).slice(0, 500)
+                    });
+                    break;
+                  }
+                  const candidates = selectMatchingWorkflowRuns(
+                    response.data.workflow_runs,
+                    branch,
+                    expectedHeadSha,
+                    dispatchStartedAt[workflowId]
+                  );
+                  const run = candidates[0];
+                  if (run && run.status === 'completed') { completed = run; break; }
+                  await sleep(10000);
+                }
+                if (outcomes.some(item => item.workflow === workflowId)) continue;
+                outcomes.push(completed
+                  ? {
+                      workflow: workflowId,
+                      status: completed.conclusion === 'success' ? 'PASS' : 'FAIL',
+                      conclusion: completed.conclusion,
+                      url: completed.html_url,
+                      run_id: completed.id,
+                      head_sha: completed.head_sha
+                    }
+                  : {workflow: workflowId, status: 'TIMEOUT', conclusion: null, url: null, head_sha: null});
               }
             }
-            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-            for (const workflowId of workflowIds) {
-              if (outcomes.some(item => item.workflow === workflowId)) continue;
-              const deadline = Date.now() + 8 * 60 * 1000;
-              let completed = null;
-              while (Date.now() < deadline) {
-                const response = await github.rest.actions.listWorkflowRuns({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  workflow_id: workflowId,
-                  branch,
-                  event: 'workflow_dispatch',
-                  per_page: 20
-                });
-                const candidates = response.data.workflow_runs.filter(item =>
-                  item.head_branch === branch && Date.parse(item.created_at) >= dispatchStartedAt[workflowId]
-                ).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
-                const run = candidates[0];
-                if (run && run.status === 'completed') { completed = run; break; }
-                await sleep(10000);
-              }
-              outcomes.push(completed
-                ? {workflow: workflowId, status: completed.conclusion === 'success' ? 'PASS' : 'FAIL', conclusion: completed.conclusion, url: completed.html_url, run_id: completed.id}
-                : {workflow: workflowId, status: 'TIMEOUT', conclusion: null, url: null});
+
+            let finalHeadSha = null;
+            let finalPrState = null;
+            try {
+              const finalPr = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber
+              });
+              finalHeadSha = finalPr.data.head.sha;
+              finalPrState = finalPr.data.state;
+            } catch (error) {
+              outcomes.push({
+                workflow: 'PR_HEAD_RECHECK',
+                status: 'LOOKUP_FAILED',
+                error: String(error.message || error).slice(0, 500)
+              });
             }
-            const passed = outcomes.length === workflowIds.length && outcomes.every(item => item.status === 'PASS');
-            result.post_pr_verification = {status: passed ? 'PASS' : 'FAIL', workflows: outcomes, verified_branch: branch};
+
+            const evaluation = evaluatePostPrVerification({
+              expectedHeadSha,
+              finalHeadSha,
+              outcomes,
+              workflowIds
+            });
+            const prOpen = finalPrState === 'open';
+            const passed = evaluation.passed && prOpen;
+            result.post_pr_verification = {
+              status: passed ? 'PASS' : 'FAIL',
+              expected_head_sha: expectedHeadSha,
+              final_head_sha: finalHeadSha,
+              head_stable: evaluation.head_stable,
+              pr_open: prOpen,
+              workflows_passed: evaluation.workflows_passed,
+              workflows: outcomes,
+              verified_branch: branch
+            };
             if (!passed) {
               result.status = 'POST_PR_VERIFICATION_FAILED';
-              result.next_action = 'Do not merge this PR. Inspect the post-PR verification outcomes, fix the failing check, and rerun verification.';
+              result.next_action = 'Do not merge this PR. A required check failed, the PR head changed during verification, or the PR could not be revalidated. Inspect outcomes and rerun against the exact current head.';
             }
             fs.writeFileSync(resultPath, JSON.stringify(result, null, 2) + '\n', 'utf8');
             let report = fs.existsSync(markdownPath) ? fs.readFileSync(markdownPath, 'utf8') : '# Brain company workflow result\n';
             if (!passed) report = report.replace('- Status: **READY_FOR_HUMAN_APPROVAL**', '- Status: **POST_PR_VERIFICATION_FAILED**');
             report += '\n## Post-PR verification\n\n- Status: **' + (passed ? 'PASS' : 'FAIL') + '**\n';
-            for (const item of outcomes) report += '- ' + item.workflow + ': **' + item.status + '**' + (item.url ? ' — ' + item.url : '') + (item.error ? ' — ' + item.error : '') + '\n';
-            report += '\nNative pull_request event checks may remain action_required when the PR is created by GITHUB_TOKEN. The results above are explicit workflow_dispatch runs against the exact PR branch.\n';
+            report += '- Expected PR head SHA: ' + (expectedHeadSha || 'UNKNOWN') + '\n';
+            report += '- Final PR head SHA: ' + (finalHeadSha || 'UNKNOWN') + '\n';
+            report += '- PR head stable: ' + (evaluation.head_stable ? 'YES' : 'NO') + '\n';
+            for (const item of outcomes) report += '- ' + item.workflow + ': **' + item.status + '**' + (item.url ? ' — ' + item.url : '') + (item.error ? ' — ' + item.error : '') + (item.head_sha ? ' — SHA ' + item.head_sha : '') + '\n';
+            report += '\nThese checks are accepted only when every workflow run matches the expected PR head SHA and the PR still points to that SHA after verification.\n';
             fs.writeFileSync(markdownPath, report, 'utf8');
-            const comment = ['## Brain post-PR verification: ' + (passed ? 'PASS' : 'FAIL'), '', 'Branch: `' + branch + '`', '', ...outcomes.map(item => '- ' + item.workflow + ': **' + item.status + '**' + (item.url ? ' — ' + item.url : '') + (item.error ? ' — ' + item.error : '')), '', 'These checks were explicitly dispatched against the PR branch. Native pull_request event runs may remain `action_required` because Brain created the PR using `GITHUB_TOKEN`.'].join('\n');
-            await github.rest.issues.createComment({owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber, body: comment});
-            if (!passed) core.setFailed('One or more explicit post-PR verification workflows failed or timed out.');
+            const commentLines = [
+              '## Brain post-PR verification: ' + (passed ? 'PASS' : 'FAIL'),
+              '',
+              'Branch: ' + branch,
+              'Expected PR head SHA: ' + (expectedHeadSha || 'UNKNOWN'),
+              'Final PR head SHA: ' + (finalHeadSha || 'UNKNOWN'),
+              'PR head stable: ' + (evaluation.head_stable ? 'YES' : 'NO'),
+              '',
+              ...outcomes.map(item => '- ' + item.workflow + ': **' + item.status + '**' + (item.url ? ' — ' + item.url : '') + (item.error ? ' — ' + item.error : '') + (item.head_sha ? ' — SHA ' + item.head_sha : ''))
+            ];
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentLines.join('\n')
+            });
+            if (!passed) core.setFailed('Post-PR checks failed, the PR head changed, or the PR could not be revalidated.');
       - name: Ensure failure diagnostics exist
         if: always()
         env:
