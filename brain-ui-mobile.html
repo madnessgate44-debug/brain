@@ -717,9 +717,20 @@
         // ============================================================
         // STATE
         // ============================================================
+        const DEFAULT_API_BASE_URL = 'http://localhost:8000';
+        function normalizeApiBaseUrl(value) {
+            try {
+                const url = new URL(String(value || '').trim());
+                if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return '';
+                return url.toString().replace(/\/+$/, '');
+            } catch (_) {
+                return '';
+            }
+        }
+
         const State = {
             token: sessionStorage.getItem('brain_control_api_key') || '',
-            apiBaseUrl: localStorage.getItem('brain_api_base_url') || 'http://localhost:8000',
+            apiBaseUrl: normalizeApiBaseUrl(localStorage.getItem('brain_api_base_url')) || DEFAULT_API_BASE_URL,
             repo: Store.get('repo', 'madnessgate44-debug/brain'),
             connected: false,
             user: null,
@@ -759,7 +770,7 @@
         // ============================================================
         const BrainAPI = {
             async request(path, options = {}) {
-                const base = (State.apiBaseUrl || 'http://localhost:8000').replace(/\/+$/, '');
+                const base = (State.apiBaseUrl || DEFAULT_API_BASE_URL).replace(/\/+$/, '');
                 if (!State.token) throw new Error('Brain control API key is required.');
                 let response;
                 try {
@@ -834,11 +845,12 @@
             const apiUrl = document.getElementById('auth-api-url').value.trim();
             if (!key) { document.getElementById('auth-error').textContent = 'Brain control API key required.'; document.getElementById('auth-error').style.display = 'block'; return; }
             if (!repo) { document.getElementById('auth-error').textContent = 'Repository required.'; document.getElementById('auth-error').style.display = 'block'; return; }
-            if (!apiUrl) { document.getElementById('auth-error').textContent = 'Brain API URL required.'; document.getElementById('auth-error').style.display = 'block'; return; }
+            const normalizedApiUrl = normalizeApiBaseUrl(apiUrl);
+            if (!normalizedApiUrl) { document.getElementById('auth-error').textContent = 'Enter a valid HTTP(S) Brain API URL.'; document.getElementById('auth-error').style.display = 'block'; return; }
 
             State.token = key;
             State.repo = repo;
-            State.apiBaseUrl = apiUrl.replace(/\/+$/, '');
+            State.apiBaseUrl = normalizedApiUrl;
             try {
                 await BrainAPI.request('/missions?limit=1');
                 sessionStorage.setItem('brain_control_api_key', key);
@@ -1126,7 +1138,12 @@
             if (pat) { State.token = pat;
                 GH.setToken(pat);
                 sessionStorage.setItem('brain_control_api_key', pat); }
-            if (apiUrl) { State.apiBaseUrl = apiUrl.replace(/\/+$/, ''); localStorage.setItem('brain_api_base_url', State.apiBaseUrl); }
+            if (apiUrl) {
+                const normalizedApiUrl = normalizeApiBaseUrl(apiUrl);
+                if (!normalizedApiUrl) { toast('Enter a valid HTTP(S) Brain API URL.', 'error'); return; }
+                State.apiBaseUrl = normalizedApiUrl;
+                localStorage.setItem('brain_api_base_url', State.apiBaseUrl);
+            }
             if (repo) { State.repo = repo;
                 GH.setRepo(repo);
                 Store.set('repo', repo); }
