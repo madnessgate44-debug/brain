@@ -50,9 +50,9 @@ async def test_gateway_rejects_unbounded_change_set_before_network_call():
 @pytest.mark.asyncio
 async def test_gateway_write_preflight_rejects_token_without_contents_write():
     def handler(request):
-        assert request.method == "POST"
-        assert request.url.path == "/repos/example-owner/project/git/blobs"
-        return httpx.Response(403, json={"message": "write permission denied"}, request=request)
+        assert request.method == "GET"
+        assert request.url.path == "/repos/example-owner/project"
+        return httpx.Response(403, json={"message": "repository access denied"}, request=request)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         gateway = GitHubRepositoryGateway(
@@ -66,18 +66,13 @@ async def test_gateway_write_preflight_rejects_token_without_contents_write():
 
 
 @pytest.mark.asyncio
-async def test_gateway_write_preflight_accepts_actual_contents_write_permission():
+async def test_gateway_write_preflight_reads_advertised_push_permission_without_mutation():
     def handler(request):
-        assert request.method == "POST"
-        assert request.url.path == "/repos/example-owner/project/git/blobs"
-        payload = json.loads(request.content)
-        assert payload == {
-            "content": "Brain write-access preflight probe; not referenced by a commit.",
-            "encoding": "utf-8",
-        }
+        assert request.method == "GET"
+        assert request.url.path == "/repos/example-owner/project"
         return httpx.Response(
-            201,
-            json={"sha": "a" * 40, "url": "https://example.test/blob"},
+            200,
+            json={"permissions": {"push": True}},
             request=request,
         )
 
@@ -90,4 +85,8 @@ async def test_gateway_write_preflight_accepts_actual_contents_write_permission(
         )
         result = await gateway.verify_write_access("example-owner/project")
 
-    assert result == {"repository": "example-owner/project", "write_access": True}
+    assert result == {
+        "repository": "example-owner/project",
+        "write_access": True,
+        "permission_evidence": "confirmed_push",
+    }
