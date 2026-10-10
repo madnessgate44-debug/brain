@@ -127,10 +127,20 @@ def test_mission_relevance_prioritizes_browser_automation_and_extensions():
         "description": "Interactive diagrams and visual planning for teams",
         "topics": ["design"],
     }
+    false_positive = {
+        "full_name": "zenstory-ai/oh-story-claudecode",
+        "description": "Agent skills for writing Chinese web novels and long-form fiction",
+        "topics": ["writing", "fiction"],
+    }
     relevant_score, relevant_matches = mission_relevance(relevant, mission)
     irrelevant_score, _ = mission_relevance(irrelevant, mission)
+    false_positive_score, false_positive_matches = mission_relevance(false_positive, mission)
     assert relevant_score > irrelevant_score
     assert {"browser", "automation", "extensions", "security", "hosting", "persistence"}.issubset(set(relevant_matches))
+    assert irrelevant_score == 0
+    assert false_positive_score == 0
+    assert "browser" not in false_positive_matches
+    assert "automation" not in false_positive_matches
 
 
 @pytest.mark.asyncio

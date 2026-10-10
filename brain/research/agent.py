@@ -16,38 +16,60 @@ class TextProvider(Protocol):
 
 
 _MISSION_GROUPS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
-    ("browser", 30, ("browser", "browsers", "web", "playwright", "chromium", "puppeteer", "selenium")),
-    ("automation", 15, ("automation", "automate", "automated", "agent", "agents", "computer", "rpa")),
-    ("extensions", 15, ("extension", "extensions", "chrome", "firefox", "addon", "addons")),
+    # Avoid generic words such as "web", "agent", "host", or "computer": they
+    # create false positives for unrelated projects and inflate the shortlist.
+    ("browser", 40, ("browser", "browsers", "playwright", "chromium", "puppeteer", "selenium", "cdp", "webextension")),
+    ("automation", 20, ("automation", "automate", "automated", "rpa", "browser-use", "computer-use")),
+    ("extensions", 15, ("extension", "extensions", "chrome-extension", "firefox-extension", "webextension", "addon", "addons")),
     ("security", 10, ("security", "sandbox", "ssrf", "permission", "permissions", "isolation")),
-    ("hosting", 10, ("hosting", "host", "deployment", "serverless", "actions", "runner", "cloud")),
-    ("persistence", 10, ("persistence", "persistent", "database", "sqlite", "state", "recovery", "artifact")),
-    ("research", 10, ("research", "search", "scrape", "crawling", "retrieval", "crawl", "fetch")),
+    ("hosting", 10, ("hosting", "deployment", "serverless", "actions", "runner", "cloud")),
+    ("persistence", 10, ("persistence", "persistent", "database", "sqlite", "recovery", "artifact", "session-state")),
+    ("research", 5, ("research", "scrape", "crawling", "retrieval", "crawl", "fetch")),
 )
 
 
 def mission_relevance(candidate: dict[str, Any], mission: str) -> tuple[int, list[str]]:
-    """Estimate mission fit from public metadata; this is not a code-quality verdict."""
-    mission_tokens = set(re.findall(r"[a-z0-9]+", mission.casefold()))
+    """Estimate mission fit from public metadata; not a code-quality or security verdict."""
+    mission_text = mission.casefold()
     candidate_text = " ".join([
         str(candidate.get("full_name", "")),
         str(candidate.get("description", "")),
         " ".join(str(topic) for topic in candidate.get("topics", []) if isinstance(topic, str)),
     ]).casefold()
+    mission_tokens = set(re.findall(r"[a-z0-9]+", mission_text))
     candidate_tokens = set(re.findall(r"[a-z0-9]+", candidate_text))
+    normalized_candidate = " " + " ".join(re.findall(r"[a-z0-9]+", candidate_text)) + " "
+
+    def matches_term(term: str, tokens: set[str], normalized: str) -> bool:
+        if " " in term or "-" in term:
+            phrase = " " + " ".join(re.findall(r"[a-z0-9]+", term.casefold())) + " "
+            return phrase in normalized
+        return term in tokens
+
     active_groups = [
         (name, weight, terms)
         for name, weight, terms in _MISSION_GROUPS
-        if any(term in mission_tokens for term in terms)
+        if any(matches_term(term, mission_tokens, " " + " ".join(re.findall(r"[a-z0-9]+", mission_text)) + " ") for term in terms)
     ]
     matches: list[str] = []
     score = 0
     for name, weight, terms in active_groups:
-        if any(term in candidate_tokens for term in terms):
+        if any(matches_term(term, candidate_tokens, normalized_candidate) for term in terms):
             matches.append(name)
             score += weight
+    # An extension-only project can be useful, but it should not outrank a
+    # browser-control project just because the mission also mentions extensions.
+    has_browser_control = any(matches_term(term, candidate_tokens, normalized_candidate) for term in (
+        "browser", "playwright", "chromium", "puppeteer", "selenium", "cdp", "webextension"
+    ))
+    has_automation = any(matches_term(term, candidate_tokens, normalized_candidate) for term in (
+        "automation", "automate", "automated", "rpa", "browser-use", "computer-use"
+    ))
+    if not has_browser_control:
+        score = min(score, 20)
+    elif not has_automation:
+        score = min(score, 55)
     return min(100, score), matches
-
 
 class ResearchAndDevelopmentAgent:
     """Research public and authorized private repository metadata."""
