@@ -18,12 +18,22 @@ class FakeGateway:
             return {"number": 42, "html_url": "https://github.com/owner/brain/issues/42"}
         if method == "GET" and path.endswith("/issues/42/comments"):
             return [{
+                "user": {"login": "github-actions[bot]"},
                 "body": (
-                    "## Brain remote test run\n\n"
-                    "**Result:** PASS\n"
+                    "## Brain remote test run\\n\\n"
+                    "**Target repository:** owner/project\\n"
+                    "**Target branch:** `brain/test-branch`\\n"
+                    "**Result:** PASS\\n"
                     "Workflow run: https://github.com/owner/brain/actions/runs/123"
                 )
             }]
+        if method == "GET" and path.endswith("/actions/runs/123"):
+            return {
+                "path": ".github/workflows/brain-task-runner.yml",
+                "event": "issues",
+                "status": "completed",
+                "conclusion": "success",
+            }
         raise AssertionError(f"Unexpected request: {method} {path}")
 
 
@@ -45,6 +55,8 @@ async def test_verification_issue_uses_separate_pat_gateway():
     assert result["executed"] is True
     assert result["status"] == "PASS"
     assert result["run_url"] == "https://github.com/owner/brain/actions/runs/123"
+    assert result["workflow_run_id"] == 123
+    assert result["workflow_conclusion"] == "success"
     assert len(write_gateway.calls) == 0
     assert [call[0] for call in trigger_gateway.calls] == ["POST", "GET"]
 
