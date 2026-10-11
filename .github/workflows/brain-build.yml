@@ -446,6 +446,42 @@ jobs:
           echo "exit_code=$result" >> "$GITHUB_OUTPUT"
           if [ "$result" -ne 0 ]; then exit "$result"; fi
 
+      - name: Capture isolated mobile and desktop previews for static HTML
+        if: needs.prepare.outputs.command != 'audit' && hashFiles('**/*.html') != ''
+        shell: bash
+        run: |
+          set +x
+          docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace mcr.microsoft.com/playwright:v1.52.0-noble bash -lc '
+            set -e
+            npm install --prefix /tmp/brain-playwright playwright@1.52.0 >/tmp/brain-playwright-install.log 2>&1
+            mkdir -p /workspace/.brain/preview
+            cat > /tmp/brain-preview.cjs << "PREVIEW_EOF"
+            const fs = require("fs");
+            const path = require("path");
+            const { chromium } = require("/tmp/brain-playwright/node_modules/playwright");
+            (async () => {
+              const files = fs.readdirSync("/workspace").filter(name => name.toLowerCase().endsWith(".html"));
+              if (!files.length) throw new Error("No root HTML entrypoint found for preview.");
+              const entry = files.includes("index.html") ? "index.html" : files[0];
+              const browser = await chromium.launch({headless: true});
+              try {
+                const page = await browser.newPage();
+                await page.route("**/*", async route => {
+                  const url = new URL(route.request().url());
+                  if (url.protocol === "file:") return route.continue();
+                  return route.abort();
+                });
+                await page.setViewportSize({width: 390, height: 844});
+                await page.goto("file:///workspace/" + entry, {waitUntil: "load", timeout: 15000});
+                await page.screenshot({path: "/workspace/.brain/preview/mobile-390x844.png", fullPage: true});
+                await page.setViewportSize({width: 1280, height: 800});
+                await page.screenshot({path: "/workspace/.brain/preview/desktop-1280x800.png", fullPage: true});
+                console.log("PASS: saved mobile-390x844.png and desktop-1280x800.png; non-file network requests were blocked.");
+              } finally { await browser.close(); }
+            })().catch(error => { console.error(error.name + ": " + error.message); process.exit(1); });
+            PREVIEW_EOF
+            node /tmp/brain-preview.cjs
+          '
       - name: Verify protected paths and publish candidate PR
         id: publish
         if: always() && steps.agent.outcome == 'success' && (needs.prepare.outputs.command == 'audit' || steps.checks.outcome == 'success')
@@ -521,5 +557,6 @@ jobs:
             /tmp/brain-build-diff-stat.txt
             /tmp/brain-checks.log
             /tmp/brain-check-install.log
+            .brain/preview/*.png
           if-no-files-found: ignore
           retention-days: 14
