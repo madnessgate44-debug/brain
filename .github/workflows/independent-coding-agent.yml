@@ -71,10 +71,13 @@ jobs:
           fi
           echo "Provider configuration is present; secret values are not printed."
 
-      - name: Install agent and Brain test dependencies
+      - name: Install isolated agent and Brain test dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install mini-swe-agent
+          # mini-SWE-agent has its own newer dependency set. Keep it separate from
+          # Brain's pinned Pydantic/OpenAI stack so one cannot break the other.
+          python -m venv /tmp/mini-agent-venv
+          /tmp/mini-agent-venv/bin/python -m pip install --upgrade pip
+          /tmp/mini-agent-venv/bin/python -m pip install mini-swe-agent
           python -m pip install -e '.[dev]'
 
       - name: Build isolated command-execution image
@@ -129,7 +132,7 @@ jobs:
 
           # Run all agent shell actions in a Docker container that does not receive
           # the model API key or GitHub token. The repository is mounted as /workspace.
-          python - <<'PY'
+          /tmp/mini-agent-venv/bin/python - <<'PY'
           import os
           import yaml
           from minisweagent.run.mini import DEFAULT_CONFIG_FILE
@@ -144,18 +147,15 @@ jobs:
               "pull_timeout": 120,
               "timeout": 300,
           }
-          # Validate the Docker configuration against mini-SWE-agent v2's actual
-          # Pydantic contract. Validate model settings without importing LitellmModelConfig:
-          # Brain pins Pydantic 2.10, while newer OpenAI SDK types may require a newer Pydantic.
+          # Validate the generated config inside mini-SWE-agent's isolated environment,
+          # not Brain's pinned dependency environment.
           from minisweagent.environments.docker import DockerEnvironmentConfig
+          from minisweagent.models.litellm_model import LitellmModelConfig
 
           DockerEnvironmentConfig(**{k: v for k, v in config["environment"].items() if k != "environment_class"})
           model_config = dict(config.get("model", {}))
           model_config["model_name"] = os.environ["MSWEA_MODEL_NAME"]
-          if not isinstance(model_config["model_name"], str) or not model_config["model_name"]:
-              raise ValueError("MSWEA_MODEL_NAME must be a non-empty string")
-          if not isinstance(model_config.get("model_kwargs", {}), dict):
-              raise ValueError("mini-SWE-agent model_kwargs must be a mapping")
+          LitellmModelConfig(**model_config)
           with open("/tmp/mini-agent-docker.yaml", "w", encoding="utf-8") as handle:
               yaml.safe_dump(config, handle, sort_keys=False)
           PY
@@ -175,7 +175,7 @@ jobs:
           $(tail -n 180 /tmp/brain-pytest.log 2>/dev/null || true)"
             fi
 
-            mini --config /tmp/mini-agent-docker.yaml -t "$CURRENT_TASK" -y 2>&1 | tee "/tmp/mini-agent-attempt-${attempt}.log"
+            /tmp/mini-agent-venv/bin/mini --config /tmp/mini-agent-docker.yaml -t "$CURRENT_TASK" -y 2>&1 | tee "/tmp/mini-agent-attempt-${attempt}.log"
             AGENT_STATUS=${PIPESTATUS[0]}
             if [ "$AGENT_STATUS" -ne 0 ]; then
               echo "::warning::mini-SWE-agent attempt $attempt exited with status $AGENT_STATUS."
