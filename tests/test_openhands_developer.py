@@ -46,6 +46,10 @@ def test_custom_endpoint_disables_unsupported_prompt_cache_and_reasoning_fields(
     assert kwargs["model"] == "openai/gemini-3.5-flash-lite"
     assert kwargs["caching_prompt"] is False
     assert kwargs["prompt_cache_retention"] is None
-    assert kwargs["reasoning_effort"] == "none"
+    assert kwargs["reasoning_effort"] is None
     assert kwargs["enable_encrypted_reasoning"] is False
-    assert kwargs["capability_overrides"]["supports_prompt_cache_key"] is False
+    assert kwargs["capability_overrides"] == {
+        "supports_prompt_cache_key": False,
+        "supports_reasoning_effort": False,
+        "supports_sampling_params": False,
+    }

@@ -71,9 +71,13 @@ def _sdk_llm_kwargs(model: str, api_key: str, base_url: str | None) -> dict[str,
         # Google OpenAI-compatible endpoints reject LiteLLM/OpenHands prompt-cache fields.
         "caching_prompt": False,
         "prompt_cache_retention": None,
-        "reasoning_effort": "none",
+        "reasoning_effort": None,
         "enable_encrypted_reasoning": False,
-        "capability_overrides": {"supports_prompt_cache_key": False},
+        "capability_overrides": {
+            "supports_prompt_cache_key": False,
+            "supports_reasoning_effort": False,
+            "supports_sampling_params": False,
+        },
     }
 
 
