@@ -79,6 +79,11 @@ class StressTestAgentRunner:
                 }
         elif role_key == "code_reviewer":
             self.reviewer_call_count += 1
+            self.review_evidence.append({
+                "branch": evidence.get("branch"),
+                "actual_diff": evidence.get("actual_diff"),
+                "changed_files": evidence.get("changed_files"),
+            })
             if self.reviewer_reject_once and self.reviewer_call_count == 1:
                 status = "NEEDS_WORK"
                 blockers = ["Missing unit tests for edge cases"]
