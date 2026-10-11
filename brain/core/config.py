@@ -67,13 +67,8 @@ class RecoveryConfig(BaseSettings):
     """Recovery configuration."""
     auto_recover: bool = Field(default=True)
     recoverable_phases: List[str] = Field(default=["EXECUTE", "VALIDATE", "REPAIR", "WAITING_FOR_APPROVAL"])
-    orphan_detection_grace_period_seconds: int = Field(default=300, gt=0)
 
 
-class ConcurrencyConfig(BaseSettings):
-    """Concurrency configuration."""
-    max_active_missions: int = Field(default=10, gt=0)
-    heartbeat_interval_seconds: int = Field(default=30, gt=0)
 
 
 class MissionDefaultsConfig(BaseSettings):
@@ -98,7 +93,6 @@ class Config(BaseSettings):
     workspace: WorkspaceConfig = Field(default_factory=WorkspaceConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     recovery: RecoveryConfig = Field(default_factory=RecoveryConfig)
-    concurrency: ConcurrencyConfig = Field(default_factory=ConcurrencyConfig)
     mission_defaults: MissionDefaultsConfig = Field(default_factory=MissionDefaultsConfig)
     
     @field_validator("recovery")

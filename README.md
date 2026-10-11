@@ -1,7 +1,7 @@
 # Brain V1 — Mission Orchestration System
 
 Brain is a mission orchestration service with persistent mission state, an API,
-event history, approval foundations, artifact storage, and runtime recovery.
+event history, approval foundations, artifact storage, and recovery configuration.
 
 ## Current execution capability
 
