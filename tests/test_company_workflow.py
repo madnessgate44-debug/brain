@@ -54,10 +54,10 @@ def test_release_requires_executed_tests_and_independent_review():
 
 def test_release_passes_only_when_all_mandatory_gates_pass_with_evidence():
     evidence = {
-        "review_decision": {"status": "APPROVED", "reviewer_role": "code_reviewer"},
+        "review_decision": {"status": "PASS", "decision": "APPROVED", "reviewer_role": "code_reviewer"},
         "test_results": {"status": "PASS", "executed": True, "run_url": "https://example.test/run/1"},
-        "security_decision": {"status": "PASS"},
-        "customer_review": {"status": "PASS"},
+        "security_decision": {"status": "PASS", "decision": "PASS"},
+        "customer_review": {"status": "PASS", "decision": "PASS"},
     }
     decision = evaluate_release_gate(evidence)
     assert decision.passed is True
