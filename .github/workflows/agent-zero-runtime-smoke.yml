@@ -79,7 +79,9 @@ jobs:
             exit 1
           fi
           echo "::add-mask::$API_TOKEN"
-          if [[ "$API_TOKEN" == *          import json
+          echo "API token loaded; length=${#API_TOKEN} characters (value redacted)."
+          python - <<'PY'
+          import json
           from pathlib import Path
           Path("/tmp/a0-request.json").write_text(json.dumps({
               "message": "Reply with exactly AGENT_ZERO_SMOKE_OK. Do not call tools."
