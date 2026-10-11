@@ -176,15 +176,13 @@ class MissionRepository:
         recoverable_phases: List[str],
     ) -> List[MissionModel]:
         """Find missions in recoverable phases."""
-        # Find missions that are in recoverable phases and not already completed or failed
+        # Only recover interrupted RUNNING missions. PENDING missions are awaiting
+        # an explicit operator restart; PAUSED approval missions must not be reprocessed
+        # on every boot.
         query = select(MissionModel).where(
             and_(
                 MissionModel.phase.in_(recoverable_phases),
-                ~MissionModel.status.in_([
-                    MissionStatus.COMPLETED.value,
-                    MissionStatus.FAILED.value,
-                    MissionStatus.CANCELLED.value,
-                ])
+                MissionModel.status == MissionStatus.RUNNING.value,
             )
         )
         result = await self.session.execute(query)

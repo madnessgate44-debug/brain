@@ -13,7 +13,7 @@ logger = logging.getLogger("brain.services.recovery_service")
 
 
 class RecoveryService:
-    """Service responsible for recovering missions after restart."""
+    """Normalize interrupted mission state after restart; never auto-resume missions."""
     
     def __init__(
         self,
@@ -27,7 +27,7 @@ class RecoveryService:
         self.recoverable_phases = config.recovery.recoverable_phases
     
     async def recover(self) -> None:
-        """Run recovery process for all missions."""
+        """Normalize interrupted RUNNING missions; operator restart is required afterward."""
         logger.info(
             "Starting recovery process",
             extra={

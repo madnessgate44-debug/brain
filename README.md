@@ -169,3 +169,7 @@ not by itself make it reachable from the public internet: a persistent deploymen
 application with the required environment variables and expose its HTTPS base URL. No production
 deployment URL is configured in this repository, so do not treat the endpoint as externally
 reachable until deployment and an external health/chat smoke test are recorded.
+
+## Startup recovery behavior
+
+When `RECOVERY__AUTO_RECOVER=true`, startup recovery only normalizes interrupted missions; it does **not** automatically resume execution. Interrupted `EXECUTE`, `VALIDATE`, and `REPAIR` missions become `PENDING` and require an explicit authenticated `POST /missions/{id}/start`. Missions in `WAITING_FOR_APPROVAL` become `PAUSED` and are not reprocessed on later boots unless they are running again.
