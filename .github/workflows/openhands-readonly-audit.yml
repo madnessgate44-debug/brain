@@ -155,7 +155,7 @@ jobs:
             echo
             exit 1
           fi
-          cp /tmp/openhands-events.json openhands-events.json
+          cp /tmp/openhands-events.json "$GITHUB_WORKSPACE/openhands-events.json"
           python3 - <<'PY'
           import json, os, sys
           with open("/tmp/openhands-events.json", encoding="utf-8") as f:
@@ -183,7 +183,8 @@ jobs:
               print("::error::OpenHands finished but no marked final audit report was found in conversation events.", file=sys.stderr)
               print(f"Message events captured: {len(messages)}; total events: {len(items)}", file=sys.stderr)
               sys.exit(1)
-          with open("openhands-audit-report.md", "w", encoding="utf-8") as f:
+          report_path = os.path.join(os.environ["GITHUB_WORKSPACE"], "openhands-audit-report.md")
+          with open(report_path, "w", encoding="utf-8") as f:
               f.write("# OpenHands Brain Audit\n\n")
               f.write(report + "\n")
           print(f"Audit report extracted. Message events: {len(messages)}; total events: {len(items)}")
@@ -204,9 +205,9 @@ jobs:
             echo "- Conversation: [$CONVERSATION_ID]($CONVERSATION_URL)"
             echo "- Requested repository/branch: madnessgate44-debug/brain / main"
             echo "- Job status: $JOB_STATUS"
-            if [ -f openhands-audit-report.md ]; then
+            if [ -f "$GITHUB_WORKSPACE/openhands-audit-report.md" ]; then
               echo
-              cat openhands-audit-report.md
+              cat "$GITHUB_WORKSPACE/openhands-audit-report.md"
             else
               echo
               echo "Audit report was not verified. Inspect the failing step logs and conversation."
@@ -219,8 +220,8 @@ jobs:
         with:
           name: openhands-brain-audit-evidence
           path: |
-            openhands-audit-report.md
-            openhands-conversation.json
-            openhands-events.json
+            ${{ github.workspace }}/openhands-audit-report.md
+            ${{ github.workspace }}/openhands-conversation.json
+            ${{ github.workspace }}/openhands-events.json
           if-no-files-found: ignore
           retention-days: 14
