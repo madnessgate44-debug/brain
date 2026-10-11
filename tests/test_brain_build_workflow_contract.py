@@ -93,7 +93,7 @@ def test_workflow_reports_failures_without_secrets_or_provider_bodies():
 
 def test_whitespace_validation_is_a_controlled_warning():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert "git -C \"$diff_workspace\" -c core.hooksPath=/dev/null diff --check -- ." in workflow
+    assert "git -C \"$diff_workspace\" -c core.hooksPath=/dev/null diff --cached --check -- ." in workflow
     assert "Whitespace errors detected in candidate changes" in workflow
     assert 'echo "WARN: whitespace errors detected in candidate changes."' in workflow
 
