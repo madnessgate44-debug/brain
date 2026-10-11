@@ -86,3 +86,10 @@ def test_legacy_remote_test_runner_no_longer_falls_back_to_control_token():
     assert "token: ${{ secrets.BRAIN_GITHUB_TOKEN }}" in workflow
     assert "BRAIN_GITHUB_TOKEN is required for target-repository checkout" in workflow
     assert "types: [opened, edited]" not in workflow
+
+
+def test_secret_scan_is_a_required_gate_before_pr_publication():
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "zricethezav/gitleaks:v8.24.2" in workflow
+    assert "--redact --exit-code 1" in workflow
+    assert "steps.gitleaks.outcome == 'success'" in workflow
