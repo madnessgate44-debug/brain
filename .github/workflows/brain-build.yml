@@ -289,32 +289,36 @@ jobs:
           set +e
           result=0
           if [ -f pyproject.toml ] || [ -f pytest.ini ] || [ -f setup.cfg ] || [ -f requirements.txt ]; then
-            echo "Detected Python project"
-            python -m pip install -e '.[dev]' >/tmp/brain-check-install.log 2>&1
-            install_status=$?
-            if [ "$install_status" -ne 0 ]; then python -m pip install pytest pytest-asyncio httpx >>/tmp/brain-check-install.log 2>&1; fi
-            if find . -maxdepth 3 -type f -name 'test_*.py' -o -name '*_test.py' | grep -q .; then
-              python -m pytest -q > /tmp/brain-checks.log 2>&1
-              result=$?
-            else
-              python -m compileall -q . > /tmp/brain-checks.log 2>&1
-              result=$?
-              echo "WARN: no Python test files found; compileall used as a smoke check." >> /tmp/brain-checks.log
-            fi
-          elif [ -f package.json ]; then
-            if [ -f package-lock.json ]; then npm ci >/tmp/brain-check-install.log 2>&1; else npm install >/tmp/brain-check-install.log 2>&1; fi
+            docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
+              set -e
+              python -m pip install --user -e ".[dev]" >/tmp/install.log 2>&1 || {
+                python -m pip install --user pytest pytest-asyncio httpx >>/tmp/install.log 2>&1
+              }
+              if find . -maxdepth 3 -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
+                python -m pytest -q
+              else
+                python -m compileall -q .
+                echo "WARN: no Python test files found; compileall used as smoke check."
+              fi
+            ' > /tmp/brain-checks.log 2>&1
             result=$?
-            if [ "$result" -eq 0 ] && node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
-              npm test -- --run > /tmp/brain-checks.log 2>&1
-              result=$?
-            elif [ "$result" -eq 0 ] && node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then
-              npm run build > /tmp/brain-checks.log 2>&1
-              result=$?
-              echo "WARN: no test script found; build used as a smoke check." >> /tmp/brain-checks.log
-            else
-              echo "WARN: no test or build script found; no tests claimed." > /tmp/brain-checks.log
-              result=0
-            fi
+          elif [ -f package.json ]; then
+            docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
+              set -e
+              if [ -f package-lock.json ]; then npm ci; else npm install; fi
+              if node -e "process.exit(require("./package.json").scripts?.test ? 0 : 1)"; then
+                npm test -- --run
+              elif node -e "process.exit(require("./package.json").scripts?.build ? 0 : 1)"; then
+                npm run build
+                echo "WARN: no test script found; build used as smoke check."
+              elif node -e "process.exit(require("./package.json").scripts?.lint ? 0 : 1)"; then
+                npm run lint
+                echo "WARN: no test/build script found; lint used as smoke check."
+              else
+                echo "WARN: no test, build, or lint script found; no tests claimed."
+              fi
+            ' > /tmp/brain-checks.log 2>&1
+            result=$?
           elif find . -maxdepth 2 -type f -name '*.html' | grep -q .; then
             python - <<'PY' > /tmp/brain-checks.log 2>&1
           from html.parser import HTMLParser
