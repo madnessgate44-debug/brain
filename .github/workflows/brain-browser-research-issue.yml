@@ -2,7 +2,7 @@ name: Brain free-first public web research
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened]
 
 permissions: {}
 
@@ -41,6 +41,21 @@ jobs:
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
 
+      - name: Validate provider configuration
+        shell: bash
+        env:
+          MODEL_NAME: ${{ vars.BRAIN_AI_MODEL }}
+        run: |
+          set +x
+          if [ -z "${MODEL_NAME:-}" ]; then
+            echo "::error::Repository variable BRAIN_AI_MODEL is missing. No research model will be selected implicitly."
+            exit 1
+          fi
+          if [[ ! "$MODEL_NAME" =~ ^[A-Za-z0-9._:/-]+$ ]]; then
+            echo "::error::BRAIN_AI_MODEL contains unsupported characters."
+            exit 1
+          fi
+
       - name: Plan and execute bounded public research
         id: research
         env:
@@ -48,7 +63,7 @@ jobs:
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
           BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
-          BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
+          BRAIN_AI_MODEL: ${{ vars.BRAIN_AI_MODEL }}
         run: python scripts/run_browser_research_issue.py
 
       - name: Upload plan, report, and screenshots
