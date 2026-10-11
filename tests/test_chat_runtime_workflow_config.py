@@ -13,7 +13,9 @@ def test_chat_runtime_check_uses_configured_gemini_provider_not_deepseek():
 
     assert "secrets.BRAIN_AI_API_KEY" in workflow
     assert "generativelanguage.googleapis.com/v1beta/openai" in workflow
-    assert "gemini-3.5-flash-lite" in workflow
+    assert "vars.BRAIN_AI_MODEL" in workflow
+    assert "repository variable BRAIN_AI_MODEL is not configured" in workflow
+    assert "gemini-3.5-flash-lite" not in workflow
     assert "DEEPSEEK_API_KEY" not in workflow
     assert "api.deepseek.com" not in workflow
     assert "deepseek-chat" not in workflow
