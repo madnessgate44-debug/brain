@@ -83,7 +83,13 @@ jobs:
           echo "Agent Zero Python interpreter: $PYTHON_BIN"
           API_TOKEN="$(docker exec agent-zero-smoke "$PYTHON_BIN" -c 'import json; print(json.load(open("/a0/usr/settings.json"))["mcp_server_token"])' 2>/dev/null || true)"
           if [ -z "$API_TOKEN" ]; then
-            docker exec agent-zero-smoke sh -c 'ls -la /a0/usr 2>/dev/null || true' || true
+            docker exec agent-zero-smoke sh -c 'find /a0 -maxdepth 5 -type f \( -iname "*setting*" -o -iname "*token*" -o -name ".env" \) -print 2>/dev/null | head -50' || true
+            docker exec agent-zero-smoke "$PYTHON_BIN" -c 'from pathlib import Path; 
+for p in (Path("/a0/usr/.env"), Path("/a0/.env")):
+ print("ENV_FILE", str(p), "exists", p.exists())
+ if p.exists(): print("ENV_KEYS", [line.split("=", 1)[0] for line in p.read_text(errors="replace").splitlines() if "=" in line])
+for p in Path("/a0").rglob("*"):
+ if p.is_file() and ("setting" in p.name.lower() or "token" in p.name.lower()): print("CANDIDATE", str(p))' || true
             docker logs --tail 100 agent-zero-smoke || true
             echo "::error::Could not read Agent Zero's generated API token from /a0/usr/settings.json."
             exit 1
