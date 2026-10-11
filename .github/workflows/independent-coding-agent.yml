@@ -71,10 +71,13 @@ jobs:
           fi
           echo "Provider configuration is present; secret values are not printed."
 
-      - name: Install agent and Brain test dependencies
+      - name: Install isolated agent and Brain test dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install mini-swe-agent
+          # mini-SWE-agent has its own newer dependency set. Keep it separate from
+          # Brain's pinned Pydantic/OpenAI stack so one cannot break the other.
+          python -m venv /tmp/mini-agent-venv
+          /tmp/mini-agent-venv/bin/python -m pip install --upgrade pip
+          /tmp/mini-agent-venv/bin/python -m pip install mini-swe-agent
           python -m pip install -e '.[dev]'
 
       - name: Build isolated command-execution image
@@ -129,7 +132,7 @@ jobs:
 
           # Run all agent shell actions in a Docker container that does not receive
           # the model API key or GitHub token. The repository is mounted as /workspace.
-          python - <<'PY'
+          /tmp/mini-agent-venv/bin/python - <<'PY'
           import os
           import yaml
           from minisweagent.run.mini import DEFAULT_CONFIG_FILE
@@ -144,8 +147,8 @@ jobs:
               "pull_timeout": 120,
               "timeout": 300,
           }
-          # Validate the generated configuration against mini-SWE-agent v2's real
-          # Pydantic config contracts before spending any model calls.
+          # Validate the generated config inside mini-SWE-agent's isolated environment,
+          # not Brain's pinned dependency environment.
           from minisweagent.environments.docker import DockerEnvironmentConfig
           from minisweagent.models.litellm_model import LitellmModelConfig
 
@@ -172,22 +175,35 @@ jobs:
           $(tail -n 180 /tmp/brain-pytest.log 2>/dev/null || true)"
             fi
 
-            mini --config /tmp/mini-agent-docker.yaml -t "$CURRENT_TASK" -y 2>&1 | tee "/tmp/mini-agent-attempt-${attempt}.log"
+            /tmp/mini-agent-venv/bin/mini --config /tmp/mini-agent-docker.yaml -t "$CURRENT_TASK" -y 2>&1 | tee "/tmp/mini-agent-attempt-${attempt}.log"
             AGENT_STATUS=${PIPESTATUS[0]}
             if [ "$AGENT_STATUS" -ne 0 ]; then
               echo "::warning::mini-SWE-agent attempt $attempt exited with status $AGENT_STATUS."
             fi
 
             if python -m pip install -e '.[dev]' >/tmp/brain-install.log 2>&1 && pytest -q > /tmp/brain-pytest.log 2>&1; then
+              TEST_STATUS=0
+            else
+              TEST_STATUS=$?
+            fi
+
+            # A passing baseline suite is not proof the agent completed the task.
+            # Require both a successful agent exit and passing real repository tests.
+            if [ "$AGENT_STATUS" -eq 0 ] && [ "$TEST_STATUS" -eq 0 ]; then
               cat /tmp/brain-pytest.log
               TESTS_PASSED=true
               echo "tests_passed=true" >> "$GITHUB_OUTPUT"
               break
             else
-              TEST_STATUS=$?
+              if [ "$AGENT_STATUS" -ne 0 ]; then
+                {
+                  echo "mini-SWE-agent attempt $attempt exited with status $AGENT_STATUS."
+                  tail -n 80 "/tmp/mini-agent-attempt-${attempt}.log" 2>/dev/null || true
+                } >> /tmp/brain-pytest.log
+              fi
               tail -n 180 /tmp/brain-install.log 2>/dev/null || true
               tail -n 180 /tmp/brain-pytest.log 2>/dev/null || true
-              echo "Test attempt $attempt failed with status $TEST_STATUS."
+              echo "Attempt $attempt failed: agent_status=$AGENT_STATUS test_status=$TEST_STATUS."
               if [ "$attempt" -eq 3 ]; then
                 TESTS_PASSED=false
                 echo "tests_passed=false" >> "$GITHUB_OUTPUT"
@@ -229,6 +245,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           TESTS_PASSED: ${{ steps.agent.outputs.tests_passed }}
+          AGENT_OUTCOME: ${{ steps.agent.outcome }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set +x
@@ -241,7 +258,11 @@ jobs:
             exit 1
           fi
           if [ -z "$(git status --porcelain)" ]; then
-            gh issue comment "${ISSUE_NUMBER}" --body "Independent agent run produced no repository changes. Review the run logs: ${RUN_URL}" 2>/dev/null || true
+            if [ "${AGENT_OUTCOME}" != "success" ]; then
+              gh issue comment "${ISSUE_NUMBER}" --body "The independent coding-agent step failed before producing repository changes. No repair is claimed. Inspect the failed step and artifact logs: ${RUN_URL}" 2>/dev/null || true
+            else
+              gh issue comment "${ISSUE_NUMBER}" --body "The agent step completed but produced no repository changes. No repair is claimed. Review the run logs: ${RUN_URL}" 2>/dev/null || true
+            fi
             exit 0
           fi
 
