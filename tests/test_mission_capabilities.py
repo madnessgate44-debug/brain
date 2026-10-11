@@ -44,7 +44,9 @@ Audit test/build/lint coverage and include the repository/branch/commit examined
 
 
 def test_positive_change_request_still_requires_write_capability():
-    plan = plan_capabilities("Inspect the repository and fix the identified defects.")
+    plan = plan_capabilities(
+        "Inspect the repository and fix the identified defects for operational verification."
+    )
     assert plan.mode == "mutating"
     assert "repository:write" in plan.required_capabilities
 
@@ -72,7 +74,7 @@ def test_deploy_and_merge_mentions_without_targets_do_not_trigger_mutating_mode(
 
 def test_explicit_exact_file_creation_request_requires_mutation_capabilities():
     objective = """
-Create exactly docs/BRAIN_FINAL_ACCEPTANCE.md with the required content.
+Create exactly docs/BRAIN_OPERATIONAL_VERIFICATION_2026.md with the required content.
 Run Python CI, repository tests, and browser smoke checks against the resulting PR branch.
 Do not merge or deploy the mission PR.
 """
