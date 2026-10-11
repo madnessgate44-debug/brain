@@ -1,33 +1,70 @@
-name: Brain Build Credential Preflight
+name: Brain target-repository credential preflight
 
 on:
   issues:
     types: [opened]
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: "Target repository owned by the Brain repository owner"
+        required: true
+        type: string
 
 permissions: {}
-
-concurrency:
-  group: brain-build-preflight
-  cancel-in-progress: false
 
 jobs:
   preflight:
     if: >-
       github.repository == 'madnessgate44-debug/brain' &&
-      github.event.issue.state == 'open' &&
-      github.event.issue.user.login == github.repository_owner &&
-      startsWith(github.event.issue.body, '/brain preflight')
+      (
+        (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) ||
+        (
+          github.event_name == 'issues' &&
+          github.event.issue.state == 'open' &&
+          github.event.issue.user.login == github.repository_owner &&
+          startsWith(github.event.issue.body, '/brain preflight')
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       issues: write
     steps:
-      - name: Verify BRAIN_GITHUB_TOKEN against the A7 target
+      - name: Parse owner-only target
+        id: target
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TARGET: ${{ inputs.target_repository }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, re
+          target = os.environ.get("DISPATCH_TARGET", "").strip()
+          if os.environ["EVENT_NAME"] == "issues":
+              event = json.load(open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8"))
+              body = (event.get("issue") or {}).get("body") or ""
+              match = re.search(r"(?i)^\s*/brain\s+preflight\s+(?:repo|repository):\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
+              if not match:
+                  match = re.search(r"(?im)^\s*(?:repo|repository):\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)
+              target = match.group(1) if match else ""
+          owner = os.environ["OWNER"]
+          if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", target):
+              raise SystemExit("Use /brain preflight repo: owner/name.")
+          if target.split("/", 1)[0].casefold() != owner.casefold():
+              raise SystemExit("Cross-owner credential preflight is blocked.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"target={target}\n")
+          print(f"Validated target {target}; token values are never printed.")
+          PY
+
+      - name: Probe required repository permissions
         id: probe
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}
-          TARGET_REPOSITORY: madnessgate44-debug/smart-farm
+          TARGET_REPOSITORY: ${{ steps.target.outputs.target }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
@@ -35,10 +72,19 @@ jobs:
           set +x
           fail() { echo "::error::$1"; exit 1; }
           [[ -n "${GH_TOKEN:-}" ]] || fail "Missing BRAIN_GITHUB_TOKEN. No fallback token is used."
-          repo_json="$(gh api "repos/$TARGET_REPOSITORY" 2>/dev/null)" || fail "Target repository metadata access failed."
+          export GH_TOKEN
+          repo_json="$(gh api "repos/$TARGET_REPOSITORY" 2>/dev/null)" || fail "Repository metadata read failed. Check token access and Metadata: read."
+          canonical="$(printf '%s' "$repo_json" | python -c 'import json,sys; print(json.load(sys.stdin).get("full_name",""))')"
+          [[ "${canonical,,}" == "${TARGET_REPOSITORY,,}" ]] || fail "GitHub returned a different canonical repository."
           default_branch="$(printf '%s' "$repo_json" | python -c 'import json,sys; print(json.load(sys.stdin).get("default_branch") or "")')"
-          [[ -n "$default_branch" ]] || fail "Target has no default branch."
-          echo "Target metadata and default branch: PASS" >> "$GITHUB_STEP_SUMMARY"
+          [[ -n "$default_branch" ]] || fail "Target has no default branch; initialize it before this permission test."
+          echo "## Brain target-repository credential preflight" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Target: $TARGET_REPOSITORY" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Default branch: $default_branch" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Credential value: not displayed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          gh api "repos/$TARGET_REPOSITORY/git/ref/heads/$default_branch" >/dev/null 2>&1 || fail "Contents: read failed for the default branch."
           branch="brain-preflight-$RUN_ID-$RUN_ATTEMPT"
           issue_number=""
           pr_number=""
@@ -49,50 +95,44 @@ jobs:
             gh api --method DELETE "repos/$TARGET_REPOSITORY/git/refs/heads/$branch" >/dev/null 2>&1
           }
           trap cleanup EXIT
-          base_sha="$(gh api "repos/$TARGET_REPOSITORY/git/ref/heads/$default_branch" --jq '.object.sha' 2>/dev/null)" || fail "Contents: read failed."
+          base_sha="$(gh api "repos/$TARGET_REPOSITORY/git/ref/heads/$default_branch" --jq '.object.sha')" || fail "Cannot read target branch SHA."
           gh api --method POST "repos/$TARGET_REPOSITORY/git/refs" -f "ref=refs/heads/$branch" -f "sha=$base_sha" >/dev/null 2>&1 || fail "Contents: write failed while creating a temporary branch."
-          echo "Contents: write branch probe: PASS" >> "$GITHUB_STEP_SUMMARY"
-          file_path=".brain-preflight-$RUN_ID.txt"
-          encoded="$(printf 'Brain build preflight run %s attempt %s' "$RUN_ID" "$RUN_ATTEMPT" | base64 -w 0)"
-          gh api --method PUT "repos/$TARGET_REPOSITORY/contents/$file_path" -f message="test: Brain build credential preflight $RUN_ID" -f content="$encoded" -f branch="$branch" >/dev/null 2>&1 || fail "Contents: write failed while committing a temporary file."
-          echo "Contents: write file probe: PASS" >> "$GITHUB_STEP_SUMMARY"
-          pr_json="$(gh api --method POST "repos/$TARGET_REPOSITORY/pulls" -f title="Temporary Brain build preflight $RUN_ID" -f head="$branch" -f base="$default_branch" -f body="Temporary permission probe. This PR is closed by the workflow and must not be merged." 2>/dev/null)" || fail "Pull requests: write failed while opening a temporary PR."
+          echo "- Contents: branch create: PASS" >> "$GITHUB_STEP_SUMMARY"
+          encoded="$(printf 'Brain preflight run %s attempt %s' "$RUN_ID" "$RUN_ATTEMPT" | base64 -w 0)"
+          gh api --method PUT "repos/$TARGET_REPOSITORY/contents/.brain-preflight-$RUN_ID.txt" -f message="test: Brain credential preflight $RUN_ID" -f content="$encoded" -f branch="$branch" >/dev/null 2>&1 || fail "Contents: write failed while creating a temporary file."
+          echo "- Contents: file write: PASS" >> "$GITHUB_STEP_SUMMARY"
+          pr_json="$(gh api --method POST "repos/$TARGET_REPOSITORY/pulls" -f title="Temporary Brain credential preflight $RUN_ID" -f head="$branch" -f base="$default_branch" -f body="Temporary permission probe; automatically closed and not intended to merge." 2>/dev/null)" || fail "Pull requests: write failed while opening a temporary PR."
           pr_number="$(printf '%s' "$pr_json" | python -c 'import json,sys; print(json.load(sys.stdin)["number"])')"
-          echo "Pull requests: create probe: PASS" >> "$GITHUB_STEP_SUMMARY"
           gh api --method PATCH "repos/$TARGET_REPOSITORY/pulls/$pr_number" -f state=closed >/dev/null 2>&1 || fail "Pull requests: write failed while closing the temporary PR."
           pr_number=""
-          echo "Pull requests: close probe: PASS" >> "$GITHUB_STEP_SUMMARY"
-          issue_json="$(gh api --method POST "repos/$TARGET_REPOSITORY/issues" -f title="Temporary Brain build preflight $RUN_ID" -f body="Temporary permission probe. This issue is closed by the workflow." 2>/dev/null)" || fail "Issues: write failed while creating a temporary issue."
+          echo "- Pull requests: open/close: PASS" >> "$GITHUB_STEP_SUMMARY"
+          issue_json="$(gh api --method POST "repos/$TARGET_REPOSITORY/issues" -f title="Temporary Brain credential preflight $RUN_ID" -f body="Temporary permission probe; automatically closed." 2>/dev/null)" || fail "Issues: write failed while creating a temporary issue."
           issue_number="$(printf '%s' "$issue_json" | python -c 'import json,sys; print(json.load(sys.stdin)["number"])')"
-          echo "Issues: create probe: PASS" >> "$GITHUB_STEP_SUMMARY"
           gh api --method PATCH "repos/$TARGET_REPOSITORY/issues/$issue_number" -f state=closed >/dev/null 2>&1 || fail "Issues: write failed while closing the temporary issue."
           issue_number=""
-          echo "Issues: close probe: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Issues: create/close: PASS" >> "$GITHUB_STEP_SUMMARY"
           gh api --method DELETE "repos/$TARGET_REPOSITORY/git/refs/heads/$branch" >/dev/null 2>&1 || fail "Contents: write failed while deleting the temporary branch."
           trap - EXIT
-          echo "Actions:write and Workflows:write are not required for the first A1-A7 acceptance run; this preflight does not dispatch or edit target workflows." >> "$GITHUB_STEP_SUMMARY"
-          echo "Result: PASS for metadata, Contents: write, Pull requests: write, and Issues: write. No token values or raw API errors were printed." >> "$GITHUB_STEP_SUMMARY"
-      - name: Publish sanitized result to the control issue
-        if: always()
+          echo "- Temporary branch cleanup: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Result: PASS for the permissions required by brain-build.yml.**" >> "$GITHUB_STEP_SUMMARY"
+          echo "Actions:write and Workflows:write are not required by the current build workflow and are not tested."
+
+      - name: Report preflight on initiating issue
+        if: always() && github.event_name == 'issues'
         uses: actions/github-script@v7
-        env:
-          PROBE_OUTCOME: ${{ steps.probe.outcome }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
-            const outcome = process.env.PROBE_OUTCOME || 'unknown';
+            const outcome = '${{ steps.probe.outcome }}';
+            const target = '${{ steps.target.outputs.target }}' || 'not resolved';
+            const runUrl = context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId;
             const body = [
-              '## Brain build credential preflight',
+              '## Brain target-repository credential preflight',
               '',
-              '**Target:** madnessgate44-debug/smart-farm',
-              '**Result:** ' + (outcome === 'success' ? 'PASS' : 'FAIL'),
-              '**Evidence:** ' + process.env.RUN_URL,
+              '**Target:** ' + target,
+              '**Result:** ' + (outcome === 'success' ? 'PASS' : 'FAIL — inspect sanitized workflow step summary'),
+              '**Run:** ' + runUrl,
               '',
-              'This tests the BRAIN_GITHUB_TOKEN used by brain-build.yml. Actions:write and Workflows:write are not required for the first A1-A7 run. No credential values are reported.'
+              'The probe uses BRAIN_GITHUB_TOKEN only. Token values are not printed. Actions:write and Workflows:write are not required for the current build workflow.'
             ].join('\n');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body
-            });
+            await github.rest.issues.createComment({owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body});
