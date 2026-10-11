@@ -76,12 +76,7 @@ def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     assert all(x not in artifacts for x in ("/tmp/brain-checks.log", "/tmp/brain-check-install.log"))
 def test_workflow_reports_failures_without_secrets_or_provider_bodies():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert all(x in workflow for x in (
-        "report_failure:", "always()", "needs.prepare.result == 'failure' || needs.mission.result == 'failure'",
-        "failed_step: ${{ steps.mission_lock.outcome", "FAILED_STEP: ${{ needs.mission.outputs.failed_step }}",
-        "permissions:\n      issues: write", "Workflow run: ${process.env.RUN_URL}",
-        "This report intentionally excludes secrets and provider response bodies.",
-    )) and r"].join('\n');" in workflow
+    assert all(x in workflow for x in ("report_failure:", "always()", "needs.prepare.result == 'failure' || needs.mission.result == 'failure'", "failed_step: ${{ steps.mission_lock.outcome", "FAILED_STEP: ${{ needs.mission.outputs.failed_step }}", "permissions:\n      issues: write", "Workflow run: ${process.env.RUN_URL}", "This report intentionally excludes secrets and provider response bodies.")) and r"].join('\n');" in workflow
 def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(x in workflow for x in (
@@ -107,8 +102,7 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     protected = re.compile(gate.group(1), re.IGNORECASE)
     protected_examples = (".github/workflows/release.yml", ".github/actions/build/action.yml", ".env.production", "service/.npmrc", "CODEOWNERS", "Dockerfile.dev", "docker-compose.prod.yaml", "infra/main.tf", "deploy/helm/values.yaml", "secrets/provider-key.json", "certs/service.pem")
     allowed_examples = ("src/brain/main.py", "README.md", "tests/test_brain_build_workflow_contract.py")
-    assert all(protected.search(x) for x in protected_examples)
-    assert all(not protected.search(x) for x in allowed_examples)
+    assert all(protected.search(x) for x in protected_examples) and all(not protected.search(x) for x in allowed_examples)
 def test_empty_target_initialization_and_shared_queue_are_explicit():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "Initialize an empty target repository through the Contents API" in workflow
