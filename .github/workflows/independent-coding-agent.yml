@@ -77,6 +77,14 @@ jobs:
           python -m pip install mini-swe-agent
           python -m pip install -e '.[dev]'
 
+      - name: Build isolated command-execution image
+        run: |
+          cat > /tmp/Dockerfile.mini-agent <<'DOCKER_EOF'
+          FROM python:3.12-slim
+          RUN apt-get update && apt-get install -y --no-install-recommends git bash ca-certificates && rm -rf /var/lib/apt/lists/*
+          DOCKER_EOF
+          docker build --tag brain-mini-swe-agent:local --file /tmp/Dockerfile.mini-agent /tmp
+
       - name: Run agent with bounded repair-and-retest loop
         id: agent
         shell: bash
@@ -119,6 +127,27 @@ jobs:
           TASK_EOF
           printf '\n\nTASK TO SOLVE:\n%s\n' "$TASK_TEXT" >> /tmp/agent-task.txt
 
+          # Run all agent shell actions in a Docker container that does not receive
+          # the model API key or GitHub token. The repository is mounted as /workspace.
+          python - <<'PY'
+          import os
+          import yaml
+          from minisweagent.run.mini import DEFAULT_CONFIG_FILE
+
+          config = yaml.safe_load(DEFAULT_CONFIG_FILE.read_text(encoding="utf-8"))
+          config["environment"] = {
+              "environment_class": "docker",
+              "image": "brain-mini-swe-agent:local",
+              "cwd": "/workspace",
+              "run_args": ["--rm", "-v", f"{os.environ['GITHUB_WORKSPACE']}:/workspace"],
+              "container_timeout": "2h",
+              "pull_timeout": 120,
+              "timeout": 300,
+          }
+          with open("/tmp/mini-agent-docker.yaml", "w", encoding="utf-8") as handle:
+              yaml.safe_dump(config, handle, sort_keys=False)
+          PY
+
           # mini-SWE-agent's shell actions are bounded by call, cost and workflow limits.
           # Re-run it with the actual test failure output when a test attempt fails.
           TESTS_PASSED=false
@@ -134,20 +163,21 @@ jobs:
           $(tail -n 180 /tmp/brain-pytest.log 2>/dev/null || true)"
             fi
 
-            mini -t "$CURRENT_TASK" -y 2>&1 | tee "/tmp/mini-agent-attempt-${attempt}.log"
+            mini --config /tmp/mini-agent-docker.yaml -t "$CURRENT_TASK" -y 2>&1 | tee "/tmp/mini-agent-attempt-${attempt}.log"
             AGENT_STATUS=${PIPESTATUS[0]}
             if [ "$AGENT_STATUS" -ne 0 ]; then
               echo "::warning::mini-SWE-agent attempt $attempt exited with status $AGENT_STATUS."
             fi
 
-            if pytest -q > /tmp/brain-pytest.log 2>&1; then
+            if python -m pip install -e '.[dev]' >/tmp/brain-install.log 2>&1 && pytest -q > /tmp/brain-pytest.log 2>&1; then
               cat /tmp/brain-pytest.log
               TESTS_PASSED=true
               echo "tests_passed=true" >> "$GITHUB_OUTPUT"
               break
             else
               TEST_STATUS=$?
-              tail -n 180 /tmp/brain-pytest.log
+              tail -n 180 /tmp/brain-install.log 2>/dev/null || true
+              tail -n 180 /tmp/brain-pytest.log 2>/dev/null || true
               echo "Test attempt $attempt failed with status $TEST_STATUS."
               if [ "$attempt" -eq 3 ]; then
                 TESTS_PASSED=false
@@ -177,6 +207,7 @@ jobs:
           path: |
             /tmp/mini-agent-attempt-*.log
             /tmp/brain-pytest.log
+            /tmp/brain-install.log
             /tmp/agent-report.md
           if-no-files-found: warn
           retention-days: 14
