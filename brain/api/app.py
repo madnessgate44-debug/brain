@@ -55,8 +55,8 @@ def create_app() -> FastAPI:
     # Store config in app state
     app.state.config = config
 
-    # Never combine wildcard origins with credentialed requests. Deployments can
-    # explicitly list trusted frontend origins via BRAIN_CORS_ORIGINS.
+    # Every configured origin is trusted. Only GET/POST browser requests are enabled;
+    # deployments should list only controlled frontend origins in BRAIN_CORS_ORIGINS.
     cors_origins = [
         origin.strip()
         for origin in os.getenv(
@@ -69,7 +69,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=cors_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "X-Brain-API-Key", "Authorization"],
     )
 
