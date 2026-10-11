@@ -38,7 +38,7 @@ These workflow runs completed successfully against PR head SHA `918b4a146bd11235
 - [Browser runtime smoke — run #38111843422](https://github.com/madnessgate44-debug/brain/actions/runs/38111843422): PASS.
 - [Brain Python CI — push run #38111841481](https://github.com/madnessgate44-debug/brain/actions/runs/38111841481): PASS.
 
-These checks validate the code and report as they existed at SHA `918b4a146bd112352bb90e55c9f725a4835d9f43`. The report-consistency correction commit d81cf48df3d539e641524ab024758f4b4052aeab also passed its required checks: Brain tests run 38112630215, Python CI run 38112630230, and browser runtime smoke run 38112630224. See the linked workflow runs for execution evidence. None of these results means the PR has been merged or that main has been verified with these changes.
+These checks validate the code and report as they existed at SHA `918b4a146bd112352bb90e55c9f725a4835d9f43`. The report-consistency correction commit d81cf48df3d539e641524ab024758f4b4052aeab also passed its required checks: Brain tests run 38112630215, Python CI run 38112630230, and browser runtime smoke run 38112630224. The run IDs above identify the corresponding GitHub Actions evidence. None of these results means the PR has been merged or that main has been verified with these changes.
 
 ### R5 — Failure recovery under an injected fault: NOT TESTED
 
