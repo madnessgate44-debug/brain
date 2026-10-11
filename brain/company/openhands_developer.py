@@ -40,6 +40,21 @@ def _safe_relative_path(raw_path: str) -> str:
     return path.as_posix()
 
 
+def _safe_request_paths(user_request: str) -> set[str]:
+    """Keep only safe explicit path hints; unsafe examples in prose are not output paths."""
+    safe_paths: set[str] = set()
+    for match in _PATH_PATTERN.finditer(user_request):
+        # The pattern can begin after the leading slash in an absolute path. Do not
+        # normalize that suffix into a seemingly safe relative output path.
+        if match.start() > 0 and user_request[match.start() - 1] in {"/", "\\\\"}:
+            continue
+        try:
+            safe_paths.add(_safe_relative_path(match.group(0)))
+        except AgentOutputError:
+            continue
+    return safe_paths
+
+
 def _task_prompt(user_request: str, evidence: dict[str, Any]) -> str:
     snapshot = evidence.get("repository_snapshot", {})
     source_contents = snapshot.get("source_contents", {}) if isinstance(snapshot, dict) else {}
@@ -99,7 +114,7 @@ def _run_sdk_sync(
         for path in planned
         if isinstance(path, str) and path.strip()
     } if isinstance(planned, list) else set()
-    request_paths = {_safe_relative_path(path) for path in _PATH_PATTERN.findall(user_request)}
+    request_paths = _safe_request_paths(user_request)
     allowed_new_paths = planned_paths | request_paths
     api_key = getattr(provider, "api_key", None)
     model = getattr(provider, "model", None)
