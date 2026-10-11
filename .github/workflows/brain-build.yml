@@ -148,7 +148,7 @@ jobs:
       pull-requests: write
     outputs:
       result: ${{ steps.publish.outputs.result }}
-      failed_step: ${{ steps.mission_lock.outcome == 'failure' && 'queue lease' || steps.agent.outcome == 'failure' && 'coding agent' || steps.candidate.outcome == 'failure' && 'candidate reconstruction' || steps.gitleaks.outcome == 'failure' && 'secret scanning' || steps.checks.outcome == 'failure' && 'project checks' || steps.publish.outcome == 'failure' && 'publication' || 'mission setup or unclassified step' }}
+      failed_step: ${{ steps.mission_lock.outcome == 'failure' && 'queue lease' || steps.initialize.outcome == 'failure' && 'target repository access/initialization' || steps.agent.outcome == 'failure' && 'coding agent' || steps.candidate.outcome == 'failure' && 'candidate reconstruction' || steps.gitleaks.outcome == 'failure' && 'secret scanning' || steps.checks.outcome == 'failure' && 'project checks' || steps.publish.outcome == 'failure' && 'publication' || 'mission setup or unclassified step' }}
     env:
       TARGET_REPOSITORY: ${{ needs.prepare.outputs.target }}
       TARGET_BRANCH: ${{ needs.prepare.outputs.branch }}
@@ -235,6 +235,7 @@ jobs:
             throw new Error('Timed out waiting for the shared model-workflow lease. No model call was started.');
 
       - name: Initialize an empty target repository through the Contents API
+        id: initialize
         if: needs.prepare.outputs.command != 'audit'
         shell: bash
         env:
@@ -742,9 +743,14 @@ jobs:
       always() &&
       (needs.prepare.result == 'failure' || needs.mission.result == 'failure') &&
       github.repository == 'madnessgate44-debug/brain' &&
-      github.event.issue.number != null &&
-      github.event.issue.user.login == github.repository_owner &&
-      (github.event_name == 'issues' || github.event_name == 'issue_comment')
+      (
+        (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) ||
+        (
+          github.event.issue.number != null &&
+          github.event.issue.user.login == github.repository_owner &&
+          (github.event_name == 'issues' || github.event_name == 'issue_comment')
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -759,7 +765,6 @@ jobs:
         with:
           script: |
             const issueNumber = context.payload.issue?.number;
-            if (!issueNumber) return;
             const failedStage = process.env.PREPARE_RESULT === 'failure'
               ? 'intake validation'
               : (process.env.FAILED_STEP || 'mission execution');
@@ -770,10 +775,22 @@ jobs:
               `Workflow run: ${process.env.RUN_URL}`,
               '',
               'Inspect the failed step in the Actions run. This report intentionally excludes secrets and provider response bodies.'
-            ].join('\n');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              body
-            });
+            ].join('\\n');
+            if (issueNumber) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body
+              });
+            } else {
+              await core.summary
+                .addHeading('Brain mission failed')
+                .addTable([
+                  [{data: 'Field', header: true}, {data: 'Value', header: true}],
+                  ['Stage', failedStage],
+                  ['Workflow run', process.env.RUN_URL]
+                ])
+                .addQuote('This report intentionally excludes secrets and provider response bodies.')
+                .write();
+            }
