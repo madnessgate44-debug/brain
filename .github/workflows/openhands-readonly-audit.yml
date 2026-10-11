@@ -144,12 +144,19 @@ jobs:
 
           # The OpenHands events-search API expects an explicit sort order. Capture
           # the HTTP status and response body so API validation errors are diagnosable.
-          events_response="$(curl --silent --show-error --retry 3 \
+          event_status="$(curl --silent --show-error --retry 3 \
+            --output /tmp/openhands-events.json --write-out '%{http_code}' \
             --get "https://app.all-hands.dev/api/v1/conversation/$CONVERSATION_ID/events/search" \
             "${headers[@]}" \
             --data-urlencode "limit=100" \
-            --data-urlencode "sort_order=TIMESTAMP_DESC" \
-            -w 
+            --data-urlencode "sort_order=TIMESTAMP_DESC")"
+          if [ "$event_status" != "200" ]; then
+            echo "::error::OpenHands event search returned HTTP ${event_status:-unknown}."
+            head -c 2000 /tmp/openhands-events.json || true
+            echo
+            exit 1
+          fi
+          cp /tmp/openhands-events.json openhands-events.json
           python3 - <<'PY'
           import json, os, sys
           with open("/tmp/openhands-events.json", encoding="utf-8") as f:
