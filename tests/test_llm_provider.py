@@ -1,7 +1,11 @@
 import httpx
 import pytest
 
-from brain.company.llm_provider import ModelProviderError, OpenAICompatibleProvider
+from brain.company.llm_provider import (
+    ModelProviderError,
+    OpenAICompatibleProvider,
+    ProviderConfigurationError,
+)
 
 
 @pytest.mark.asyncio
@@ -58,40 +62,39 @@ async def test_provider_stops_after_three_transient_server_errors(monkeypatch):
             model="test-model",
             client=client,
         )
-        with pytest.raises(ModelProviderError, match="503"):
+        with pytest.raises(ModelProviderError, match="HTTP 503"):
             await provider.complete("system", "user")
 
     assert calls == 3
 
 
 @pytest.mark.asyncio
-async def test_provider_falls_back_to_native_gemini_immediately_after_compatibility_429(monkeypatch):
-    compatibility_calls = 0
-    native_calls = 0
+async def test_google_compatible_429_honors_retry_delay_without_native_fallback(monkeypatch):
+    calls = 0
+    delays = []
+    paths = []
 
-    async def no_sleep(_delay):
-        return None
+    async def no_sleep(delay):
+        delays.append(delay)
 
     def handler(request):
-        nonlocal compatibility_calls, native_calls
-        if request.url.path.endswith(":generateContent"):
-            native_calls += 1
-            payload = request.read().decode("utf-8")
-            assert "systemInstruction" in payload
+        nonlocal calls
+        calls += 1
+        paths.append(request.url.path)
+        if calls == 1:
             return httpx.Response(
-                200,
+                429,
                 json={
-                    "candidates": [{
-                        "content": {"parts": [{"text": "native Gemini result"}]}
-                    }]
+                    "error": {
+                        "status": "RESOURCE_EXHAUSTED",
+                        "details": [{"retryDelay": "7s"}],
+                    }
                 },
                 request=request,
             )
-        compatibility_calls += 1
         return httpx.Response(
-            429,
-            headers={"Retry-After": "0"},
-            json={"error": {"status": "RESOURCE_EXHAUSTED"}},
+            200,
+            json={"choices": [{"message": {"content": "recovered"}}]},
             request=request,
         )
 
@@ -100,52 +103,36 @@ async def test_provider_falls_back_to_native_gemini_immediately_after_compatibil
         provider = OpenAICompatibleProvider(
             api_key="test-key",
             base_url="https://generativelanguage.googleapis.com/v1beta/openai",
-            model="gemini-2.5-flash",
+            model="test-model",
             client=client,
         )
-        result = await provider.complete("system instructions", "write code")
+        result = await provider.complete("system", "user")
 
-    assert result == "native Gemini result"
-    assert compatibility_calls == 1
-    assert native_calls == 1
+    assert result == "recovered"
+    assert calls == 2
+    assert delays == [7.0]
+    assert paths == ["/v1beta/openai/chat/completions"] * 2
 
 
 @pytest.mark.asyncio
-async def test_native_gemini_retries_429_using_google_retry_delay(monkeypatch):
-    compatibility_calls = 0
-    native_calls = 0
+async def test_google_compatible_429_stops_after_bounded_attempts(monkeypatch):
+    calls = 0
     delays = []
 
     async def no_sleep(delay):
         delays.append(delay)
 
     def handler(request):
-        nonlocal compatibility_calls, native_calls
-        if request.url.path.endswith(":generateContent"):
-            native_calls += 1
-            if native_calls == 1:
-                return httpx.Response(
-                    429,
-                    json={
-                        "error": {
-                            "status": "RESOURCE_EXHAUSTED",
-                            "details": [{"retryDelay": "7s"}],
-                        }
-                    },
-                    request=request,
-                )
-            return httpx.Response(
-                200,
-                json={"candidates": [{
-                    "content": {"parts": [{"text": "recovered"}]}
-                }]},
-                request=request,
-            )
-        compatibility_calls += 1
+        nonlocal calls
+        calls += 1
         return httpx.Response(
             429,
-            headers={"Retry-After": "0"},
-            json={"error": {"status": "RESOURCE_EXHAUSTED"}},
+            json={
+                "error": {
+                    "status": "RESOURCE_EXHAUSTED",
+                    "details": [{"retryDelay": "1s"}],
+                }
+            },
             request=request,
         )
 
@@ -154,78 +141,44 @@ async def test_native_gemini_retries_429_using_google_retry_delay(monkeypatch):
         provider = OpenAICompatibleProvider(
             api_key="test-key",
             base_url="https://generativelanguage.googleapis.com/v1beta/openai",
-            model="gemini-3.5-flash-lite",
+            model="test-model",
             client=client,
         )
-        result = await provider.complete("system", "user")
+        with pytest.raises(ModelProviderError, match="HTTP 429"):
+            await provider.complete("system", "user")
 
-    assert result == "recovered"
-    assert compatibility_calls == 1
-    assert native_calls == 2
-    assert delays == [7.0]
+    assert calls == 3
+    assert delays == [1.0, 1.0]
+
+
+def test_provider_requires_explicit_model_and_keeps_compatible_endpoint(monkeypatch):
+    monkeypatch.setattr(
+        "brain.company.llm_provider.get_setting",
+        lambda name, default="": default,
+    )
+    provider = OpenAICompatibleProvider(api_key="test-key")
+    assert provider.base_url == "https://generativelanguage.googleapis.com/v1beta/openai"
+    assert not provider.model
 
 
 @pytest.mark.asyncio
-async def test_native_gemini_stops_after_three_rate_limited_attempts(monkeypatch):
-    native_calls = 0
-
-    async def no_sleep(_delay):
-        return None
-
-    def handler(request):
-        nonlocal native_calls
-        if request.url.path.endswith(":generateContent"):
-            native_calls += 1
-            return httpx.Response(
-                429,
-                json={"error": {"status": "RESOURCE_EXHAUSTED"}},
-                request=request,
-            )
-        return httpx.Response(
-            429,
-            headers={"Retry-After": "0"},
-            json={"error": {"status": "RESOURCE_EXHAUSTED"}},
-            request=request,
-        )
-
-    monkeypatch.setattr("brain.company.llm_provider.asyncio.sleep", no_sleep)
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        provider = OpenAICompatibleProvider(
-            api_key="test-key",
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
-            model="gemini-3.5-flash-lite",
-            client=client,
-        )
-        with pytest.raises(ModelProviderError, match="429"):
-            await provider.complete("system", "user")
-
-    assert native_calls == 2
-
-
-def test_provider_defaults_to_configured_gemini_endpoint(monkeypatch):
-    """A Gemini key works without an additional endpoint/model override."""
+async def test_provider_fails_before_network_call_when_model_missing(monkeypatch):
     monkeypatch.setattr(
         "brain.company.llm_provider.get_setting",
         lambda name, default="": default,
     )
-
-    provider = OpenAICompatibleProvider(api_key="test-key")
-
-    assert provider.base_url == "https://generativelanguage.googleapis.com/v1beta/openai"
-    assert provider.model == "gemini-3.5-flash-lite"
-
-
-def test_provider_normalizes_native_gemini_base_url(monkeypatch):
-    """A native Gemini v1beta setting is adapted to the chat-completions endpoint."""
-    monkeypatch.setattr(
-        "brain.company.llm_provider.get_setting",
-        lambda name, default="": default,
+    provider = OpenAICompatibleProvider(
+        api_key="test-key",
+        base_url="https://example.invalid/v1",
     )
+    with pytest.raises(ProviderConfigurationError, match="BRAIN_AI_MODEL is not configured"):
+        await provider.complete("system", "user")
 
+
+def test_provider_normalizes_gemini_v1beta_to_openai_compatible_path():
     provider = OpenAICompatibleProvider(
         api_key="test-key",
         base_url="https://generativelanguage.googleapis.com/v1beta",
-        model="gemini-3.5-flash-lite",
+        model="test-model",
     )
-
     assert provider.base_url == "https://generativelanguage.googleapis.com/v1beta/openai"
