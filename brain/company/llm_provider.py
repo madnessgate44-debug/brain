@@ -47,7 +47,7 @@ class OpenAICompatibleProvider:
         ):
             configured_base_url += "/openai"
         self.base_url = configured_base_url
-        self.model = model or get_setting("BRAIN_AI_MODEL")
+        self.model = (model or get_setting("BRAIN_AI_MODEL")).strip()
         self.timeout_seconds = timeout_seconds
         self._client = client
 
