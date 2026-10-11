@@ -153,7 +153,7 @@ def main():
         return 1
 
     context_rows = []
-    for label, repetitions in (("~24,000 characters", 533), ("~100,000 characters", 2222)):
+    for label, repetitions in (("~24,000 characters", 511), ("~100,000 characters", 2128)):
         prompt = ("Neutral context text for capacity measurement. " * repetitions)
         prompt += "\nReply with exactly CONTEXT_OK."
         payload = {
