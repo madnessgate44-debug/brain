@@ -707,8 +707,6 @@ jobs:
         with:
           name: brain-build-evidence-${{ github.run_id }}
           path: |
-            /tmp/brain-build-agent.log
-            /tmp/brain-build-agent-*.log
             /tmp/brain-build-diff-stat.txt
             /tmp/brain-checks.log
             /tmp/brain-check-install.log

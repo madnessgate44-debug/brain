@@ -50,6 +50,9 @@ def test_cross_repository_agent_uses_a_separate_workspace_and_is_pinned():
     assert '2>&1 | tee "$final_log"' not in workflow
     assert ' > "$final_log" 2>&1' in workflow
     assert "raw agent/provider output is suppressed from workflow logs" in workflow
+    artifact_section = workflow.split("Upload sanitized mission evidence", 1)[1]
+    assert "/tmp/brain-build-agent.log" not in artifact_section
+    assert "/tmp/brain-build-agent-*.log" not in artifact_section
 
 
 def test_secret_scan_handles_deleted_renamed_and_space_containing_paths():
