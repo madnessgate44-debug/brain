@@ -349,11 +349,33 @@ jobs:
           Path("/tmp/brain-build-docker.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
           PY
           set +e
-          /tmp/brain-agent-venv/bin/mini --config /tmp/brain-build-docker.yaml -t "$(cat /tmp/brain-build-task.txt)" -y 2>&1 | tee /tmp/brain-build-agent.log
-          agent_status=${PIPESTATUS[0]}
+          agent_status=1
+          final_log=""
+          for attempt in 1 2; do
+            final_log="/tmp/brain-build-agent-${attempt}.log"
+            /tmp/brain-agent-venv/bin/mini --config /tmp/brain-build-docker.yaml -t "$(cat /tmp/brain-build-task.txt)" -y 2>&1 | tee "$final_log"
+            agent_status=${PIPESTATUS[0]}
+            if [ "$agent_status" -eq 0 ]; then break; fi
+            if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|retryDelay' "$final_log" && [ "$attempt" -lt 2 ]; then
+              retry_seconds="$(python - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("$final_log").read_text(encoding="utf-8", errors="replace")
+          match = re.search(r"retryDelay[^0-9]{0,30}([0-9]+(?:\\.[0-9]+)?)s", text, re.I)
+          print(min(120, max(5, int(float(match.group(1)) + 0.999))) if match else 65)
+          PY
+              )"
+              retry_seconds=$((retry_seconds + 5))
+              echo "::warning::Provider rate limit detected; honoring the reported retryDelay with a bounded wait of ${retry_seconds}s before one final attempt."
+              sleep "$retry_seconds"
+            else
+              break
+            fi
+          done
           set -e
+          cp "$final_log" /tmp/brain-build-agent.log
           echo "agent_status=$agent_status" >> "$GITHUB_OUTPUT"
-          if [ "$agent_status" -ne 0 ]; then echo "::error::Coding agent failed; no PR will be opened."; exit "$agent_status"; fi
+          if [ "$agent_status" -ne 0 ]; then echo "::error::Coding agent failed after bounded attempts; no PR will be opened."; exit "$agent_status"; fi
           git status --short
           git diff --check
           if [ "$MISSION_COMMAND" = "audit" ] && [ -n "$(git status --porcelain)" ]; then
@@ -554,6 +576,7 @@ jobs:
           name: brain-build-evidence-${{ github.run_id }}
           path: |
             /tmp/brain-build-agent.log
+            /tmp/brain-build-agent-*.log
             /tmp/brain-build-diff-stat.txt
             /tmp/brain-checks.log
             /tmp/brain-check-install.log
