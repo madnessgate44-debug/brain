@@ -86,13 +86,31 @@ jobs:
               "message": "Reply with exactly AGENT_ZERO_SMOKE_OK. Do not call tools."
           }), encoding="utf-8")
           PY
-          status="$(curl --http1.1 --noproxy '*' -sS --max-time 1200 -o /tmp/a0-response.json -w '%{http_code}' \
-            -H "X-API-KEY: $API_TOKEN" \
-            -H 'Content-Type: application/json' \
-            --data-binary @/tmp/a0-request.json \
-            http://127.0.0.1:5080/api_message || true)"
-          if [ "$status" != "200" ]; then
-            echo "::error::Agent Zero API returned HTTP ${status:-unknown}."
+          set +e
+          docker exec -i -e A0_API_TOKEN="$API_TOKEN" agent-zero-smoke python -c '
+          import json, os, sys, urllib.request, urllib.error
+          body = sys.stdin.buffer.read()
+          request = urllib.request.Request(
+              "http://127.0.0.1:80/api/api_message",
+              data=body,
+              headers={"X-API-KEY": os.environ["A0_API_TOKEN"], "Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=1200) as response:
+                  payload = response.read()
+                  status = response.status
+          except urllib.error.HTTPError as error:
+              payload = error.read()
+              status = error.code
+          open("/tmp/a0-response.json", "wb").write(payload)
+          print(status)
+          ' < /tmp/a0-request.json > /tmp/a0-http-status.txt
+          EXEC_STATUS=$?
+          set -e
+          status="$(cat /tmp/a0-http-status.txt 2>/dev/null || true)"
+          if [ "$EXEC_STATUS" -ne 0 ] || [ "$status" != "200" ]; then
+            echo "::error::Agent Zero API returned HTTP ${status:-unknown} (request execution status $EXEC_STATUS)."
             echo "API error response (first 2000 characters):"
             head -c 2000 /tmp/a0-response.json || true
             echo
