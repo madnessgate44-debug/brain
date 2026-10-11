@@ -81,3 +81,23 @@ Do not merge or deploy the mission PR.
     assert "repository:write" in plan.required_capabilities
     assert "checks:run" in plan.required_capabilities
     assert "pull_request:create" in plan.required_capabilities
+
+
+def test_adding_a_regression_test_is_classified_as_mutating():
+    plan = plan_capabilities(
+        "Add one focused regression test in tests/test_openhands_developer.py."
+    )
+    assert plan.mode == "mutating"
+    assert "repository:write" in plan.required_capabilities
+    assert "checks:run" in plan.required_capabilities
+    assert "pull_request:create" in plan.required_capabilities
+
+
+def test_read_only_audit_of_tests_does_not_become_mutating():
+    plan = plan_capabilities("Audit the existing tests and report coverage gaps.")
+    assert plan.mode == "read_only"
+
+
+def test_negated_test_creation_does_not_become_mutating():
+    plan = plan_capabilities("Audit the repository. Do not add a regression test or change files.")
+    assert plan.mode == "read_only"
