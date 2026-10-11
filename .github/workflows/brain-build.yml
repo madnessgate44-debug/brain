@@ -595,7 +595,9 @@ jobs:
           if [ "$result" -ne 0 ]; then exit "$result"; fi
 
       - name: Capture isolated mobile and desktop previews for static HTML
-        if: needs.prepare.outputs.command != 'audit' && hashFiles('**/*.html') != ''
+        id: preview
+        if: needs.prepare.outputs.command != 'audit' && hashFiles('*.html') != ''
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -648,6 +650,7 @@ jobs:
           ISSUE_NUMBER: ${{ needs.prepare.outputs.issue_number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           CHECK_TYPE: ${{ steps.checks.outputs.check_type }}
+          PREVIEW_OUTCOME: ${{ steps.preview.outcome }}
         run: |
           set +x
           set -euo pipefail
@@ -681,6 +684,7 @@ jobs:
           git add -A
           files_changed="$(git diff --cached --name-only -z | python -c 'import json,sys; p=[x.decode("utf-8","replace") for x in sys.stdin.buffer.read().split(b"\0") if x]; print(json.dumps(p[:8], ensure_ascii=True))')"
           warnings="$( { grep '^WARN:' /tmp/brain-checks.log 2>/dev/null || true; cat /tmp/brain-agent-warnings.log 2>/dev/null || true; } | head -4 | paste -sd';' -)"
+          if [ "$PREVIEW_OUTCOME" = "failure" ]; then warnings="${warnings:+$warnings; }preview capture failed"; fi
           screenshots="none"
           if [ -f .brain/preview/mobile-390x844.png ] && [ -f .brain/preview/desktop-1280x800.png ]; then screenshots=".brain/preview/mobile-390x844.png, .brain/preview/desktop-1280x800.png"; fi
           git -c core.hooksPath=/dev/null commit --no-verify -m "Brain ${COMMAND}: automated candidate"

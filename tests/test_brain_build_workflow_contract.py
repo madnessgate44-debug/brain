@@ -152,6 +152,11 @@ def test_provider_rate_limit_and_preview_evidence_are_bounded():
     assert "retryDelay" in workflow
     assert 'MSWEA_GLOBAL_CALL_LIMIT: "14"' in workflow
     assert "Capture isolated mobile and desktop previews for static HTML" in workflow
+    assert "id: preview" in workflow
+    assert "continue-on-error: true" in workflow
+    assert "hashFiles('*.html') != ''" in workflow
+    assert 'PREVIEW_OUTCOME: ${{ steps.preview.outcome }}' in workflow
+    assert 'preview capture failed' in workflow
     assert "mobile-390x844.png" in workflow
     assert "desktop-1280x800.png" in workflow
     assert "route.abort()" in workflow
