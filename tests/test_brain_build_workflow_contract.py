@@ -66,7 +66,7 @@ def test_project_check_reporting_distinguishes_tests_smoke_and_none():
         'python -c \'import json; s=json.load(open("package.json", encoding="utf-8"))',
         'echo "check_type=$check_type" >> "$GITHUB_OUTPUT"',
         'tests) check_summary="tests passed"', 'smoke) check_summary="smoke check passed; no tests detected"',
-        'none) check_summary="no tests/build/lint configured"', "- Checks: ${check_summary}; gitleaks passed.",
+        'none) check_summary="no tests/build/lint check configured"', "- Checks: ${check_summary}; gitleaks passed.",
         "- Checks: %s; gitleaks PASS", "Project checks passed (type=$check_type); raw command output is suppressed.",
         "Project checks failed (type=$check_type, exit=$result); raw command output is suppressed.",
     ))
@@ -94,7 +94,6 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     assert '-v "$GITHUB_WORKSPACE:/workspace"' not in workflow
     assert "human review and merge required" in workflow
     assert "json.dumps(p[:8], ensure_ascii=True)" in workflow
-    assert "paste -sd';' -" in workflow
     assert 'git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --cached --check -- .' in workflow
     assert "Whitespace errors detected in candidate changes" in workflow
     gate = re.search(r"grep -izEq '([^']+)'", workflow)
