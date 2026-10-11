@@ -282,7 +282,8 @@ jobs:
             else
               gh issue comment "${ISSUE_NUMBER}" --body "The agent step completed but produced no repository changes. No repair is claimed. Review the run logs: ${RUN_URL}" 2>/dev/null || true
             fi
-            exit 0
+            echo "::error::No repository changes were produced; the requested repair was not completed."
+            exit 1
           fi
 
           git config user.name "github-actions[bot]"
@@ -300,4 +301,6 @@ jobs:
             if [ -n "${ISSUE_NUMBER:-}" ]; then
               gh issue comment "${ISSUE_NUMBER}" --body "The independent coding agent attempted repairs but did not achieve a passing test run after 3 attempts. Changes were pushed to `$BRANCH` for inspection; no PR was opened. Logs: ${RUN_URL}" 2>/dev/null || true
             fi
+            echo "::error::Agent changes were not accepted because the final test run did not pass; no repair PR was opened."
+            exit 1
           fi
