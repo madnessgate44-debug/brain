@@ -30,7 +30,7 @@ def test_cross_repository_build_workflow_enforces_owner_and_single_explicit_toke
 def test_cross_repository_agent_is_pinned_and_sandboxed_without_github_token():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "mini-swe-agent==1.17.5" in workflow
-    assert "environment_class: \"docker\"" in workflow
+    assert '"environment_class": "docker"' in workflow
     assert "brain-build-sandbox:local" in workflow
     assert "GH_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}" in workflow
     agent_step = workflow.split("- name: Run bounded coding agent without GitHub credentials in sandbox", 1)[1].split("- name: Run project-aware checks", 1)[0]
