@@ -87,6 +87,7 @@ jobs:
               "message": "Reply with exactly AGENT_ZERO_SMOKE_OK. Do not call tools."
           }), encoding="utf-8")
           PY
+          echo "Submitting the authenticated smoke request without Docker stdin piping."
           set +e
           docker exec agent-zero-smoke python -c '
           import json, sys, urllib.request, urllib.error
