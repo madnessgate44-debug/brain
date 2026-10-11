@@ -246,6 +246,9 @@ class MissionRuntime:
                             }),
                         )
                         if result.get("status") != "succeeded":
+                            # Preserve the worker report/event before the outer failure handler opens
+                            # a separate session to mark the mission FAILED and persist diagnostics.
+                            await session.commit()
                             raise RuntimeError(
                                 f"Browser worker did not complete all actions; report artifact: {report_name}"
                             )
