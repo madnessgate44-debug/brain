@@ -71,12 +71,23 @@ jobs:
       target: ${{ needs.prepare.outputs.repository }}
       branch: ${{ needs.prepare.outputs.branch }}
     steps:
+      - name: Require the configured target-repository credential
+        shell: bash
+        env:
+          TARGET_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}
+        run: |
+          set +x
+          if [ -z "${TARGET_TOKEN:-}" ]; then
+            echo "::error::BRAIN_GITHUB_TOKEN is required for target-repository checkout. No fallback credential is used."
+            exit 1
+          fi
+
       - name: Check out target repository without persisted credentials
         uses: actions/checkout@v4
         with:
           repository: ${{ needs.prepare.outputs.repository }}
           ref: ${{ needs.prepare.outputs.branch || '' }}
-          token: ${{ secrets.BRAIN_GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.BRAIN_GITHUB_TOKEN }}
           persist-credentials: false
       - name: Detect supported project type
         id: detect

@@ -9,7 +9,7 @@ import asyncio
 import os
 import re
 from typing import Any
-from urllib.parse import quote, urlparse
+from urllib.parse import urlparse
 
 import httpx
 
@@ -47,7 +47,7 @@ class OpenAICompatibleProvider:
         ):
             configured_base_url += "/openai"
         self.base_url = configured_base_url
-        self.model = model or get_setting("BRAIN_AI_MODEL", "gemini-3.5-flash-lite")
+        self.model = (model or get_setting("BRAIN_AI_MODEL")).strip()
         self.timeout_seconds = timeout_seconds
         self._client = client
 
@@ -115,68 +115,6 @@ class OpenAICompatibleProvider:
                     break
         return "; ".join(parts[:5])
 
-    async def _complete_google_native(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        client: httpx.AsyncClient,
-    ) -> str:
-        """Fallback to Google's native generateContent endpoint after compat 429."""
-        parsed = urlparse(self.base_url)
-        if parsed.hostname != "generativelanguage.googleapis.com" or not parsed.path.endswith("/openai"):
-            raise ModelProviderError("Native Gemini fallback is not available for this provider endpoint.")
-        native_base = self.base_url[: -len("/openai")]
-        url = f"{native_base}/models/{quote(self.model, safe='-._')}:generateContent"
-        response = None
-        for attempt in range(3):
-            try:
-                response = await client.post(
-                    url,
-                    headers={
-                        "x-goog-api-key": self.api_key,
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                    },
-                    json={
-                        "systemInstruction": {"parts": [{"text": system_prompt}]},
-                        "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-                        "generationConfig": {"temperature": 0.1},
-                    },
-                )
-            except httpx.TransportError:
-                if attempt == 2:
-                    raise
-                await asyncio.sleep(float(2 ** attempt))
-                continue
-
-            if response.status_code == 429:
-                if attempt == 0:
-                    delay = self._google_retry_delay(response, fallback=2.0)
-                    await asyncio.sleep(delay)
-                    continue
-                response.raise_for_status()
-            if response.status_code in {500, 502, 503, 504} and attempt < 2:
-                delay = self._google_retry_delay(response, fallback=float(2 ** (attempt + 1)))
-                await asyncio.sleep(delay)
-                continue
-            response.raise_for_status()
-            break
-
-        if response is None:
-            raise ModelProviderError("Native Gemini request failed without a response.")
-        data = response.json()
-        candidates = data.get("candidates", [])
-        candidate = candidates[0] if isinstance(candidates, list) and candidates else {}
-        candidate_content = candidate.get("content", {}) if isinstance(candidate, dict) else {}
-        parts = candidate_content.get("parts", []) if isinstance(candidate_content, dict) else []
-        text_parts = [
-            part["text"] for part in parts
-            if isinstance(part, dict) and isinstance(part.get("text"), str)
-        ] if isinstance(parts, list) else []
-        if not text_parts:
-            raise ModelProviderError("Native Gemini fallback returned no text completion.")
-        return "\n".join(text_parts).strip()
-
     async def complete(self, system_prompt: str, user_prompt: str) -> str:
         """Return the assistant's textual completion or fail explicitly."""
         if not self.api_key:
@@ -221,11 +159,6 @@ class OpenAICompatibleProvider:
                     urlparse(self.base_url).hostname == "generativelanguage.googleapis.com"
                     and urlparse(self.base_url).path.endswith("/openai")
                 )
-                # A Google 429 commonly indicates project/model quota exhaustion.
-                # Switch once to the native endpoint instead of spending two more
-                # compatibility requests on the same exhausted quota.
-                if response.status_code == 429 and is_google_compat:
-                    return await self._complete_google_native(system_prompt, user_prompt, client)
                 if response.status_code in {500, 502, 503, 504} and attempt < 2:
                     retry_after = response.headers.get("Retry-After", "")
                     try:
@@ -235,11 +168,14 @@ class OpenAICompatibleProvider:
                     await asyncio.sleep(delay)
                     continue
                 if response.status_code == 429 and attempt < 2:
-                    retry_after = response.headers.get("Retry-After", "")
-                    try:
-                        delay = min(5.0, max(0.0, float(retry_after)))
-                    except ValueError:
-                        delay = float(2 ** attempt)
+                    if is_google_compat:
+                        delay = self._google_retry_delay(response, fallback=float(2 ** (attempt + 1)))
+                    else:
+                        retry_after = response.headers.get("Retry-After", "")
+                        try:
+                            delay = min(60.0, max(0.0, float(retry_after)))
+                        except ValueError:
+                            delay = float(2 ** attempt)
                     await asyncio.sleep(delay)
                     continue
                 response.raise_for_status()

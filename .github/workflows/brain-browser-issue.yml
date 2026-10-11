@@ -63,9 +63,10 @@ jobs:
               : '## Brain browser task: FAILED\n\nThe worker did not produce a result report. Check the workflow logs.';
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const outcome = process.env.BROWSER_EXIT || 'unknown';
+            const publicReport = report.slice(0, 3000);
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: report + `\n\n**Workflow:** ${outcome}\n**Evidence:** ${runUrl}`
+              body: publicReport + `\n\n**Workflow:** ${outcome}\n**Evidence:** ${runUrl}`
             });

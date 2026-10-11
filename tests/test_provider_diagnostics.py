@@ -1,5 +1,7 @@
 """Sanitized provider-error diagnostics tests."""
 
+from pathlib import Path
+
 import httpx
 import pytest
 
@@ -7,7 +9,7 @@ from brain.company.llm_provider import ModelProviderError, OpenAICompatibleProvi
 
 
 @pytest.mark.asyncio
-async def test_gemini_429_reports_safe_quota_identifiers_without_raw_error_text(monkeypatch):
+async def test_compatible_429_reports_safe_quota_identifiers_without_raw_error_text(monkeypatch):
     async def no_sleep(_delay):
         return None
 
@@ -30,21 +32,15 @@ async def test_gemini_429_reports_safe_quota_identifiers_without_raw_error_text(
     }
 
     def handler(request):
-        if request.url.path.endswith(":generateContent"):
-            return httpx.Response(429, json=error_body, request=request)
-        return httpx.Response(
-            429,
-            headers={"Retry-After": "0"},
-            json={"error": {"status": "RESOURCE_EXHAUSTED"}},
-            request=request,
-        )
+        assert request.url.path.endswith("/chat/completions")
+        return httpx.Response(429, json=error_body, request=request)
 
     monkeypatch.setattr("brain.company.llm_provider.asyncio.sleep", no_sleep)
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         provider = OpenAICompatibleProvider(
             api_key="test-key",
             base_url="https://generativelanguage.googleapis.com/v1beta/openai",
-            model="gemini-3.5-flash-lite",
+            model="test-model",
             client=client,
         )
         with pytest.raises(ModelProviderError) as error:
@@ -56,3 +52,19 @@ async def test_gemini_429_reports_safe_quota_identifiers_without_raw_error_text(
     assert "quota_metric=generativelanguage.googleapis.com/generate_content_free_tier_requests" in message
     assert "quota_id=GenerateRequestsPerMinutePerProjectPerModel" in message
     assert "private provider message" not in message
+
+
+def test_ai_provider_secret_check_uses_the_production_compatible_endpoint():
+    workflow = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "ai-provider-secret-check.yml"
+    ).read_text(encoding="utf-8")
+    assert "vars.BRAIN_AI_MODEL" in workflow
+    assert "secrets.BRAIN_AI_BASE_URL" in workflow
+    assert "/chat/completions" in workflow
+    assert '"Authorization": "Bearer " + api_key' in workflow
+    assert "generateContent" not in workflow
+    assert "x-goog-api-key" not in workflow
+    assert "types: [opened, edited]" not in workflow
