@@ -190,7 +190,8 @@ jobs:
         run: |
           set +x
           set -euo pipefail
-          test "$(git remote get-url origin | sed -E 's#.*github.com[:/]([^/]+/[^/.]+)(\.git)?$#\1#')" = "$TARGET_REPOSITORY" || { echo "::error::Checked-out remote does not match validated target."; exit 1; }
+          canonical_target="$(gh api "repos/$TARGET_REPOSITORY" --jq .full_name)"
+          [ "${canonical_target,,}" = "${TARGET_REPOSITORY,,}" ] || { echo "::error::GitHub canonical target does not match the validated target."; exit 1; }
           base_sha="$(git rev-parse HEAD)"
           default_branch="$(gh api "repos/$TARGET_REPOSITORY" --jq .default_branch)"
           [ -n "$default_branch" ] || { echo "::error::Target default branch could not be resolved."; exit 1; }
