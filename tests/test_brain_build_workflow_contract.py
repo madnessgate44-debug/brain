@@ -59,6 +59,8 @@ def test_secret_scan_handles_deleted_renamed_and_space_containing_paths():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(x in workflow for x in ('"--name-only", "--no-renames", "-z", "HEAD"', '["git", "show", f"HEAD:{name}"]', "target.write_bytes(blob.stdout)", "Prepared changed-file scan input, including base contents for deleted paths", "zricethezav/gitleaks:v8.24.2", "--redact --exit-code 1"))
     assert "tar --null -T -" not in workflow
+
+
 def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(x in workflow for x in (
@@ -74,9 +76,13 @@ def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     assert 'if [ "$check_type" = "none" ]; then' in workflow and "raw command output is suppressed" in workflow
     artifacts = workflow.split("Upload sanitized mission evidence", 1)[1]
     assert all(x not in artifacts for x in ("/tmp/brain-checks.log", "/tmp/brain-check-install.log"))
+
+
 def test_workflow_reports_failures_without_secrets_or_provider_bodies():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(x in workflow for x in ("report_failure:", "always()", "needs.prepare.result == 'failure' || needs.mission.result == 'failure'", "failed_step: ${{ steps.mission_lock.outcome", "FAILED_STEP: ${{ needs.mission.outputs.failed_step }}", "permissions:\n      issues: write", "Workflow run: ${process.env.RUN_URL}", "This report intentionally excludes secrets and provider response bodies.")) and r"].join('\n');" in workflow
+
+
 def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(x in workflow for x in (
@@ -102,6 +108,8 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     protected_examples = (".github/workflows/release.yml", ".github/actions/build/action.yml", ".env.production", "service/.npmrc", "CODEOWNERS", "Dockerfile.dev", "docker-compose.prod.yaml", "infra/main.tf", "deploy/helm/values.yaml", "secrets/provider-key.json", "certs/service.pem")
     allowed_examples = ("src/brain/main.py", "README.md", "tests/test_brain_build_workflow_contract.py")
     assert all(protected.search(x) for x in protected_examples) and all(not protected.search(x) for x in allowed_examples)
+
+
 def test_empty_target_initialization_and_shared_queue_are_explicit():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "Initialize an empty target repository through the Contents API" in workflow
@@ -132,6 +140,7 @@ def test_provider_rate_limit_and_preview_evidence_are_bounded():
         "desktop-1280x800.png", "route.abort()", "id: preview", "continue-on-error: true",
         "hashFiles('*.html') != ''", 'PREVIEW_OUTCOME: ${{ steps.preview.outcome }}', "preview capture failed",
     ))
+
 
 def test_legacy_remote_test_runner_no_longer_falls_back_to_control_token():
     workflow = (ROOT / ".github" / "workflows" / "brain-task-runner.yml").read_text(encoding="utf-8")
