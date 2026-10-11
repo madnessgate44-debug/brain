@@ -373,6 +373,17 @@ class SpecialistAgentRunner:
             ensure_ascii=False,
             default=str,
         )
+        if role_key == "developer" and isinstance(self.provider, OpenAICompatibleProvider):
+            # Keep Brain's specialist workflow and release gates, but delegate actual file
+            # editing to the upstream OpenHands SDK. Tests still use injected fake providers.
+            from brain.company.openhands_developer import run_openhands_developer
+
+            sdk_result = await run_openhands_developer(user_request, prompt_evidence, self.provider)
+            result = _validate_specialist_output(json.dumps(sdk_result), role)
+            result["role"] = role.key
+            result["role_title"] = role.title
+            return result
+
         raw = await self.provider.complete(system_prompt, user_prompt)
         try:
             result = _validate_specialist_output(raw, role)
