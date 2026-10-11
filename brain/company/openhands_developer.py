@@ -43,9 +43,13 @@ def _safe_relative_path(raw_path: str) -> str:
 def _safe_request_paths(user_request: str) -> set[str]:
     """Keep only safe explicit path hints; unsafe examples in prose are not output paths."""
     safe_paths: set[str] = set()
-    for candidate in _PATH_PATTERN.findall(user_request):
+    for match in _PATH_PATTERN.finditer(user_request):
+        # The pattern can begin after the leading slash in an absolute path. Do not
+        # normalize that suffix into a seemingly safe relative output path.
+        if match.start() > 0 and user_request[match.start() - 1] in {"/", "\\\\"}:
+            continue
         try:
-            safe_paths.add(_safe_relative_path(candidate))
+            safe_paths.add(_safe_relative_path(match.group(0)))
         except AgentOutputError:
             continue
     return safe_paths
