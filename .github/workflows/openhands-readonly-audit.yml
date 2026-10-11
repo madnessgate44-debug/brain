@@ -2,6 +2,10 @@ name: OpenHands Read-only Brain Audit
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/openhands-readonly-audit.yml"
 
 permissions:
   contents: read
@@ -22,6 +26,7 @@ jobs:
         env:
           OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
           REPOSITORY: ${{ github.repository }}
+          BRANCH: main
         run: |
           set -euo pipefail
           if [ -z "${OPENHANDS_API_KEY:-}" ]; then
@@ -29,23 +34,17 @@ jobs:
             exit 1
           fi
 
-          cat > /tmp/openhands-payload.json <<'JSON'
-          {
-            "initial_message": {
-              "content": [{
-                "type": "text",
-                "text": "Perform a thorough READ-ONLY audit of this repository as a software system called Brain. Do not edit, create, delete, commit, push, merge, deploy, open pull requests, create issues, or change settings. Inspect the repository structure, workflows, tests, mission/task execution path, agent orchestration, GitHub permissions/integration, and existing end-to-end tests. Run safe read-only inspection and tests only if supported without modifying tracked files or external state. Identify concrete blockers preventing a complete end-to-end company mission. For every finding, cite exact file paths and line numbers or test/log evidence, explain impact, and provide a prioritized repair plan with acceptance criteria. Clearly separate verified findings, hypotheses, and checks you could not run. Finish with a concise audit report in this OpenHands conversation only. Do not implement fixes."
-              }]
-            },
-            "selected_repository": "madnessgate44-debug/brain"
-          }
-          JSON
+          jq -n --arg repository "$REPOSITORY" --arg branch "$BRANCH" '{
+            initial_message: {
+              content: [{
+                type: "text",
+                text: "Perform a thorough READ-ONLY audit of Brain at the selected repository and branch. Do not edit, create, delete, commit, push, merge, deploy, open pull requests, create issues, or change settings. First verify that the workspace contains the selected repository and branch. If the repository is not actually connected or source files cannot be read, stop and report that as a blocker rather than pretending the audit ran. Inspect repository structure, workflows, tests, mission/task execution, agent orchestration, GitHub permissions/integration, and existing end-to-end tests. Run safe read-only inspection and tests only if supported without modifying tracked files or external state. Identify concrete blockers preventing a complete end-to-end company mission. For every finding, cite exact file paths and line numbers or test/log evidence, explain impact, and provide a prioritized repair plan with acceptance criteria. Clearly separate verified findings, hypotheses, and checks you could not run. Finish with a concise report in this conversation, beginning with BRAIN_AUDIT_REPORT_BEGIN and ending with BRAIN_AUDIT_REPORT_END. Do not implement fixes."
+            }],
+            selected_repository: $repository,
+            selected_branch: $branch
+          }' > /tmp/openhands-payload.json
 
-          response="$(curl --silent --show-error --fail-with-body \
-            --request POST "https://app.all-hands.dev/api/v1/app-conversations" \
-            --header "Authorization: Bearer ${OPENHANDS_API_KEY}" \
-            --header "Content-Type: application/json" \
-            --data @/tmp/openhands-payload.json)"
+          response="$(curl --silent --show-error --fail-with-body --retry 3             --request POST "https://app.all-hands.dev/api/v1/app-conversations"             --header "Authorization: Bearer ${OPENHANDS_API_KEY}"             --header "Content-Type: application/json"             --data @/tmp/openhands-payload.json)"
 
           task_id="$(printf '%s' "$response" | jq -r '.id // empty')"
           conversation_id="$(printf '%s' "$response" | jq -r '.app_conversation_id // empty')"
@@ -56,13 +55,9 @@ jobs:
             exit 1
           fi
 
-          # Wait for the Cloud API to provision the conversation. Do not print credentials.
           for attempt in $(seq 1 40); do
             if [ -z "$conversation_id" ] || [ "$status" != "READY" ]; then
-              poll="$(curl --silent --show-error --fail-with-body \
-                --get "https://app.all-hands.dev/api/v1/app-conversations/start-tasks" \
-                --header "Authorization: Bearer ${OPENHANDS_API_KEY}" \
-                --data-urlencode "ids=$task_id")"
+              poll="$(curl --silent --show-error --fail-with-body --retry 3                 --get "https://app.all-hands.dev/api/v1/app-conversations/start-tasks"                 --header "Authorization: Bearer ${OPENHANDS_API_KEY}"                 --data-urlencode "ids=$task_id")"
               status="$(printf '%s' "$poll" | jq -r 'if type == "array" then (.[0].status // "UNKNOWN") else (.status // "UNKNOWN") end')"
               conversation_id="$(printf '%s' "$poll" | jq -r 'if type == "array" then (.[0].app_conversation_id // empty) else (.app_conversation_id // empty) end')"
             fi
@@ -82,21 +77,143 @@ jobs:
             exit 1
           fi
 
-          url="https://app.all-hands.dev/conversations/$conversation_id"
           echo "conversation_id=$conversation_id" >> "$GITHUB_OUTPUT"
-          echo "conversation_url=$url" >> "$GITHUB_OUTPUT"
-          echo "OpenHands audit conversation is ready: $url"
+          echo "conversation_url=https://app.all-hands.dev/conversations/$conversation_id" >> "$GITHUB_OUTPUT"
+          echo "OpenHands conversation ready: $conversation_id"
 
-      - name: Publish audit link in workflow summary
+      - name: Verify repository connection and wait for audit completion
+        id: monitor
+        shell: bash
+        env:
+          OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+          CONVERSATION_ID: ${{ steps.start.outputs.conversation_id }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: main
+        run: |
+          set -euo pipefail
+          if [ -z "${CONVERSATION_ID:-}" ]; then
+            echo "::error::No OpenHands conversation ID was returned."
+            exit 1
+          fi
+          headers=(-H "Authorization: Bearer ${OPENHANDS_API_KEY}" -H "Accept: application/json")
+          terminal=""
+          for attempt in $(seq 1 120); do
+            response="$(curl --silent --show-error --fail-with-body --retry 3 \
+              --get "https://app.all-hands.dev/api/v1/app-conversations" \
+              "${headers[@]}" --data-urlencode "ids=$CONVERSATION_ID")"
+            printf '%s' "$response" > /tmp/openhands-conversation.json
+            cp /tmp/openhands-conversation.json openhands-conversation.json
+            repository="$(printf '%s' "$response" | jq -r 'if type == "array" then (.[0].selected_repository // "") else (.selected_repository // "") end')"
+            branch="$(printf '%s' "$response" | jq -r 'if type == "array" then (.[0].selected_branch // "") else (.selected_branch // "") end')"
+            sandbox="$(printf '%s' "$response" | jq -r 'if type == "array" then (.[0].sandbox_status // "") else (.sandbox_status // "") end')"
+            execution="$(printf '%s' "$response" | jq -r 'if type == "array" then (.[0].execution_status // "") else (.execution_status // "") end')"
+
+            echo "OpenHands check $attempt: repository='$repository' branch='$branch' sandbox='$sandbox' execution='$execution'"
+
+            if [ -n "$repository" ] && [ "$repository" != "$REPOSITORY" ]; then
+              echo "::error::OpenHands attached the wrong repository: $repository"
+              exit 1
+            fi
+            if [ "$sandbox" = "ERROR" ] || [ "$sandbox" = "MISSING" ]; then
+              echo "::error::OpenHands sandbox failed: $sandbox"
+              exit 1
+            fi
+            if [ "$execution" = "error" ] || [ "$execution" = "stuck" ]; then
+              echo "::error::OpenHands audit terminated with execution_status=$execution"
+              exit 1
+            fi
+            if [ "$execution" = "waiting_for_confirmation" ]; then
+              echo "::error::OpenHands audit is blocked waiting for confirmation. Open the conversation URL in the workflow summary."
+              exit 1
+            fi
+            if [ "$execution" = "finished" ]; then
+              if [ "$repository" != "$REPOSITORY" ]; then
+                echo "::error::Audit finished without verified repository connection. Expected '$REPOSITORY', got '$repository'."
+                exit 1
+              fi
+              if [ "$branch" != "$BRANCH" ]; then
+                echo "::error::Audit finished without verified branch connection. Expected '$BRANCH', got '$branch'."
+                exit 1
+              fi
+              terminal="finished"
+              break
+            fi
+            sleep 30
+          done
+
+          if [ "$terminal" != "finished" ]; then
+            echo "::error::Timed out waiting for OpenHands audit completion."
+            exit 1
+          fi
+
+          events="$(curl --silent --show-error --fail-with-body --retry 3 \
+            --get "https://app.all-hands.dev/api/v1/conversation/$CONVERSATION_ID/events/search" \
+            "${headers[@]}" --data-urlencode "limit=200")"
+          printf '%s' "$events" > /tmp/openhands-events.json
+          cp /tmp/openhands-events.json openhands-events.json
+          python3 - <<'PY'
+          import json, os, sys
+          with open("/tmp/openhands-events.json", encoding="utf-8") as f:
+              data = json.load(f)
+          items = data.get("items", []) if isinstance(data, dict) else []
+          messages = []
+          for event in items:
+              if event.get("kind") != "MessageEvent" or event.get("source") not in ("assistant", "agent"):
+                  continue
+              value = event.get("message", event.get("content", ""))
+              if isinstance(value, list):
+                  value = "\n".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in value)
+              elif isinstance(value, dict):
+                  value = value.get("content", value.get("text", json.dumps(value, ensure_ascii=False)))
+              if value:
+                  messages.append(str(value))
+          report = ""
+          for message in reversed(messages):
+              if "BRAIN_AUDIT_REPORT_BEGIN" in message and "BRAIN_AUDIT_REPORT_END" in message:
+                  report = message.split("BRAIN_AUDIT_REPORT_BEGIN", 1)[1].split("BRAIN_AUDIT_REPORT_END", 1)[0].strip()
+                  break
+          if not report:
+              print("::error::OpenHands finished but no marked final audit report was found in conversation events.", file=sys.stderr)
+              print(f"Message events captured: {len(messages)}; total events: {len(items)}", file=sys.stderr)
+              sys.exit(1)
+          with open("openhands-audit-report.md", "w", encoding="utf-8") as f:
+              f.write("# OpenHands Brain Audit\n\n")
+              f.write(report + "\n")
+          print(f"Audit report extracted. Message events: {len(messages)}; total events: {len(items)}")
+          PY
+          echo "report_path=openhands-audit-report.md" >> "$GITHUB_OUTPUT"
+
+      - name: Publish audit report and evidence
         if: always() && steps.start.outputs.conversation_url != ''
+        shell: bash
         env:
           CONVERSATION_URL: ${{ steps.start.outputs.conversation_url }}
           CONVERSATION_ID: ${{ steps.start.outputs.conversation_id }}
+          JOB_STATUS: ${{ job.status }}
         run: |
           {
             echo "## OpenHands Read-only Brain Audit"
             echo
             echo "- Conversation: [$CONVERSATION_ID]($CONVERSATION_URL)"
-            echo "- Scope: read-only inspection; no code changes or GitHub mutations requested."
-            echo "- Note: this workflow confirms conversation startup, not completion of the audit."
+            echo "- Requested repository/branch: `madnessgate44-debug/brain` / `main`"
+            echo "- Job status: $JOB_STATUS"
+            if [ -f openhands-audit-report.md ]; then
+              echo
+              cat openhands-audit-report.md
+            else
+              echo
+              echo "Audit report was not verified. Inspect the failing step logs and conversation."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit evidence
+        if: always() && steps.start.outputs.conversation_id != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: openhands-brain-audit-evidence
+          path: |
+            openhands-audit-report.md
+            openhands-conversation.json
+            openhands-events.json
+          if-no-files-found: ignore
+          retention-days: 14
