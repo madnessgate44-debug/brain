@@ -306,12 +306,12 @@ jobs:
             docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
               set -e
               if [ -f package-lock.json ]; then npm ci; else npm install; fi
-              if node -e "process.exit(require("./package.json").scripts?.test ? 0 : 1)"; then
+              if grep -Eq '"test"[[:space:]]*:' package.json; then
                 npm test -- --run
-              elif node -e "process.exit(require("./package.json").scripts?.build ? 0 : 1)"; then
+              elif grep -Eq '"build"[[:space:]]*:' package.json; then
                 npm run build
                 echo "WARN: no test script found; build used as smoke check."
-              elif node -e "process.exit(require("./package.json").scripts?.lint ? 0 : 1)"; then
+              elif grep -Eq '"lint"[[:space:]]*:' package.json; then
                 npm run lint
                 echo "WARN: no test/build script found; lint used as smoke check."
               else
@@ -365,6 +365,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}
+          GH_CONTROL_TOKEN: ${{ github.token }}
           COMMAND: ${{ needs.prepare.outputs.command }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.target }}
           ISSUE_NUMBER: ${{ needs.prepare.outputs.issue_number }}
@@ -379,7 +380,7 @@ jobs:
           if [ "$COMMAND" = "audit" ]; then
             echo "result=AUDIT_COMPLETE_READ_ONLY" >> "$GITHUB_OUTPUT"
             if [ -n "$ISSUE_NUMBER" ]; then
-              gh issue comment "$ISSUE_NUMBER" --repo madnessgate44-debug/brain --body "## Brain read-only audit\n\nNo repository changes were made. Review the run/artifact for evidence-based findings.\n\nWorkflow: $RUN_URL" || true
+              GH_TOKEN="$GH_CONTROL_TOKEN" gh issue comment "$ISSUE_NUMBER" --repo madnessgate44-debug/brain --body "## Brain read-only audit\n\nNo repository changes were made. Review the run/artifact for evidence-based findings.\n\nWorkflow: $RUN_URL" || true
             fi
             exit 0
           fi
@@ -401,7 +402,7 @@ jobs:
           pr_url="$(gh pr create --repo "$TARGET_REPOSITORY" --base "$(cat /tmp/brain-base-branch.txt)" --head "$branch" --title "Brain ${COMMAND}: candidate ${GITHUB_RUN_ID}" --body "Automated candidate patch; human review and merge required.\n\n- Command: ${COMMAND}\n- Base commit: $(cat /tmp/brain-base-sha.txt)\n- Workflow evidence: ${RUN_URL}\n- Project checks: passed.\n- No merge or deployment was performed." --json url --jq .url)"
           echo "result=PR_OPENED" >> "$GITHUB_OUTPUT"
           if [ -n "$ISSUE_NUMBER" ]; then
-            gh issue comment "$ISSUE_NUMBER" --repo madnessgate44-debug/brain --body "## Brain mission result\n\n- Status: PR candidate opened\n- Target: $TARGET_REPOSITORY\n- PR: $pr_url\n- Checks: passed\n- Workflow evidence: $RUN_URL\n- Human merge required; no deployment performed." || true
+            GH_TOKEN="$GH_CONTROL_TOKEN" gh issue comment "$ISSUE_NUMBER" --repo madnessgate44-debug/brain --body "## Brain mission result\n\n- Status: PR candidate opened\n- Target: $TARGET_REPOSITORY\n- PR: $pr_url\n- Checks: passed\n- Workflow evidence: $RUN_URL\n- Human merge required; no deployment performed." || true
           fi
 
       - name: Upload sanitized mission evidence
