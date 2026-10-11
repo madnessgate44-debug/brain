@@ -33,3 +33,14 @@ def test_failure_artifacts_write_markdown_and_json(tmp_path):
         write_failure_artifacts(exc, report_path=md, json_path=js, events=[])
     assert "Full traceback" in md.read_text()
     assert json.loads(js.read_text())["failure"]["type"] == "ValueError"
+
+def test_failure_report_redacts_secret_under_unrecognized_environment_name(monkeypatch):
+    secret = "opaque-runtime-value-7c4a9e2b6d3f8a1c5e0b"
+    monkeypatch.setenv("ODD_RUNTIME_SETTING", secret)
+    try:
+        raise RuntimeError(f"unexpected diagnostic echo: {secret}")
+    except RuntimeError as exc:
+        report = failure_report(exc, mission={"context": secret})
+    rendered = json.dumps(report)
+    assert secret not in rendered
+    assert "[REDACTED]" in rendered
