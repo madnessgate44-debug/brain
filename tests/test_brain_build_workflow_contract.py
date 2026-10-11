@@ -85,7 +85,7 @@ def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     assert 'smoke) check_summary="smoke check passed; no tests detected"' in workflow
     assert 'none) check_summary="no tests/build/lint check configured"' in workflow
     assert "- Checks: ${check_summary}; gitleaks passed." in workflow
-    assert "- Checks: ${check_summary}; gitleaks PASS" in workflow
+    assert "- Checks: %s; gitleaks PASS" in workflow
 
 
 def test_workflow_reports_failures_without_secrets_or_provider_bodies():
