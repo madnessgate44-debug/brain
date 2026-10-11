@@ -98,7 +98,7 @@ jobs:
               --get "https://app.all-hands.dev/api/v1/app-conversations" \
               "${headers[@]}" --data-urlencode "ids=$CONVERSATION_ID")"
             printf '%s' "$response" > /tmp/openhands-conversation.json
-            cp /tmp/openhands-conversation.json openhands-conversation.json
+            cp /tmp/openhands-conversation.json "$GITHUB_WORKSPACE/openhands-conversation.json"
             repository="$(printf '%s' "$response" | jq -r 'if type == "array" then (.[0].selected_repository // "") else (.selected_repository // "") end')"
             branch="$(printf '%s' "$response" | jq -r 'if type == "array" then (.[0].selected_branch // "") else (.selected_branch // "") end')"
             sandbox="$(printf '%s' "$response" | jq -r 'if type == "array" then (.[0].sandbox_status // "") else (.sandbox_status // "") end')"
