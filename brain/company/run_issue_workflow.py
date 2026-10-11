@@ -487,7 +487,7 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
                     "Source presence does not prove end-to-end behavior.",
                     "Every confirmed finding must cite exact file path and line range.",
                     "Coverage omissions must lower confidence and be disclosed.",
-                    "No Amina repository writes, branches, commits, PRs, or deployments are permitted.",
+                    "No target-repository writes, branches, commits, PRs, or deployments are permitted during a read-only audit.",
                 ],
             }, ensure_ascii=False, default=str),
         )
