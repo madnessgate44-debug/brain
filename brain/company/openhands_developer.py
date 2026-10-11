@@ -62,6 +62,20 @@ def _sdk_model_name(model: str, base_url: str | None) -> str:
     return model
 
 
+def _sdk_llm_kwargs(model: str, api_key: str, base_url: str | None) -> dict[str, Any]:
+    """Build conservative kwargs for generic OpenAI-compatible endpoints."""
+    return {
+        "model": _sdk_model_name(model, base_url),
+        "api_key": api_key,
+        "base_url": base_url,
+        # Google OpenAI-compatible endpoints reject LiteLLM/OpenHands prompt-cache fields.
+        "caching_prompt": False,
+        "prompt_cache_retention": None,
+        "reasoning_effort": "none",
+        "enable_encrypted_reasoning": False,
+    }
+
+
 def _task_prompt(user_request: str, evidence: dict[str, Any]) -> str:
     snapshot = evidence.get("repository_snapshot", {})
     source_contents = snapshot.get("source_contents", {}) if isinstance(snapshot, dict) else {}
@@ -138,7 +152,7 @@ def _run_sdk_sync(
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(text, encoding="utf-8")
 
-        llm = LLM(model=_sdk_model_name(model, base_url), api_key=api_key, base_url=base_url)
+        llm = LLM(**_sdk_llm_kwargs(model, api_key, base_url))
         agent = Agent(llm=llm, tools=[Tool(name=FileEditorTool.name)])
         conversation = Conversation(agent=agent, workspace=str(root))
         conversation.send_message(_task_prompt(user_request, evidence))
