@@ -73,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          API_TOKEN="$(docker exec agent-zero-smoke python -c 'import json; print(json.load(open("/a0/usr/settings.json"))["mcp_server_token"])' 2>/dev/null || true)"
+          API_TOKEN="$(docker exec agent-zero-smoke /opt/venv/bin/python3 -c 'import json; print(json.load(open("/a0/usr/settings.json"))["mcp_server_token"])' 2>/dev/null || true)"
           if [ -z "$API_TOKEN" ]; then
             docker logs --tail 100 agent-zero-smoke || true
             echo "::error::Could not read Agent Zero's generated API token."
@@ -88,7 +88,7 @@ jobs:
           }), encoding="utf-8")
           PY
           set +e
-          docker exec -i -e A0_API_TOKEN="$API_TOKEN" agent-zero-smoke python -c '
+          docker exec -i -e A0_API_TOKEN="$API_TOKEN" agent-zero-smoke /opt/venv/bin/python3 -c '
           import json, os, sys, urllib.request, urllib.error
           body = sys.stdin.buffer.read()
           request = urllib.request.Request(
@@ -112,8 +112,21 @@ jobs:
           status="$(sed -n 's/^__HTTP_STATUS__=//p' /tmp/a0-http-status.txt | tail -n 1)"
           if [ "$EXEC_STATUS" -ne 0 ] || [ "$status" != "200" ]; then
             echo "::error::Agent Zero API returned HTTP ${status:-unknown} (request execution status $EXEC_STATUS)."
-            echo "API error response (first 2000 characters):"
+            echo "API error response (first 2000 characters; token-redacted):"
+            /opt/venv/bin/python3 - "$API_TOKEN" <<'PY'
+          import sys
+          from pathlib import Path
+          token = sys.argv[1]
+          for filename in ("/tmp/a0-response.json", "/tmp/a0-http-status.txt"):
+              path = Path(filename)
+              if path.exists():
+                  text = path.read_text(encoding="utf-8", errors="replace").replace(token, "[REDACTED]")
+                  path.write_text(text, encoding="utf-8")
+          PY
             head -c 2000 /tmp/a0-response.json || true
+            echo
+            echo "Request execution diagnostics (token-redacted):"
+            head -c 2000 /tmp/a0-http-status.txt || true
             echo
             docker logs --tail 100 agent-zero-smoke || true
             exit 1
