@@ -98,6 +98,8 @@ jobs:
           DISPATCH_TASK: ${{ inputs.task }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           OPENAI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
+          # Skip mini-SWE-agent's interactive first-run setup; credentials stay in env.
+          MSWEA_CONFIGURED: "true"
         run: |
           set +x
           set -u
@@ -175,8 +177,12 @@ jobs:
           $(tail -n 180 /tmp/brain-pytest.log 2>/dev/null || true)"
             fi
 
+            # GitHub's bash uses errexit/pipefail by default. Temporarily disable
+            # errexit so a failed agent command is captured and the bounded retry runs.
+            set +e
             /tmp/mini-agent-venv/bin/mini --config /tmp/mini-agent-docker.yaml -t "$CURRENT_TASK" -y 2>&1 | tee "/tmp/mini-agent-attempt-${attempt}.log"
             AGENT_STATUS=${PIPESTATUS[0]}
+            set -e
             if [ "$AGENT_STATUS" -ne 0 ]; then
               echo "::warning::mini-SWE-agent attempt $attempt exited with status $AGENT_STATUS."
             fi
