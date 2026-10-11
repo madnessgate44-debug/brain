@@ -88,14 +88,6 @@ jobs:
           curl -fsS http://127.0.0.1:5080/ >/dev/null
           API_TOKEN="$(docker exec brain-agent-zero python -c 'import json; s=json.load(open("/a0/usr/settings.json")); print(s.get("mcp_server_token", ""))' 2>/dev/null || true)"
           if [ -z "$API_TOKEN" ]; then
-            API_TOKEN="$(python - <<'PY'
-          import base64, hashlib, os
-          raw = f"{os.environ['A0_RUNTIME_ID']}:{os.environ['A0_LOGIN']}:{os.environ['A0_PASSWORD']}".encode()
-          print(base64.urlsafe_b64encode(hashlib.sha256(raw).digest()).decode().rstrip("=")[:16])
-          PY
-          )"
-          fi
-          if [ -z "$API_TOKEN" ]; then
             echo "::error::Could not establish Agent Zero API authentication."
             exit 1
           fi
@@ -148,7 +140,7 @@ jobs:
           PY
           HTTP_CODE="$(curl -sS --max-time 5400 -o /tmp/agent-zero-response.json -w '%{http_code}' \
             -H "X-API-KEY: $A0_API_TOKEN" -H 'Content-Type: application/json' \
-            --data-binary @/tmp/agent-zero-request.json http://127.0.0.1:5080/api_message || true)"
+            --data-binary @/tmp/agent-zero-request.json http://127.0.0.1:5080/api/api_message || true)"
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::error::Agent Zero task API failed with HTTP ${HTTP_CODE:-unknown}."
             docker logs --tail 80 brain-agent-zero || true
