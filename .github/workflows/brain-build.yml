@@ -427,12 +427,7 @@ jobs:
             docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
               set -e
               if [ -f package-lock.json ]; then npm ci; else npm install; fi
-              cat > /tmp/brain-package-script.cjs << "NODE_EOF"
-              const fs = require("fs");
-              const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
-              const key = process.argv[2] || "test";
-              console.log((packageJson.scripts || {})[key] || "");
-              NODE_EOF
+              echo Y29uc3QgZnMgPSByZXF1aXJlKCJmcyIpOwpjb25zdCBwYWNrYWdlSnNvbiA9IEpTT04ucGFyc2UoZnMucmVhZEZpbGVTeW5jKCJwYWNrYWdlLmpzb24iLCAidXRmOCIpKTsKY29uc3Qga2V5ID0gcHJvY2Vzcy5hcmd2WzJdIHx8ICJ0ZXN0IjsKY29uc29sZS5sb2coKHBhY2thZ2VKc29uLnNjcmlwdHMgfHwge30pW2tleV0gfHwgIiIpOwo= | base64 -d > /tmp/brain-package-script.cjs
               test_script="$(node /tmp/brain-package-script.cjs test)"
               if [ -n "$test_script" ]; then
                 case "$test_script" in
