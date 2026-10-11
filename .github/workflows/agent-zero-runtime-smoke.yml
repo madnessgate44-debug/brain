@@ -103,12 +103,12 @@ jobs:
           except urllib.error.HTTPError as error:
               payload = error.read()
               status = error.code
-          open("/tmp/a0-response.json", "wb").write(payload)
-          print(status)
-          ' < /tmp/a0-request.json > /tmp/a0-http-status.txt
+          sys.stdout.buffer.write(payload)
+          print("__HTTP_STATUS__=" + str(status), file=sys.stderr)
+          ' < /tmp/a0-request.json > /tmp/a0-response.json 2> /tmp/a0-http-status.txt
           EXEC_STATUS=$?
           set -e
-          status="$(cat /tmp/a0-http-status.txt 2>/dev/null || true)"
+          status="$(sed -n 's/^__HTTP_STATUS__=//p' /tmp/a0-http-status.txt | tail -n 1)"
           if [ "$EXEC_STATUS" -ne 0 ] || [ "$status" != "200" ]; then
             echo "::error::Agent Zero API returned HTTP ${status:-unknown} (request execution status $EXEC_STATUS)."
             echo "API error response (first 2000 characters):"
