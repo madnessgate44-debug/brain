@@ -1,5 +1,6 @@
 """Contract tests for the owner-gated cross-repository build workflow."""
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -123,6 +124,25 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     assert "Protected workflow, environment, deployment, or credential-related changes detected" in workflow
     assert "grep -izEq" in workflow
     assert "git diff --name-only --no-renames -z HEAD | grep -izEq" in workflow
+    gate = re.search(r"grep -izEq '([^']+)'", workflow)
+    assert gate is not None
+    protected = re.compile(gate.group(1), re.IGNORECASE)
+    for path in (
+        ".github/workflows/release.yml",
+        ".github/actions/build/action.yml",
+        ".env.production",
+        "service/.npmrc",
+        "CODEOWNERS",
+        "Dockerfile.dev",
+        "docker-compose.prod.yaml",
+        "infra/main.tf",
+        "deploy/helm/values.yaml",
+        "secrets/provider-key.json",
+        "certs/service.pem",
+    ):
+        assert protected.search(path), path
+    for path in ("src/brain/main.py", "README.md", "tests/test_brain_build_workflow_contract.py"):
+        assert not protected.search(path), path
     assert "human review and merge required" in workflow
 
 

@@ -654,7 +654,7 @@ jobs:
         run: |
           set +x
           set -euo pipefail
-          if git diff --name-only --no-renames -z HEAD | grep -izEq '(^|/)\.github/workflows/|(^|/)\.env($|\.)|(^|/)(render\.yaml|Dockerfile|.*secret.*|.*credential.*)'; then
+          if git diff --name-only --no-renames -z HEAD | grep -izEq '(^|/)\.github/(workflows|actions)/|(^|/)(\.env[^/]*|[^/]*\.env|\.flaskenv|\.npmrc|\.pypirc|\.netrc|CODEOWNERS|Procfile|render\.ya?ml|Dockerfile[^/]*|docker-compose[^/]*\.ya?ml|compose[^/]*\.ya?ml|fly\.toml|vercel\.json|netlify\.toml|railway\.json|serverless\.ya?ml|[^/]*\.tf|[^/]*\.tfvars|.*secret.*|.*credential.*|.*\.pem|.*\.key)$|(^|/)(k8s|kubernetes|helm)/'; then
             echo "::error::Protected workflow, environment, deployment, or credential-related changes detected. Publication blocked."
             exit 1
           fi
