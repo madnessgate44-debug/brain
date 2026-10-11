@@ -56,3 +56,15 @@ async def test_planner_rejects_empty_objective_before_provider_call():
     with pytest.raises(BrowserPlanningError, match="empty"):
         await BrowserPlanner(provider=provider).plan("  ")
     assert provider.calls == []
+
+@pytest.mark.asyncio
+async def test_planner_marks_sensitive_navigation_for_owner_approval(monkeypatch):
+    monkeypatch.setenv("BRAIN_BROWSER_SENSITIVE_DOMAINS", "bank.example")
+    provider = FakeProvider(json.dumps({
+        "title": "Open banking page",
+        "objective": "Open the account page",
+        "actions": [{"op": "navigate", "url": "https://bank.example/login"}],
+    }))
+    plan = await BrowserPlanner(provider=provider).plan("Open the account page")
+    assert plan["requires_owner_approval"] is True
+    assert plan["execution_started"] is False
