@@ -68,3 +68,13 @@ def test_target_preflight_checks_only_permissions_the_build_workflow_needs():
     assert "Issues: write failed" in workflow
     assert "Actions:write and Workflows:write are not required" in workflow
     assert "BRAIN_MESHMESH_GITHUB_TOKEN" not in workflow
+
+
+def test_provider_rate_limit_and_preview_evidence_are_bounded():
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "retryDelay" in workflow
+    assert "MSWEA_GLOBAL_CALL_LIMIT: \"14\"" in workflow
+    assert "Capture isolated mobile and desktop previews for static HTML" in workflow
+    assert "mobile-390x844.png" in workflow
+    assert "desktop-1280x800.png" in workflow
+    assert "route.abort()" in workflow
