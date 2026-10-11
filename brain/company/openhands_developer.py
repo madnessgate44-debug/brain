@@ -13,6 +13,7 @@ import re
 import tempfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from brain.company.agent_runner import AgentOutputError
 
@@ -55,20 +56,39 @@ def _safe_request_paths(user_request: str) -> set[str]:
     return safe_paths
 
 
+def _uses_native_gemini(base_url: str | None) -> bool:
+    """Use Google's native Gemini API rather than its OpenAI-compatibility shim."""
+    parsed = urlparse(base_url or "")
+    return (
+        parsed.hostname == "generativelanguage.googleapis.com"
+        and parsed.path.rstrip("/").endswith("/openai")
+    )
+
+
 def _sdk_model_name(model: str, base_url: str | None) -> str:
-    """Force custom endpoints through LiteLLM's OpenAI-compatible provider."""
+    """Select the upstream LiteLLM provider for the configured API endpoint."""
+    if _uses_native_gemini(base_url):
+        normalized = model.removeprefix("openai/").removeprefix("gemini/")
+        return f"gemini/{normalized}"
     if base_url and not model.startswith("openai/"):
         return f"openai/{model}"
     return model
 
 
 def _sdk_llm_kwargs(model: str, api_key: str, base_url: str | None) -> dict[str, Any]:
-    """Build conservative kwargs for generic OpenAI-compatible endpoints."""
+    """Build provider-specific kwargs, avoiding Gemini's incompatible OpenAI shim."""
+    if _uses_native_gemini(base_url):
+        # The upstream OpenHands SDK example uses gemini/<model> with Google's native
+        # provider. This preserves Gemini tool-call metadata such as thought_signature.
+        return {
+            "model": _sdk_model_name(model, base_url),
+            "api_key": api_key,
+            "base_url": None,
+        }
     return {
         "model": _sdk_model_name(model, base_url),
         "api_key": api_key,
         "base_url": base_url,
-        # Google OpenAI-compatible endpoints reject LiteLLM/OpenHands prompt-cache fields.
         "caching_prompt": False,
         "prompt_cache_retention": None,
         "reasoning_effort": None,
@@ -89,7 +109,7 @@ def _task_prompt(user_request: str, evidence: dict[str, Any]) -> str:
     architecture = evidence.get("architecture", "")
     return (
         "Implement the assigned change in the provided repository workspace. "
-        "Use the file-editor tool to inspect and edit files. Do not claim tests were run; "
+        "Use the provided file tools to inspect and edit files. Do not claim tests were run; "
         "Brain will run the real repository checks after your patch is collected.\n\n"
         f"USER REQUEST:\n{user_request}\n\n"
         f"ACCEPTANCE CRITERIA:\n{acceptance!r}\n\n"
@@ -112,7 +132,6 @@ def _run_sdk_sync(
     """Run the SDK in a temporary workspace and return only validated changed file contents."""
     try:
         from openhands.sdk import LLM, Agent, Conversation, Tool
-        from openhands.tools.file_editor import FileEditorTool
     except ImportError as exc:
         raise AgentOutputError(
             "OpenHands developer backend is not installed; install Brain's declared dependencies."
@@ -158,7 +177,17 @@ def _run_sdk_sync(
             target.write_text(text, encoding="utf-8")
 
         llm = LLM(**_sdk_llm_kwargs(model, api_key, base_url))
-        agent = Agent(llm=llm, tools=[Tool(name=FileEditorTool.name)])
+        if _uses_native_gemini(base_url):
+            # Match OpenHands' upstream Gemini example: Gemini-native file tools avoid
+            # routing native tool calls through the OpenAI-compatible file_editor schema.
+            from openhands.tools.gemini import GEMINI_FILE_TOOLS
+
+            agent_tools = list(GEMINI_FILE_TOOLS)
+        else:
+            from openhands.tools.file_editor import FileEditorTool
+
+            agent_tools = [Tool(name=FileEditorTool.name)]
+        agent = Agent(llm=llm, tools=agent_tools)
         conversation = Conversation(agent=agent, workspace=str(root))
         conversation.send_message(_task_prompt(user_request, evidence))
         conversation.run()
