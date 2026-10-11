@@ -13,7 +13,7 @@ from brain.company.llm_provider import (
     OpenAICompatibleProvider,
     ProviderConfigurationError,
 )
-from brain.runtime.workers.browser_worker import validate_browser_actions
+from brain.runtime.workers.browser_worker import action_requires_owner_approval, validate_browser_actions
 
 
 SYSTEM_PROMPT = """You are Brain's browser action planner.
@@ -99,8 +99,6 @@ class BrowserPlanner:
             "title": title.strip(),
             "objective": normalized_objective.strip(),
             "actions": actions,
-            "requires_owner_approval": any(
-                action["op"] in {"click", "type", "press", "select"} for action in actions
-            ),
+            "requires_owner_approval": any(action_requires_owner_approval(action) for action in actions),
             "execution_started": False,
         }
