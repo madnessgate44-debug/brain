@@ -73,6 +73,7 @@ def _sdk_llm_kwargs(model: str, api_key: str, base_url: str | None) -> dict[str,
         "prompt_cache_retention": None,
         "reasoning_effort": "none",
         "enable_encrypted_reasoning": False,
+        "capability_overrides": {"supports_prompt_cache_key": False},
     }
 
 

@@ -48,3 +48,4 @@ def test_custom_endpoint_disables_unsupported_prompt_cache_and_reasoning_fields(
     assert kwargs["prompt_cache_retention"] is None
     assert kwargs["reasoning_effort"] == "none"
     assert kwargs["enable_encrypted_reasoning"] is False
+    assert kwargs["capability_overrides"]["supports_prompt_cache_key"] is False
