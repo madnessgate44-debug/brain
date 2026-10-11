@@ -24,6 +24,11 @@ from brain.company.diagnostics import failure_report
 logger = logging.getLogger("brain.runtime.mission_runtime")
 
 
+def _format_failure_report_markdown(markdown_lines: list[str]) -> bytes:
+    """Serialize diagnostic lines as readable Markdown with real line breaks."""
+    return ("\n".join(markdown_lines) + "\n").encode("utf-8")
+
+
 class MissionRuntime:
     """Execute a mission using a runtime-owned database session."""
 
@@ -394,7 +399,7 @@ class MissionRuntime:
             diagnostic_files = []
             try:
                 json_bytes = json.dumps(diagnostic, ensure_ascii=False, indent=2, default=str).encode("utf-8")
-                markdown_bytes = ("\\n".join(markdown_lines) + "\\n").encode("utf-8")
+                markdown_bytes = _format_failure_report_markdown(markdown_lines)
                 for logical_name, content_bytes, mime_type in [
                     ("failure-diagnostic.json", json_bytes, "application/json"),
                     ("failure-report.md", markdown_bytes, "text/markdown"),
