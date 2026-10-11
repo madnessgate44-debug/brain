@@ -88,3 +88,58 @@ def test_failed_mission_persists_detailed_diagnostic_artifacts(monkeypatch):
         assert events.status_code == 200
         event_types = {item["event_type"] for item in events.json()}
         assert {"mission_failed", "failure_diagnostic_created"} <= event_types
+
+def test_failed_browser_mission_persists_execution_report(monkeypatch):
+    """A failed browser worker must keep its report artifact after the failure transaction."""
+    import asyncio
+
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "test-control-key-for-unit-tests-123")
+
+    async def fail_browser(self, actions, owner_approved=False):
+        return {
+            "status": "failed",
+            "requested_actions": len(actions),
+            "completed_actions": 0,
+            "errors": [{"message": "synthetic browser failure"}],
+        }
+
+    monkeypatch.setattr("brain.runtime.workers.browser_worker.BrowserWorker.execute", fail_browser)
+    app = create_app()
+    with TestClient(app, headers={"X-Brain-API-Key": "test-control-key-for-unit-tests-123"}) as client:
+        created = client.post(
+            "/browser/tasks",
+            json={
+                "title": "Browser failure persistence",
+                "objective": "Verify failed browser reports remain queryable",
+                "actions": [{"op": "navigate", "url": "https://example.com"}],
+                "owner_approved": False,
+            },
+        )
+        assert created.status_code == 202, created.text
+        mission_id = created.json()["mission_id"]
+
+        mission = None
+        for _ in range(40):
+            response = client.get(f"/missions/{mission_id}")
+            assert response.status_code == 200
+            mission = response.json()
+            if mission["status"] in {"COMPLETED", "FAILED"}:
+                break
+            time.sleep(0.05)
+
+        assert mission is not None
+        assert mission["status"] == "FAILED", mission
+
+        artifacts = client.get(f"/missions/{mission_id}/artifacts")
+        assert artifacts.status_code == 200
+        names = {item["logical_name"] for item in artifacts.json()}
+        assert {
+            "browser-execution-report.json",
+            "failure-diagnostic.json",
+            "failure-report.md",
+        } <= names
+
+        events = client.get(f"/missions/{mission_id}/events")
+        assert events.status_code == 200
+        event_types = {item["event_type"] for item in events.json()}
+        assert {"browser_worker_completed", "mission_failed"} <= event_types
