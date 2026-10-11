@@ -233,6 +233,33 @@ jobs:
             }
             throw new Error('Timed out waiting for the shared model-workflow lease. No model call was started.');
 
+      - name: Initialize an empty target repository through the Contents API
+        if: needs.prepare.outputs.command != 'audit'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.target }}
+          TARGET_BRANCH: ${{ needs.prepare.outputs.branch }}
+        run: |
+          set +x
+          set -euo pipefail
+          repo_json="$(gh api "repos/$TARGET_REPOSITORY")"
+          default_branch="$(printf '%s' "$repo_json" | python -c 'import json,sys; print(json.load(sys.stdin).get("default_branch") or "")')"
+          size="$(printf '%s' "$repo_json" | python -c 'import json,sys; print(json.load(sys.stdin).get("size", -1))')"
+          [ -n "$default_branch" ] || { echo "::error::Target has no configured default branch."; exit 1; }
+          if [ -n "$TARGET_BRANCH" ] && [ "$TARGET_BRANCH" != "$default_branch" ]; then
+            gh api "repos/$TARGET_REPOSITORY/git/ref/heads/$TARGET_BRANCH" >/dev/null 2>&1 || { echo "::error::Requested target branch does not exist."; exit 1; }
+          fi
+          if gh api "repos/$TARGET_REPOSITORY/git/ref/heads/$default_branch" >/dev/null 2>&1; then
+            echo "Target default branch already exists."
+            exit 0
+          fi
+          [ "$size" = "0" ] || { echo "::error::Default branch is missing but repository is not empty; refusing to initialize automatically."; exit 1; }
+          [ -z "$TARGET_BRANCH" ] || { echo "::error::For an empty repository, omit branch: so Brain can create the configured default branch."; exit 1; }
+          encoded="$(printf '%s\n' "# Repository initialized by Brain" "" "This initial commit allows Brain to prepare a reviewable candidate PR. No application code was overwritten." | base64 -w 0)"
+          gh api --method PUT "repos/$TARGET_REPOSITORY/contents/README.md" -f message="chore: initialize empty repository for Brain mission" -f content="$encoded" >/dev/null || { echo "::error::Could not create the first commit through the Contents API."; exit 1; }
+          echo "Initialized empty target repository with a minimal README via Contents API; application files were not overwritten."
+
       - name: Check out target repository without persisting credentials
         uses: actions/checkout@v4
         with:
