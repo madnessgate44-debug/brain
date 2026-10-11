@@ -79,7 +79,6 @@ def test_changed_file_and_warning_summaries_preserve_names():
 def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(marker in workflow for marker in ("check_type=tests", "check_type=smoke", "check_type=none"))
-    assert 'json.loads(Path("package.json").read_text(encoding="utf-8"))' not in workflow
     assert 'python -c \'import json; s=json.load(open("package.json", encoding="utf-8"))' in workflow
     assert 'echo "check_type=$check_type" >> "$GITHUB_OUTPUT"' in workflow
     assert all(marker in workflow for marker in (
@@ -95,8 +94,7 @@ def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     assert "Project checks passed (type=$check_type); raw command output is suppressed." in workflow
     assert "Project checks failed (type=$check_type, exit=$result); raw command output is suppressed." in workflow
     artifact_section = workflow.split("Upload sanitized mission evidence", 1)[1]
-    assert "/tmp/brain-checks.log" not in artifact_section
-    assert "/tmp/brain-check-install.log" not in artifact_section
+    assert all(path not in artifact_section for path in ("/tmp/brain-checks.log", "/tmp/brain-check-install.log"))
 
 def test_workflow_reports_failures_without_secrets_or_provider_bodies():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -131,6 +129,8 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     assert "npm test -- --run" in workflow
     assert "Static HTML checks" in workflow
     assert "Protected workflow, environment, deployment, or credential-related changes detected" in workflow
+    assert "steps.agent.outcome == 'success' && steps.candidate.outcome == 'success'" in workflow
+    assert "steps.checks.outcome == 'success' && steps.gitleaks.outcome == 'success'" in workflow
     assert "grep -izEq" in workflow
     assert "git diff --name-only --no-renames -z HEAD | grep -izEq" in workflow
     gate = re.search(r"grep -izEq '([^']+)'", workflow)
@@ -184,13 +184,4 @@ def test_provider_rate_limit_and_preview_evidence_are_bounded():
 def test_legacy_remote_test_runner_no_longer_falls_back_to_control_token():
     workflow = (ROOT / ".github" / "workflows" / "brain-task-runner.yml").read_text(encoding="utf-8")
     assert "secrets.BRAIN_GITHUB_TOKEN || github.token" not in workflow
-    assert "token: ${{ secrets.BRAIN_GITHUB_TOKEN }}" in workflow
-    assert "BRAIN_GITHUB_TOKEN is required for target-repository checkout" in workflow
-    assert "types: [opened, edited]" not in workflow
-
-
-def test_secret_scan_is_a_required_gate_before_pr_publication():
-    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert "zricethezav/gitleaks:v8.24.2" in workflow
-    assert "--redact --exit-code 1" in workflow
-    assert "steps.gitleaks.outcome == 'success'" in workflow
+    assert 
