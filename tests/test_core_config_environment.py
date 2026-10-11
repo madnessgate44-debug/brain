@@ -17,3 +17,4 @@ def test_nested_database_environment_variable_is_loaded(monkeypatch, tmp_path):
 
     assert config.database.sqlite_path == str(database_path)
     assert database_path.parent.is_dir()
+    assert config.recovery.recoverable_phases == ["EXECUTE", "VALIDATE", "REPAIR", "WAITING_FOR_APPROVAL"]
