@@ -57,29 +57,23 @@ def test_cross_repository_agent_is_pinned_and_sandboxed_without_github_token():
 
 def test_secret_scan_handles_deleted_renamed_and_space_containing_paths():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert all(x in workflow for x in (
-        '"--name-only", "--no-renames", "-z", "HEAD"', '["git", "show", f"HEAD:{name}"]',
-        "target.write_bytes(blob.stdout)", "Prepared changed-file scan input, including base contents for deleted paths",
-        "zricethezav/gitleaks:v8.24.2", "--redact --exit-code 1",
-    ))
+    assert all(x in workflow for x in ('"--name-only", "--no-renames", "-z", "HEAD"', '["git", "show", f"HEAD:{name}"]', "target.write_bytes(blob.stdout)", "Prepared changed-file scan input, including base contents for deleted paths", "zricethezav/gitleaks:v8.24.2", "--redact --exit-code 1"))
     assert "tar --null -T -" not in workflow
 def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert all(x in workflow for x in ("check_type=tests", "check_type=smoke", "check_type=none"))
-    assert 'python -c \'import json; s=json.load(open("package.json", encoding="utf-8"))' in workflow
-    assert 'echo "check_type=$check_type" >> "$GITHUB_OUTPUT"' in workflow
     assert all(x in workflow for x in (
-        'tests) check_summary="tests passed"',
-        'smoke) check_summary="smoke check passed; no tests detected"',
-        'none) check_summary="no tests/build/lint check configured"',
-        "- Checks: ${check_summary}; gitleaks passed.", "- Checks: %s; gitleaks PASS",
+        "check_type=tests", "check_type=smoke", "check_type=none",
+        'python -c \'import json; s=json.load(open("package.json", encoding="utf-8"))',
+        'echo "check_type=$check_type" >> "$GITHUB_OUTPUT"',
+        'tests) check_summary="tests passed"', 'smoke) check_summary="smoke check passed; no tests detected"',
+        'none) check_summary="no tests/build/lint configured"', "- Checks: ${check_summary}; gitleaks passed.",
+        "- Checks: %s; gitleaks PASS", "Project checks passed (type=$check_type); raw command output is suppressed.",
+        "Project checks failed (type=$check_type, exit=$result); raw command output is suppressed.",
     ))
     assert "BRAIN_CHECK_TYPE=" not in workflow and "cat /tmp/brain-checks.log" not in workflow
-    assert 'if [ "$check_type" = "none" ]; then' in workflow
-    assert "raw command output is suppressed" in workflow
+    assert 'if [ "$check_type" = "none" ]; then' in workflow and "raw command output is suppressed" in workflow
     artifacts = workflow.split("Upload sanitized mission evidence", 1)[1]
     assert all(x not in artifacts for x in ("/tmp/brain-checks.log", "/tmp/brain-check-install.log"))
-
 def test_workflow_reports_failures_without_secrets_or_provider_bodies():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(x in workflow for x in (
@@ -87,8 +81,7 @@ def test_workflow_reports_failures_without_secrets_or_provider_bodies():
         "failed_step: ${{ steps.mission_lock.outcome", "FAILED_STEP: ${{ needs.mission.outputs.failed_step }}",
         "permissions:\n      issues: write", "Workflow run: ${process.env.RUN_URL}",
         "This report intentionally excludes secrets and provider response bodies.",
-    ))
-    assert r"].join('\n');" in workflow
+    )) and r"].join('\n');" in workflow
 def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(x in workflow for x in (
@@ -112,9 +105,7 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     gate = re.search(r"grep -izEq '([^']+)'", workflow)
     assert gate is not None
     protected = re.compile(gate.group(1), re.IGNORECASE)
-    protected_examples = (".github/workflows/release.yml", ".github/actions/build/action.yml", ".env.production",
-        "service/.npmrc", "CODEOWNERS", "Dockerfile.dev", "docker-compose.prod.yaml",
-        "infra/main.tf", "deploy/helm/values.yaml", "secrets/provider-key.json", "certs/service.pem")
+    protected_examples = (".github/workflows/release.yml", ".github/actions/build/action.yml", ".env.production", "service/.npmrc", "CODEOWNERS", "Dockerfile.dev", "docker-compose.prod.yaml", "infra/main.tf", "deploy/helm/values.yaml", "secrets/provider-key.json", "certs/service.pem")
     allowed_examples = ("src/brain/main.py", "README.md", "tests/test_brain_build_workflow_contract.py")
     assert all(protected.search(x) for x in protected_examples)
     assert all(not protected.search(x) for x in allowed_examples)
