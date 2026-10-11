@@ -180,7 +180,8 @@ jobs:
           cp /tmp/openhands-events-aggregate.json "$GITHUB_WORKSPACE/openhands-events.json"
           python3 - <<'PY'
           import json, os, sys
-          with open("/tmp/openhands-events.json", encoding="utf-8") as f:
+          events_path = os.path.join(os.environ["GITHUB_WORKSPACE"], "openhands-events.json")
+          with open(events_path, encoding="utf-8") as f:
               data = json.load(f)
           items = data.get("items", []) if isinstance(data, dict) else []
           def flatten(value):
@@ -204,13 +205,13 @@ jobs:
                   report = combined[start + len(marker_start):end].strip()
           if not report:
               print("::error::OpenHands finished but no marked final audit report was found in conversation events.", file=sys.stderr)
-              print(f"Message events captured: {len(messages)}; total events: {len(items)}", file=sys.stderr)
+              print(f"Event payloads scanned: {len(items)}; no marked report found.", file=sys.stderr)
               sys.exit(1)
           report_path = os.path.join(os.environ["GITHUB_WORKSPACE"], "openhands-audit-report.md")
           with open(report_path, "w", encoding="utf-8") as f:
               f.write("# OpenHands Brain Audit\n\n")
               f.write(report + "\n")
-          print(f"Audit report extracted. Message events: {len(messages)}; total events: {len(items)}")
+          print(f"Audit report extracted from {len(items)} event records.")
           PY
           echo "report_path=openhands-audit-report.md" >> "$GITHUB_OUTPUT"
 
