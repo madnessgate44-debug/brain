@@ -73,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          API_TOKEN="$(docker exec agent-zero-smoke /opt/venv/bin/python3 -c 'import json; print(json.load(open("/a0/usr/settings.json"))["mcp_server_token"])' 2>/dev/null || true)"
+          API_TOKEN="$(docker exec agent-zero-smoke python -c 'import json; print(json.load(open("/a0/usr/settings.json"))["mcp_server_token"])' 2>/dev/null || true)"
           if [ -z "$API_TOKEN" ]; then
             docker logs --tail 100 agent-zero-smoke || true
             echo "::error::Could not read Agent Zero's generated API token."
@@ -88,13 +88,13 @@ jobs:
           }), encoding="utf-8")
           PY
           set +e
-          docker exec -i -e A0_API_TOKEN="$API_TOKEN" agent-zero-smoke /opt/venv/bin/python3 -c '
-          import json, os, sys, urllib.request, urllib.error
+          docker exec -i agent-zero-smoke python -c '
+          import json, sys, urllib.request, urllib.error
           body = sys.stdin.buffer.read()
           request = urllib.request.Request(
               "http://127.0.0.1:80/api/api_message",
               data=body,
-              headers={"X-API-KEY": os.environ["A0_API_TOKEN"], "Content-Type": "application/json"},
+              headers={"X-API-KEY": json.load(open("/a0/usr/settings.json", encoding="utf-8"))["mcp_server_token"], "Content-Type": "application/json"},
               method="POST",
           )
           try:
