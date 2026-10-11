@@ -5,12 +5,9 @@ import os
 import time
 import urllib.error
 import urllib.request
-
 BASE = "http://127.0.0.1:8080"
 AUTH = {"Authorization": "Bearer unused"}
 MARKER_PREFIX = "PROBE_OK_"
-
-
 def request(path, payload=None, timeout=60):
     headers = dict(AUTH)
     data = None
@@ -31,16 +28,12 @@ def request(path, payload=None, timeout=60):
     except Exception as exc:
         print(f"Request transport failure for {path}: {type(exc).__name__}")
         return 0, {}, b"", round((time.monotonic() - started) * 1000)
-
-
 def json_body(body):
     try:
         value = json.loads(body.decode("utf-8"))
         return value if isinstance(value, dict) else {}
     except (UnicodeDecodeError, json.JSONDecodeError):
         return {}
-
-
 def write_table(title, headers, rows):
     def cell(value):
         return str(value).replace("|", "\\|").replace("\n", " ")
@@ -53,8 +46,6 @@ def write_table(title, headers, rows):
     if summary:
         with open(summary, "a", encoding="utf-8") as stream:
             stream.write(block + "\n")
-
-
 def main():
     deadline = time.monotonic() + 90
     ready = False
@@ -67,7 +58,6 @@ def main():
     if not ready:
         print("STOP: FreeLLMPool /readyz did not return HTTP 200 within 90 seconds.")
         return 1
-
     status, _, body, _ = request("/v1/models?ready=true", timeout=15)
     if status != 200:
         print(f"STOP: ready model inventory returned HTTP {status}; response body suppressed.")
