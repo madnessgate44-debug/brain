@@ -108,6 +108,7 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     assert "npm test -- --run" in workflow
     assert "Static HTML checks" in workflow
     assert "Protected workflow, environment, deployment, or credential-related changes detected" in workflow
+    assert "git diff --name-only --no-renames -z HEAD | grep -zEq" in workflow
     assert "human review and merge required" in workflow
 
 
