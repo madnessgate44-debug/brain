@@ -427,12 +427,18 @@ jobs:
             docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
               set -e
               if [ -f package-lock.json ]; then npm ci; else npm install; fi
-              if grep -Eq '"test"[[:space:]]*:' package.json; then
+              if grep -Eq "\\\"test\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"]*vitest" package.json; then
                 npm test -- --run
-              elif grep -Eq '"build"[[:space:]]*:' package.json; then
+              elif grep -Eq "\\\"test\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"]*react-scripts test" package.json; then
+                CI=true npm test -- --watchAll=false
+              elif grep -Eq "\\\"test\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"]*jest" package.json; then
+                npm test -- --runInBand
+              elif grep -Eq "\\\"test\\\"[[:space:]]*:" package.json; then
+                npm test
+              elif grep -Eq "\\\"build\\\"[[:space:]]*:" package.json; then
                 npm run build
                 echo "WARN: no test script found; build used as smoke check."
-              elif grep -Eq '"lint"[[:space:]]*:' package.json; then
+              elif grep -Eq "\\\"lint\\\"[[:space:]]*:" package.json; then
                 npm run lint
                 echo "WARN: no test/build script found; lint used as smoke check."
               else
