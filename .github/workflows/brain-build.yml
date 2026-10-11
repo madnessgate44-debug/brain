@@ -617,7 +617,7 @@ jobs:
           '
       - name: Verify protected paths and publish candidate PR
         id: publish
-        if: always() && steps.agent.outcome == 'success' && steps.candidate.outcome == 'success' && steps.candidate.outcome == 'success' && (needs.prepare.outputs.command == 'audit' || (steps.checks.outcome == 'success' && steps.gitleaks.outcome == 'success'))
+        if: always() && steps.agent.outcome == 'success' && steps.candidate.outcome == 'success' && (needs.prepare.outputs.command == 'audit' || (steps.checks.outcome == 'success' && steps.gitleaks.outcome == 'success'))
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}
