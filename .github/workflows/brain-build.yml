@@ -396,6 +396,50 @@ jobs:
           if [ "$agent_status" -ne 0 ]; then echo "::error::Coding agent failed after bounded attempts; no PR will be opened."; exit "$agent_status"; fi
           echo "Coding agent completed in the isolated workspace; candidate changes have not been trusted or applied."
 
+      - name: Reconstruct candidate diff in a trusted temporary repository
+        id: candidate
+        if: steps.agent.outcome == 'success'
+        shell: bash
+        env:
+          COMMAND: ${{ needs.prepare.outputs.command }}
+        run: |
+          set -euo pipefail
+          diff_workspace=/tmp/brain-candidate-diff
+          rm -rf "$diff_workspace"
+          mkdir -p "$diff_workspace"
+          git -c core.hooksPath=/dev/null archive --format=tar HEAD | tar -xf - -C "$diff_workspace"
+          git -C "$diff_workspace" init -q
+          git -C "$diff_workspace" config user.name "Brain Candidate Validator"
+          git -C "$diff_workspace" config user.email "brain-candidate-validator@invalid"
+          git -C "$diff_workspace" -c core.hooksPath=/dev/null add -A
+          git -C "$diff_workspace" -c core.hooksPath=/dev/null commit --no-verify -m "trusted baseline"
+          rsync -a --delete --exclude='/.git' /tmp/brain-agent-workspace/ "$diff_workspace"/
+          GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null add -N -f -- .
+          GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --binary --no-ext-diff --no-textconv -- . > /tmp/brain-build.patch
+          GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --stat -- . > /tmp/brain-build-diff-stat.txt
+          if GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --check -- .; then
+            : > /tmp/brain-agent-warnings.log
+          else
+            echo "::warning::Whitespace errors detected in candidate changes; review the patch before merging."
+            echo "WARN: whitespace errors detected in candidate changes." > /tmp/brain-agent-warnings.log
+          fi
+          if [ "$COMMAND" = "audit" ]; then
+            if [ -s /tmp/brain-build.patch ]; then
+              echo "::error::Read-only audit modified or created files; refusing to report audit success."
+              exit 1
+            fi
+            echo "Read-only audit made no candidate changes."
+            exit 0
+          fi
+          if [ ! -s /tmp/brain-build.patch ]; then
+            echo "::error::No changes were produced; no repair is claimed."
+            exit 1
+          fi
+          git -c core.hooksPath=/dev/null apply --check /tmp/brain-build.patch
+          git -c core.hooksPath=/dev/null apply /tmp/brain-build.patch
+          git -c core.hooksPath=/dev/null add -N -f -- .
+          echo "Candidate diff reconstructed independently from workspace files and applied to the trusted checkout."
+
       - name: Scan changed files for leaked secrets
         id: gitleaks
         if: needs.prepare.outputs.command != 'audit'
@@ -403,9 +447,33 @@ jobs:
         run: |
           set +x
           set -euo pipefail
-          git diff --name-only -z | tar --null -T - -cf /tmp/brain-changed-files.tar
-          mkdir -p /tmp/brain-gitleaks-source
-          tar -xf /tmp/brain-changed-files.tar -C /tmp/brain-gitleaks-source
+          python - <<'PY'
+          import os, shutil, subprocess
+          from pathlib import Path
+          root = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+          dest = Path("/tmp/brain-gitleaks-source")
+          shutil.rmtree(dest, ignore_errors=True)
+          dest.mkdir(parents=True)
+          raw = subprocess.check_output(["git", "diff", "--name-only", "--no-renames", "-z", "HEAD"], cwd=root)
+          paths = [part.decode("utf-8", "surrogateescape") for part in raw.split(b"\0") if part]
+          for name in paths:
+              rel = Path(name)
+              if rel.is_absolute() or ".." in rel.parts:
+                  raise SystemExit("Unsafe changed path rejected by secret scanner.")
+              source = root / rel
+              target = dest / rel
+              target.parent.mkdir(parents=True, exist_ok=True)
+              if source.is_symlink():
+                  target.write_text(os.readlink(source), encoding="utf-8", errors="replace")
+              elif source.is_file():
+                  shutil.copyfile(source, target)
+              else:
+                  blob = subprocess.run(["git", "show", f"HEAD:{name}"], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                  if blob.returncode != 0:
+                      raise SystemExit("Changed file could not be resolved for secret scanning.")
+                  target.write_bytes(blob.stdout)
+          print("Prepared changed-file scan input, including base contents for deleted paths; paths were NUL-delimited.")
+          PY
           docker run --rm -v /tmp/brain-gitleaks-source:/src zricethezav/gitleaks:v8.24.2 dir --redact --exit-code 1 /src
 
       - name: Run project-aware checks
@@ -422,8 +490,10 @@ jobs:
                 python -m pip install --user pytest pytest-asyncio httpx >>/tmp/install.log 2>&1
               }
               if find . -maxdepth 3 -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
+                echo "BRAIN_CHECK_TYPE=tests"
                 python -m pytest -q
               else
+                echo "BRAIN_CHECK_TYPE=smoke"
                 python -m compileall -q .
                 echo "WARN: no Python test files found; compileall used as smoke check."
               fi
@@ -436,6 +506,7 @@ jobs:
               echo Y29uc3QgZnMgPSByZXF1aXJlKCJmcyIpOwpjb25zdCBwYWNrYWdlSnNvbiA9IEpTT04ucGFyc2UoZnMucmVhZEZpbGVTeW5jKCJwYWNrYWdlLmpzb24iLCAidXRmOCIpKTsKY29uc3Qga2V5ID0gcHJvY2Vzcy5hcmd2WzJdIHx8ICJ0ZXN0IjsKY29uc29sZS5sb2coKHBhY2thZ2VKc29uLnNjcmlwdHMgfHwge30pW2tleV0gfHwgIiIpOwo= | base64 -d > /tmp/brain-package-script.cjs
               test_script="$(node /tmp/brain-package-script.cjs test)"
               if [ -n "$test_script" ]; then
+                echo "BRAIN_CHECK_TYPE=tests"
                 case "$test_script" in
                   *vitest*) npm test -- --run ;;
                   *react-scripts*) CI=true npm test -- --watchAll=false ;;
@@ -446,12 +517,15 @@ jobs:
                 build_script="$(node /tmp/brain-package-script.cjs build)"
                 lint_script="$(node /tmp/brain-package-script.cjs lint)"
                 if [ -n "$build_script" ]; then
+                  echo "BRAIN_CHECK_TYPE=smoke"
                   npm run build
                   echo "WARN: no test script found; build used as smoke check."
                 elif [ -n "$lint_script" ]; then
+                  echo "BRAIN_CHECK_TYPE=smoke"
                   npm run lint
                   echo "WARN: no test/build script found; lint used as smoke check."
                 else
+                  echo "BRAIN_CHECK_TYPE=none"
                   echo "WARN: no test, build, or lint script found; no tests claimed."
                 fi
               fi
@@ -462,6 +536,7 @@ jobs:
           from html.parser import HTMLParser
           from pathlib import Path
           import re, sys
+          print("BRAIN_CHECK_TYPE=smoke")
           class Check(HTMLParser):
               def __init__(self): super().__init__(); self.title=False; self.in_title=False; self.viewport=False; self.links=[]
               def handle_starttag(self, tag, attrs):
@@ -490,10 +565,17 @@ jobs:
           PY
             result=$?
           else
-            echo "WARN: no recognized project manifest or root HTML found; no tests claimed." > /tmp/brain-checks.log
+            printf '%s\n' "BRAIN_CHECK_TYPE=none" "WARN: no recognized project manifest or root HTML found; no tests claimed." > /tmp/brain-checks.log
             result=0
           fi
+          check_type="$(grep '^BRAIN_CHECK_TYPE=' /tmp/brain-checks.log | tail -1 | cut -d= -f2 || true)"
+          if [ -z "$check_type" ]; then
+            echo "::error::Project check type was not recorded; refusing to claim a check result."
+            exit 1
+          fi
+          sed -i '/^BRAIN_CHECK_TYPE=/d' /tmp/brain-checks.log
           cat /tmp/brain-checks.log
+          echo "check_type=$check_type" >> "$GITHUB_OUTPUT"
           echo "exit_code=$result" >> "$GITHUB_OUTPUT"
           if [ "$result" -ne 0 ]; then exit "$result"; fi
 
