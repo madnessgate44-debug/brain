@@ -23,6 +23,7 @@ class StressTestAgentRunner:
         blocking_status: str = "NEEDS_WORK",
     ):
         self.calls = []
+        self.review_evidence = []
         self.developer_call_count = 0
         self.reviewer_call_count = 0
         self.developer_invalid_once = developer_invalid_once
@@ -133,6 +134,7 @@ class StressTestTools:
         self.check_status = check_status
         self.check_executed = check_executed
         self.applied_change_sets = []
+        self.check_calls = []
 
     async def inspect_repository(self, repository: str) -> dict[str, Any]:
         return {
@@ -154,6 +156,7 @@ class StressTestTools:
 
     async def run_checks(self, repository: str, branch: str) -> dict[str, Any]:
         self.check_count += 1
+        self.check_calls.append({"repository": repository, "branch": branch})
         return {
             "executed": self.check_executed,
             "status": self.check_status,
@@ -188,6 +191,10 @@ async def test_developer_invalid_change_set_repaired_within_limit():
     assert tools.applied_change_sets[0]["files"][0]["path"] == "brain/stress_feature.py"
 
     timeline_roles = [item["role"] for item in result["timeline"]]
+    assert timeline_roles.index("product_owner") < timeline_roles.index("ux_designer")
+    assert timeline_roles.index("ux_designer") < timeline_roles.index("architect")
+    assert timeline_roles.index("architect") < timeline_roles.index("developer_preflight")
+    assert timeline_roles.index("developer_preflight") < timeline_roles.index("developer")
     assert "product_owner" in timeline_roles
     assert "architect" in timeline_roles
     assert "developer" in timeline_roles
@@ -212,6 +219,15 @@ async def test_code_reviewer_rejects_then_developer_repairs_then_reviewer_passes
     assert result["status"] == "READY_FOR_HUMAN_APPROVAL"
     assert tools.apply_count == 2
     assert tools.check_count == 1
+    assert len(runner.review_evidence) == 2
+    assert runner.review_evidence[0]["actual_diff"] != runner.review_evidence[1]["actual_diff"]
+    assert runner.review_evidence[0]["branch"] == "brain/stress-feature-1"
+    assert runner.review_evidence[1]["branch"] == "brain/stress-feature-2"
+    assert runner.review_evidence[1]["changed_files"] == ["brain/stress_feature.py"]
+    assert tools.check_calls == [{
+        "repository": "owner/stress-repo",
+        "branch": "brain/stress-feature-2",
+    }]
     assert result["test_evidence"]["status"] == "PASS"
     assert result["test_evidence"]["executed"] is True
     assert tools.pr_count == 1
@@ -225,9 +241,26 @@ async def test_repository_checks_fail_blocks_release_and_preserves_evidence():
     tools = StressTestTools(check_status="FAIL", check_executed=True)
     engine = CompanyWorkflowEngine(runner, tools, max_repair_cycles=2)
 
-    with pytest.raises(CompanyWorkflowBlocked, match="Repository checks failed; release is blocked"):
+    with pytest.raises(
+        CompanyWorkflowBlocked,
+        match="Repository checks failed; release is blocked",
+    ) as exc_info:
         await engine.run("Implement feature with failing test suite", "owner/stress-repo")
 
+    evidence = exc_info.value.stage_evidence
+    assert evidence["stopped_at"] == "repository_checks"
+    assert evidence["test_evidence"] == {
+        "executed": True,
+        "status": "FAIL",
+        "run_url": "https://github.com/example/stress-repo/actions/runs/999",
+    }
+    assert evidence["branch"] == "brain/stress-feature-1"
+    assert evidence["changed_files"] == ["brain/stress_feature.py"]
+    assert "diff --git" in evidence["actual_diff"]
+    assert evidence["repository_mutation_started"] is True
+    assert evidence["tests_started"] is True
+    assert evidence["release_blocked"] is True
+    assert evidence["pull_request_created"] is False
     assert tools.pr_count == 0
 
 
