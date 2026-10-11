@@ -54,6 +54,10 @@ def evaluate_release_gate(evidence: dict[str, Any]) -> GateDecision:
             status = str(value.get("status", "")).strip().upper()
             if status not in {"PASS", "APPROVED"}:
                 blockers.append(f"{key} did not pass")
+            if key in {"review_decision", "security_decision", "customer_review"}:
+                decision = str(value.get("decision", "")).strip().upper()
+                if decision not in {"PASS", "APPROVED"}:
+                    blockers.append(f"{key} is missing an explicit passing specialist decision")
         elif isinstance(value, str):
             if value.strip().upper() not in {"PASS", "APPROVED"}:
                 blockers.append(f"{key} did not pass")
