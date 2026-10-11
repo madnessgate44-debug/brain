@@ -1,9 +1,12 @@
 """Tests for safe credential separation in company workflow tools."""
 
 import asyncio
+import json
 
+import httpx
 import pytest
 
+from brain.company.github_gateway import GitHubRepositoryGateway
 from brain.company.tools import GitHubCompanyTools
 
 
@@ -473,3 +476,69 @@ async def test_regular_source_changes_keep_using_actions_gateway():
 
     assert len(actions_gateway.calls) == 1
     assert pat_gateway.calls == []
+
+@pytest.mark.asyncio
+async def test_run_checks_replays_real_github_response_shapes_over_http_transport():
+    requests_seen = []
+
+    def handler(request):
+        requests_seen.append((request.method, request.url.path))
+        if request.method == "POST" and request.url.path == "/repos/owner/brain/issues":
+            return httpx.Response(
+                201,
+                json={"number": 314, "html_url": "https://github.com/owner/brain/issues/314"},
+                request=request,
+            )
+        if request.method == "GET" and request.url.path == "/repos/owner/brain/issues/314/comments":
+            return httpx.Response(
+                200,
+                json=[{
+                    "user": {"login": "github-actions[bot]"},
+                    "body": (
+                        "## Brain remote test run\n\n"
+                        "**Result:** PASS\n"
+                        "**Target repository:** owner/project\n"
+                        "**Target branch:** brain/test-branch\n"
+                        "https://github.com/owner/brain/actions/runs/98765"
+                    ),
+                }],
+                request=request,
+            )
+        if request.method == "GET" and request.url.path == "/repos/owner/brain/actions/runs/98765":
+            return httpx.Response(
+                200,
+                json={
+                    "path": ".github/workflows/brain-task-runner.yml",
+                    "event": "issues",
+                    "status": "completed",
+                    "conclusion": "success",
+                },
+                request=request,
+            )
+        raise AssertionError(f"Unexpected GitHub request: {request.method} {request.url.path}")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        gateway = GitHubRepositoryGateway(
+            token="test-token",
+            allowed_owner="owner",
+            api_base_url="https://api.github.com",
+            client=client,
+        )
+        tools = GitHubCompanyTools(
+            gateway=gateway,
+            verification_gateway=gateway,
+            control_repository="owner/brain",
+            poll_seconds=0,
+            timeout_seconds=1,
+        )
+        result = await tools.run_checks("owner/project", "brain/test-branch")
+
+    assert result["executed"] is True
+    assert result["status"] == "PASS"
+    assert result["run_url"] == "https://github.com/owner/brain/actions/runs/98765"
+    assert result["issue_url"] == "https://github.com/owner/brain/issues/314"
+    assert requests_seen == [
+        ("POST", "/repos/owner/brain/issues"),
+        ("GET", "/repos/owner/brain/issues/314/comments"),
+        ("GET", "/repos/owner/brain/actions/runs/98765"),
+    ]
