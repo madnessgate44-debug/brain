@@ -3,7 +3,7 @@ name: OpenHands Read-only Brain Audit
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, fix/openhands-audit-events-422]
     paths:
       - ".github/workflows/openhands-readonly-audit.yml"
 
