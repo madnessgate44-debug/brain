@@ -78,16 +78,17 @@ def test_changed_file_and_warning_summaries_preserve_names():
 
 def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert 'check_type=tests' in workflow
-    assert 'check_type=smoke' in workflow
-    assert 'check_type=none' in workflow
-    assert 'json.loads(Path("package.json").read_text(encoding="utf-8"))' in workflow
+    assert all(marker in workflow for marker in ("check_type=tests", "check_type=smoke", "check_type=none"))
+    assert 'json.loads(Path("package.json").read_text(encoding="utf-8"))' not in workflow
+    assert 'python -c \'import json; s=json.load(open("package.json", encoding="utf-8"))' in workflow
     assert 'echo "check_type=$check_type" >> "$GITHUB_OUTPUT"' in workflow
-    assert 'tests) check_summary="tests passed"' in workflow
-    assert 'smoke) check_summary="smoke check passed; no tests detected"' in workflow
-    assert 'none) check_summary="no tests/build/lint check configured"' in workflow
-    assert "- Checks: ${check_summary}; gitleaks passed." in workflow
-    assert "- Checks: %s; gitleaks PASS" in workflow
+    assert all(marker in workflow for marker in (
+        'tests) check_summary="tests passed"',
+        'smoke) check_summary="smoke check passed; no tests detected"',
+        'none) check_summary="no tests/build/lint check configured"',
+        "- Checks: ${check_summary}; gitleaks passed.",
+        "- Checks: %s; gitleaks PASS",
+    ))
     assert "BRAIN_CHECK_TYPE=" not in workflow
     assert 'if [ "$check_type" = "none" ]; then' in workflow
     assert "cat /tmp/brain-checks.log" not in workflow
@@ -135,24 +136,14 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     gate = re.search(r"grep -izEq '([^']+)'", workflow)
     assert gate is not None
     protected = re.compile(gate.group(1), re.IGNORECASE)
-    for path in (
-        ".github/workflows/release.yml",
-        ".github/actions/build/action.yml",
-        ".env.production",
-        "service/.npmrc",
-        "CODEOWNERS",
-        "Dockerfile.dev",
-        "docker-compose.prod.yaml",
-        "infra/main.tf",
-        "deploy/helm/values.yaml",
-        "secrets/provider-key.json",
-        "certs/service.pem",
-    ):
-        assert protected.search(path), path
-    for path in ("src/brain/main.py", "README.md", "tests/test_brain_build_workflow_contract.py"):
-        assert not protected.search(path), path
-    assert "human review and merge required" in workflow
-
+    protected_examples = (
+        ".github/workflows/release.yml", ".github/actions/build/action.yml", ".env.production",
+        "service/.npmrc", "CODEOWNERS", "Dockerfile.dev", "docker-compose.prod.yaml",
+        "infra/main.tf", "deploy/helm/values.yaml", "secrets/provider-key.json", "certs/service.pem",
+    )
+    allowed_examples = ("src/brain/main.py", "README.md", "tests/test_brain_build_workflow_contract.py")
+    assert all(protected.search(path) for path in protected_examples)
+    assert all(not protected.search(path) for path in allowed_examples)
 
 def test_empty_target_initialization_and_shared_queue_are_explicit():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")

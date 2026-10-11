@@ -520,18 +520,7 @@ jobs:
               result=$?
             fi
           elif [ -f package.json ]; then
-            check_type="$(python - <<'PY'
-          import json
-          from pathlib import Path
-          scripts = (json.loads(Path("package.json").read_text(encoding="utf-8")).get("scripts") or {})
-          if scripts.get("test"):
-              print("tests")
-          elif scripts.get("build") or scripts.get("lint"):
-              print("smoke")
-          else:
-              print("none")
-          PY
-            )"
+            check_type="$(python -c 'import json; s=json.load(open("package.json", encoding="utf-8")).get("scripts") or {}; print("tests" if s.get("test") else "smoke" if s.get("build") or s.get("lint") else "none")')"
             if [ "$check_type" = "none" ]; then
               result=0
             elif docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$check_workspace:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
@@ -577,20 +566,18 @@ jobs:
                   if tag=="title": self.in_title=False
               def handle_data(self, data):
                   if self.in_title and data.strip(): self.title=True
-          files=list(Path(".").glob("*.html"))
+          files=list(Path(".").glob("*.html")); errors=[]
           if not files: raise SystemExit("No root HTML file found.")
-          errors=[]
           for file in files:
               p=Check(); p.feed(file.read_text(encoding="utf-8",errors="replace"))
               if not p.title: errors.append(f"{file}: missing non-empty title")
               if not p.viewport: errors.append(f"{file}: missing viewport meta")
               for tag,href in p.links:
                   if href.startswith(("http://","https://","data:","mailto:","#","javascript:")): continue
-                  target=(file.parent / href.split("#",1)[0].split("?",1)[0])
+                  target=file.parent / href.split("#",1)[0].split("?",1)[0]
                   if href and not target.exists(): errors.append(f"{file}: broken local {tag} link {href}")
-          print(f"Static HTML checks: {len(files)} file(s)")
           if errors: print("\n".join(errors)); sys.exit(1)
-          print("PASS: title, viewport, and local references")
+          print(f"Static HTML checks passed for {len(files)} file(s)")
           PY
             then
               result=0
