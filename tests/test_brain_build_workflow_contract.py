@@ -82,6 +82,12 @@ def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     assert "BRAIN_CHECK_TYPE=smoke" in workflow
     assert "BRAIN_CHECK_TYPE=none" in workflow
     assert 'echo "check_type=$check_type" >> "$GITHUB_OUTPUT"' in workflow
+    assert "Project checks passed (type=$check_type); raw command output is suppressed." in workflow
+    assert "Project checks failed (type=$check_type, exit=$result); raw command output is suppressed." in workflow
+    assert "cat /tmp/brain-checks.log" not in workflow
+    artifact_section = workflow.split("Upload sanitized mission evidence", 1)[1]
+    assert "/tmp/brain-checks.log" not in artifact_section
+    assert "/tmp/brain-check-install.log" not in artifact_section
     assert 'tests) check_summary="tests passed"' in workflow
     assert 'smoke) check_summary="smoke check passed; no tests detected"' in workflow
     assert 'none) check_summary="no tests/build/lint check configured"' in workflow

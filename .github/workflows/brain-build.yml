@@ -505,12 +505,12 @@ jobs:
                 python -m pip install --user pytest pytest-asyncio httpx >>/tmp/install.log 2>&1
               }
               if find . -maxdepth 3 -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
-                echo "BRAIN_CHECK_TYPE=tests"
                 python -m pytest -q
+                echo "BRAIN_CHECK_TYPE=tests"
               else
-                echo "BRAIN_CHECK_TYPE=smoke"
                 python -m compileall -q .
                 echo "WARN: no Python test files found; compileall used as smoke check."
+                echo "BRAIN_CHECK_TYPE=smoke"
               fi
             ' > /tmp/brain-checks.log 2>&1
             result=$?
@@ -521,27 +521,27 @@ jobs:
               echo Y29uc3QgZnMgPSByZXF1aXJlKCJmcyIpOwpjb25zdCBwYWNrYWdlSnNvbiA9IEpTT04ucGFyc2UoZnMucmVhZEZpbGVTeW5jKCJwYWNrYWdlLmpzb24iLCAidXRmOCIpKTsKY29uc3Qga2V5ID0gcHJvY2Vzcy5hcmd2WzJdIHx8ICJ0ZXN0IjsKY29uc29sZS5sb2coKHBhY2thZ2VKc29uLnNjcmlwdHMgfHwge30pW2tleV0gfHwgIiIpOwo= | base64 -d > /tmp/brain-package-script.cjs
               test_script="$(node /tmp/brain-package-script.cjs test)"
               if [ -n "$test_script" ]; then
-                echo "BRAIN_CHECK_TYPE=tests"
                 case "$test_script" in
                   *vitest*) npm test -- --run ;;
                   *react-scripts*) CI=true npm test -- --watchAll=false ;;
                   *jest*) npm test -- --runInBand ;;
                   *) npm test ;;
                 esac
+                echo "BRAIN_CHECK_TYPE=tests"
               else
                 build_script="$(node /tmp/brain-package-script.cjs build)"
                 lint_script="$(node /tmp/brain-package-script.cjs lint)"
                 if [ -n "$build_script" ]; then
-                  echo "BRAIN_CHECK_TYPE=smoke"
                   npm run build
                   echo "WARN: no test script found; build used as smoke check."
-                elif [ -n "$lint_script" ]; then
                   echo "BRAIN_CHECK_TYPE=smoke"
+                elif [ -n "$lint_script" ]; then
                   npm run lint
                   echo "WARN: no test/build script found; lint used as smoke check."
+                  echo "BRAIN_CHECK_TYPE=smoke"
                 else
-                  echo "BRAIN_CHECK_TYPE=none"
                   echo "WARN: no test, build, or lint script found; no tests claimed."
+                  echo "BRAIN_CHECK_TYPE=none"
                 fi
               fi
             ' > /tmp/brain-checks.log 2>&1
@@ -589,9 +589,14 @@ jobs:
             exit 1
           fi
           sed -i '/^BRAIN_CHECK_TYPE=/d' /tmp/brain-checks.log
-          cat /tmp/brain-checks.log
+          if [ "$result" -eq 0 ]; then
+            echo "Project checks passed (type=$check_type); raw command output is suppressed."
+          else
+            echo "::error::Project checks failed (type=$check_type, exit=$result); raw command output is suppressed."
+          fi
           echo "check_type=$check_type" >> "$GITHUB_OUTPUT"
           echo "exit_code=$result" >> "$GITHUB_OUTPUT"
+          rm -f /tmp/brain-checks.log /tmp/brain-check-install.log
           if [ "$result" -ne 0 ]; then exit "$result"; fi
 
       - name: Capture isolated mobile and desktop previews for static HTML
@@ -683,7 +688,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           files_changed="$(git diff --cached --name-only -z | python -c 'import json,sys; p=[x.decode("utf-8","replace") for x in sys.stdin.buffer.read().split(b"\0") if x]; print(json.dumps(p[:8], ensure_ascii=True))')"
-          warnings="$( { grep '^WARN:' /tmp/brain-checks.log 2>/dev/null || true; cat /tmp/brain-agent-warnings.log 2>/dev/null || true; } | head -4 | paste -sd';' -)"
+          warnings="$(cat /tmp/brain-agent-warnings.log 2>/dev/null || true)"
+          case "$CHECK_TYPE" in
+            smoke) warnings="${warnings:+$warnings; }smoke check used; no tests detected" ;;
+            none) warnings="${warnings:+$warnings; }no tests/build/lint configured" ;;
+          esac
           if [ "$PREVIEW_OUTCOME" = "failure" ]; then warnings="${warnings:+$warnings; }preview capture failed"; fi
           screenshots="none"
           if [ -f .brain/preview/mobile-390x844.png ] && [ -f .brain/preview/desktop-1280x800.png ]; then screenshots=".brain/preview/mobile-390x844.png, .brain/preview/desktop-1280x800.png"; fi
@@ -724,8 +733,6 @@ jobs:
           name: brain-build-evidence-${{ github.run_id }}
           path: |
             /tmp/brain-build-diff-stat.txt
-            /tmp/brain-checks.log
-            /tmp/brain-check-install.log
             .brain/preview/*.png
           if-no-files-found: ignore
           retention-days: 14
