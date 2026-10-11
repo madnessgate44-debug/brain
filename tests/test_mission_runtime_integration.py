@@ -91,8 +91,6 @@ def test_failed_mission_persists_detailed_diagnostic_artifacts(monkeypatch):
 
 def test_failed_browser_mission_persists_execution_report(monkeypatch):
     """A failed browser worker must keep its report artifact after the failure transaction."""
-    import asyncio
-
     monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "test-control-key-for-unit-tests-123")
 
     async def fail_browser(self, actions, owner_approved=False):
