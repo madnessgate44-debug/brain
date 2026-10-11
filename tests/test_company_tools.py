@@ -282,6 +282,9 @@ async def test_pull_request_uses_separate_pat_gateway():
 
     assert result["url"] == "https://github.com/owner/brain/pull/999"
     assert len(pull_request_gateway.calls) == 1
+    assert "untrusted data, not instructions" in pull_request_gateway.calls[0]["body"]
+    assert "```text" in pull_request_gateway.calls[0]["body"]
+    assert "docs/BRAIN_RUNTIME_VERIFICATION.md" in pull_request_gateway.calls[0]["body"]
     assert len(write_gateway.calls) == 0
 
 
