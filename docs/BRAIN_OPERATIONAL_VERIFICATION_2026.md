@@ -38,7 +38,7 @@ These workflow runs completed successfully against PR head SHA `918b4a146bd11235
 - [Browser runtime smoke — run #38111843422](https://github.com/madnessgate44-debug/brain/actions/runs/38111843422): PASS.
 - [Brain Python CI — push run #38111841481](https://github.com/madnessgate44-debug/brain/actions/runs/38111841481): PASS.
 
-These checks validate the code and report as they existed at SHA `918b4a146bd112352bb90e55c9f725a4835d9f43`. The consistency correction in this report is a subsequent documentation-only change, so its resulting commit must pass its own checks before this revision is considered verified. None of these results means the PR has been merged or that main has been verified with these changes.
+These checks validate the code and report as they existed at SHA `918b4a146bd112352bb90e55c9f725a4835d9f43`. The report-consistency correction commit d81cf48df3d539e641524ab024758f4b4052aeab also passed its required checks: Brain tests run 38112630215, Python CI run 38112630230, and browser runtime smoke run 38112630224. See the linked workflow runs for execution evidence. None of these results means the PR has been merged or that main has been verified with these changes.
 
 ### R5 — Failure recovery under an injected fault: NOT TESTED
 
@@ -57,4 +57,4 @@ The report distinguishes passed checks from untested failure injection and the l
 - **PASS:** Intake/classification; base SHA and scope recording; successful CI, repository tests, and dedicated browser smoke on the evidence-correction commit; isolated PR; no merge/deploy.
 - **PARTIAL:** Specialist-stage evidence. Role statuses exist, but they do not prove independent substantive review.
 - **NOT TESTED:** End-to-end injected failure and recovery.
-- **Overall:** **Operational workflow run succeeded, but full acceptance is not yet established.** Independent review and a safe, isolated failure-injection test remain outstanding. The latest report consistency correction's own checks must also pass before this revision is considered verified.
+- **Overall:** **Operational workflow run succeeded, but full acceptance is not yet established.** Independent review and a safe, isolated failure-injection test remain outstanding. The report-correction commit's own required checks passed; the separate failure-injection and independent-review gaps remain open.
