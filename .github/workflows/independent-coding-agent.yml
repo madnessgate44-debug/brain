@@ -81,7 +81,7 @@ jobs:
         run: |
           cat > /tmp/Dockerfile.mini-agent <<'DOCKER_EOF'
           FROM python:3.12-slim
-          RUN apt-get update && apt-get install -y --no-install-recommends git bash ca-certificates && rm -rf /var/lib/apt/lists/*
+          RUN apt-get update && apt-get install -y --no-install-recommends git bash ca-certificates && rm -rf /var/lib/apt/lists/* && git config --global --add safe.directory /workspace
           DOCKER_EOF
           docker build --tag brain-mini-swe-agent:local --file /tmp/Dockerfile.mini-agent /tmp
 
@@ -144,6 +144,15 @@ jobs:
               "pull_timeout": 120,
               "timeout": 300,
           }
+          # Validate the generated configuration against mini-SWE-agent v2's real
+          # Pydantic config contracts before spending any model calls.
+          from minisweagent.environments.docker import DockerEnvironmentConfig
+          from minisweagent.models.litellm_model import LitellmModelConfig
+
+          DockerEnvironmentConfig(**{k: v for k, v in config["environment"].items() if k != "environment_class"})
+          model_config = dict(config.get("model", {}))
+          model_config["model_name"] = os.environ["MSWEA_MODEL_NAME"]
+          LitellmModelConfig(**model_config)
           with open("/tmp/mini-agent-docker.yaml", "w", encoding="utf-8") as handle:
               yaml.safe_dump(config, handle, sort_keys=False)
           PY
