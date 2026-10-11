@@ -51,6 +51,7 @@ jobs:
           echo "A0_API_TOKEN=$A0_API_TOKEN" >> "$GITHUB_ENV"
           docker pull agent0ai/agent-zero:latest
           docker run -d --name agent-zero-brain-audit \
+            --add-host=host.docker.internal:host-gateway \
             -p 127.0.0.1:5080:80 \
             -e "A0_SET_mcp_server_token=$A0_API_TOKEN" \
             -v "$GITHUB_WORKSPACE:/workspace/brain" \
