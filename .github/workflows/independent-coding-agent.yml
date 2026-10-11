@@ -193,7 +193,7 @@ jobs:
           set -e
           BRANCH="brain/agent-fix-${ISSUE_NUMBER:-manual}-${GITHUB_RUN_ID}"
           git status --short
-          if git diff --name-only | grep -Eq '(^|/)\\.github/workflows/|(^|/)\\.env($|\\.)|(^|/)(render\\.yaml|Dockerfile|.*secret.*)'; then
+          if git status --porcelain | cut -c4- | grep -Eq '(^|/)\.github/workflows/|(^|/)\.env($|\.)|(^|/)(render\.yaml|Dockerfile|.*secret.*)'; then
             echo "::error::Agent changed a protected workflow, environment, deployment, or secret-related file. Refusing to publish these changes."
             gh issue comment "${ISSUE_NUMBER}" --body "The agent touched a protected workflow, environment, deployment, or secret-related file. Publication was blocked for safety. Review logs: ${RUN_URL}" 2>/dev/null || true
             exit 1
