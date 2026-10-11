@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - brain/agent-zero-operating-environment
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -34,7 +35,7 @@ jobs:
             echo "::error::Ollama did not start."
             exit 1
           fi
-          ollama pull qwen2.5-coder:7b
+          ollama pull qwen2.5-coder:3b
 
       - name: Start official Agent Zero container
         shell: bash
@@ -45,10 +46,10 @@ jobs:
             --add-host=host.docker.internal:host-gateway \
             -p 5080:80 \
             -e A0_SET_chat_model_provider=ollama \
-            -e A0_SET_chat_model_name=qwen2.5-coder:7b \
+            -e A0_SET_chat_model_name=qwen2.5-coder:3b \
             -e A0_SET_chat_model_api_base=http://host.docker.internal:11434 \
             -e A0_SET_utility_model_provider=ollama \
-            -e A0_SET_utility_model_name=qwen2.5-coder:7b \
+            -e A0_SET_utility_model_name=qwen2.5-coder:3b \
             -e A0_SET_utility_model_api_base=http://host.docker.internal:11434 \
             agent0ai/agent-zero:latest
           ready=false
