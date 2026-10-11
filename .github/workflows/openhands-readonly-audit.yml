@@ -166,6 +166,8 @@ jobs:
               if event.get("kind") != "MessageEvent" or event.get("source") not in ("assistant", "agent"):
                   continue
               value = event.get("message", event.get("content", ""))
+              if not value and isinstance(event.get("llm_message"), dict):
+                  value = event["llm_message"].get("content", "")
               if isinstance(value, list):
                   value = "\n".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in value)
               elif isinstance(value, dict):
