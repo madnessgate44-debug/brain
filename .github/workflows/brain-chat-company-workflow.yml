@@ -2,7 +2,7 @@ name: Brain Chat Company Workflow
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened]
 
 permissions: {}
 
@@ -26,7 +26,7 @@ jobs:
     env:
       BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
       BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
-      BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
+      BRAIN_AI_MODEL: ${{ vars.BRAIN_AI_MODEL }}
       BRAIN_GITHUB_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}
       BRAIN_GITHUB_ACTIONS_TOKEN: ${{ github.token }}
       BRAIN_GITHUB_OWNER: ${{ github.repository_owner }}
@@ -44,6 +44,21 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+
+      - name: Validate provider configuration
+        shell: bash
+        env:
+          MODEL_NAME: ${{ vars.BRAIN_AI_MODEL }}
+        run: |
+          set +x
+          if [ -z "${MODEL_NAME:-}" ]; then
+            echo "::error::Repository variable BRAIN_AI_MODEL is missing. Set it to a provider-supported model ID; no default model is selected."
+            exit 1
+          fi
+          if [[ ! "$MODEL_NAME" =~ ^[A-Za-z0-9._:/-]+$ ]]; then
+            echo "::error::BRAIN_AI_MODEL contains unsupported characters."
+            exit 1
+          fi
 
       - name: Install Brain
         id: install
