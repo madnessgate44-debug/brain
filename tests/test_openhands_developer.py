@@ -3,7 +3,7 @@
 import pytest
 
 from brain.company.agent_runner import AgentOutputError
-from brain.company.openhands_developer import _safe_relative_path, _safe_request_paths
+from brain.company.openhands_developer import _safe_relative_path, _safe_request_paths, _sdk_model_name
 
 
 @pytest.mark.parametrize("path", ["../outside.py", "/tmp/outside.py", "src/../../outside.py", "brain\\unsafe.py"])
@@ -20,9 +20,6 @@ def test_unsafe_path_examples_in_task_text_are_not_output_path_hints():
 
 def test_safe_explicit_path_in_task_text_is_preserved():
     assert _safe_request_paths("Update tests/test_feature.py") == {"tests/test_feature.py"}
-
-
-from brain.company.openhands_developer import _sdk_model_name
 
 
 def test_custom_endpoint_forces_openai_compatible_model_routing():
