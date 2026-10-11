@@ -144,15 +144,18 @@ jobs:
               "pull_timeout": 120,
               "timeout": 300,
           }
-          # Validate the generated configuration against mini-SWE-agent v2's real
-          # Pydantic config contracts before spending any model calls.
+          # Validate the Docker configuration against mini-SWE-agent v2's actual
+          # Pydantic contract. Validate model settings without importing LitellmModelConfig:
+          # Brain pins Pydantic 2.10, while newer OpenAI SDK types may require a newer Pydantic.
           from minisweagent.environments.docker import DockerEnvironmentConfig
-          from minisweagent.models.litellm_model import LitellmModelConfig
 
           DockerEnvironmentConfig(**{k: v for k, v in config["environment"].items() if k != "environment_class"})
           model_config = dict(config.get("model", {}))
           model_config["model_name"] = os.environ["MSWEA_MODEL_NAME"]
-          LitellmModelConfig(**model_config)
+          if not isinstance(model_config["model_name"], str) or not model_config["model_name"]:
+              raise ValueError("MSWEA_MODEL_NAME must be a non-empty string")
+          if not isinstance(model_config.get("model_kwargs", {}), dict):
+              raise ValueError("mini-SWE-agent model_kwargs must be a mapping")
           with open("/tmp/mini-agent-docker.yaml", "w", encoding="utf-8") as handle:
               yaml.safe_dump(config, handle, sort_keys=False)
           PY
@@ -179,15 +182,28 @@ jobs:
             fi
 
             if python -m pip install -e '.[dev]' >/tmp/brain-install.log 2>&1 && pytest -q > /tmp/brain-pytest.log 2>&1; then
+              TEST_STATUS=0
+            else
+              TEST_STATUS=$?
+            fi
+
+            # A passing baseline suite is not proof the agent completed the task.
+            # Require both a successful agent exit and passing real repository tests.
+            if [ "$AGENT_STATUS" -eq 0 ] && [ "$TEST_STATUS" -eq 0 ]; then
               cat /tmp/brain-pytest.log
               TESTS_PASSED=true
               echo "tests_passed=true" >> "$GITHUB_OUTPUT"
               break
             else
-              TEST_STATUS=$?
+              if [ "$AGENT_STATUS" -ne 0 ]; then
+                {
+                  echo "mini-SWE-agent attempt $attempt exited with status $AGENT_STATUS."
+                  tail -n 80 "/tmp/mini-agent-attempt-${attempt}.log" 2>/dev/null || true
+                } >> /tmp/brain-pytest.log
+              fi
               tail -n 180 /tmp/brain-install.log 2>/dev/null || true
               tail -n 180 /tmp/brain-pytest.log 2>/dev/null || true
-              echo "Test attempt $attempt failed with status $TEST_STATUS."
+              echo "Attempt $attempt failed: agent_status=$AGENT_STATUS test_status=$TEST_STATUS."
               if [ "$attempt" -eq 3 ]; then
                 TESTS_PASSED=false
                 echo "tests_passed=false" >> "$GITHUB_OUTPUT"
@@ -229,6 +245,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           TESTS_PASSED: ${{ steps.agent.outputs.tests_passed }}
+          AGENT_OUTCOME: ${{ steps.agent.outcome }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set +x
@@ -241,7 +258,11 @@ jobs:
             exit 1
           fi
           if [ -z "$(git status --porcelain)" ]; then
-            gh issue comment "${ISSUE_NUMBER}" --body "Independent agent run produced no repository changes. Review the run logs: ${RUN_URL}" 2>/dev/null || true
+            if [ "${AGENT_OUTCOME}" != "success" ]; then
+              gh issue comment "${ISSUE_NUMBER}" --body "The independent coding-agent step failed before producing repository changes. No repair is claimed. Inspect the failed step and artifact logs: ${RUN_URL}" 2>/dev/null || true
+            else
+              gh issue comment "${ISSUE_NUMBER}" --body "The agent step completed but produced no repository changes. No repair is claimed. Review the run logs: ${RUN_URL}" 2>/dev/null || true
+            fi
             exit 0
           fi
 
