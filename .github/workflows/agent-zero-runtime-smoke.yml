@@ -113,7 +113,7 @@ jobs:
           if [ "$EXEC_STATUS" -ne 0 ] || [ "$status" != "200" ]; then
             echo "::error::Agent Zero API returned HTTP ${status:-unknown} (request execution status $EXEC_STATUS)."
             echo "API error response (first 2000 characters; token-redacted):"
-            /opt/venv/bin/python3 - "$API_TOKEN" <<'PY'
+            python3 - "$API_TOKEN" <<'PY'
           import sys
           from pathlib import Path
           token = sys.argv[1]
