@@ -55,6 +55,13 @@ def _safe_request_paths(user_request: str) -> set[str]:
     return safe_paths
 
 
+def _sdk_model_name(model: str, base_url: str | None) -> str:
+    """Force custom endpoints through LiteLLM's OpenAI-compatible provider."""
+    if base_url and not model.startswith("openai/"):
+        return f"openai/{model}"
+    return model
+
+
 def _task_prompt(user_request: str, evidence: dict[str, Any]) -> str:
     snapshot = evidence.get("repository_snapshot", {})
     source_contents = snapshot.get("source_contents", {}) if isinstance(snapshot, dict) else {}
@@ -131,7 +138,7 @@ def _run_sdk_sync(
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(text, encoding="utf-8")
 
-        llm = LLM(model=model, api_key=api_key, base_url=base_url)
+        llm = LLM(model=_sdk_model_name(model, base_url), api_key=api_key, base_url=base_url)
         agent = Agent(llm=llm, tools=[Tool(name=FileEditorTool.name)])
         conversation = Conversation(agent=agent, workspace=str(root))
         conversation.send_message(_task_prompt(user_request, evidence))
