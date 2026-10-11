@@ -414,10 +414,10 @@ jobs:
           git -C "$diff_workspace" -c core.hooksPath=/dev/null add -f -A
           git -C "$diff_workspace" -c core.hooksPath=/dev/null commit --no-verify -m "trusted baseline"
           rsync -a --delete --exclude='/.git' /tmp/brain-agent-workspace/ "$diff_workspace"/
-          GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null add -N -f -- .
-          GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --binary --no-ext-diff --no-textconv -- . > /tmp/brain-build.patch
-          GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --stat -- . > /tmp/brain-build-diff-stat.txt
-          if GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --check -- .; then
+          GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null add -f -A
+          GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --cached --binary --no-ext-diff --no-textconv -- . > /tmp/brain-build.patch
+          GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --cached --stat -- . > /tmp/brain-build-diff-stat.txt
+          if GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --cached --check -- .; then
             : > /tmp/brain-agent-warnings.log
           else
             echo "::warning::Whitespace errors detected in candidate changes; review the patch before merging."
@@ -617,7 +617,7 @@ jobs:
           '
       - name: Verify protected paths and publish candidate PR
         id: publish
-        if: always() && steps.agent.outcome == 'success' && steps.candidate.outcome == 'success' && (needs.prepare.outputs.command == 'audit' || (steps.checks.outcome == 'success' && steps.gitleaks.outcome == 'success'))
+        if: always() && steps.agent.outcome == 'success' && steps.candidate.outcome == 'success' && steps.candidate.outcome == 'success' && (needs.prepare.outputs.command == 'audit' || (steps.checks.outcome == 'success' && steps.gitleaks.outcome == 'success'))
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}
