@@ -1,0 +1,24 @@
+name: Temporary control-key presence check
+
+on:
+  push:
+    branches: [fix/company-control-key-auth]
+    paths:
+      - ".github/workflows/verify-control-key-presence.yml"
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check only whether the repository secret exists
+        env:
+          CONTROL_KEY: ${{ secrets.BRAIN_CONTROL_API_KEY }}
+        run: |
+          if [ -n "$CONTROL_KEY" ]; then
+            echo "BRAIN_CONTROL_API_KEY_PRESENT=true" >> "$GITHUB_STEP_SUMMARY"
+            echo "Control key secret is configured; value not displayed."
+          else
+            echo "BRAIN_CONTROL_API_KEY_PRESENT=false" >> "$GITHUB_STEP_SUMMARY"
+            echo "Control key secret is missing; value not displayed."
+          fi
