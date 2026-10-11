@@ -496,26 +496,43 @@ jobs:
           mkdir -p "$check_workspace"
           rsync -a --delete --exclude='/.git' "$GITHUB_WORKSPACE/" "$check_workspace/"
           cd "$check_workspace"
-          set +e
           result=0
+          check_type=none
           if [ -f pyproject.toml ] || [ -f pytest.ini ] || [ -f setup.cfg ] || [ -f requirements.txt ]; then
-            docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$check_workspace:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
+            if find . -maxdepth 3 -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
+              check_type=tests
+            else
+              check_type=smoke
+            fi
+            if docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$check_workspace:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
               set -e
               python -m pip install --user -e ".[dev]" >/tmp/install.log 2>&1 || {
                 python -m pip install --user pytest pytest-asyncio httpx >>/tmp/install.log 2>&1
               }
               if find . -maxdepth 3 -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
                 python -m pytest -q
-                echo "BRAIN_CHECK_TYPE=tests"
               else
                 python -m compileall -q .
-                echo "WARN: no Python test files found; compileall used as smoke check."
-                echo "BRAIN_CHECK_TYPE=smoke"
               fi
-            ' > /tmp/brain-checks.log 2>&1
-            result=$?
+            ' > /tmp/brain-checks.log 2>&1; then
+              result=0
+            else
+              result=$?
+            fi
           elif [ -f package.json ]; then
-            docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$check_workspace:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
+            check_type="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          scripts = (json.loads(Path("package.json").read_text(encoding="utf-8")).get("scripts") or {})
+          if scripts.get("test"):
+              print("tests")
+          elif scripts.get("build") or scripts.get("lint"):
+              print("smoke")
+          else:
+              print("none")
+          PY
+            )"
+            if docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$check_workspace:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
               set -e
               if [ -f package-lock.json ]; then npm ci; else npm install; fi
               echo Y29uc3QgZnMgPSByZXF1aXJlKCJmcyIpOwpjb25zdCBwYWNrYWdlSnNvbiA9IEpTT04ucGFyc2UoZnMucmVhZEZpbGVTeW5jKCJwYWNrYWdlLmpzb24iLCAidXRmOCIpKTsKY29uc3Qga2V5ID0gcHJvY2Vzcy5hcmd2WzJdIHx8ICJ0ZXN0IjsKY29uc29sZS5sb2coKHBhY2thZ2VKc29uLnNjcmlwdHMgfHwge30pW2tleV0gfHwgIiIpOwo= | base64 -d > /tmp/brain-package-script.cjs
@@ -527,31 +544,26 @@ jobs:
                   *jest*) npm test -- --runInBand ;;
                   *) npm test ;;
                 esac
-                echo "BRAIN_CHECK_TYPE=tests"
               else
                 build_script="$(node /tmp/brain-package-script.cjs build)"
                 lint_script="$(node /tmp/brain-package-script.cjs lint)"
                 if [ -n "$build_script" ]; then
                   npm run build
-                  echo "WARN: no test script found; build used as smoke check."
-                  echo "BRAIN_CHECK_TYPE=smoke"
                 elif [ -n "$lint_script" ]; then
                   npm run lint
-                  echo "WARN: no test/build script found; lint used as smoke check."
-                  echo "BRAIN_CHECK_TYPE=smoke"
-                else
-                  echo "WARN: no test, build, or lint script found; no tests claimed."
-                  echo "BRAIN_CHECK_TYPE=none"
                 fi
               fi
-            ' > /tmp/brain-checks.log 2>&1
-            result=$?
+            ' > /tmp/brain-checks.log 2>&1; then
+              result=0
+            else
+              result=$?
+            fi
           elif find . -maxdepth 2 -type f -name '*.html' | grep -q .; then
-            python - <<'PY' > /tmp/brain-checks.log 2>&1
+            check_type=smoke
+            if python - <<'PY' > /tmp/brain-checks.log 2>&1
           from html.parser import HTMLParser
           from pathlib import Path
-          import re, sys
-          print("BRAIN_CHECK_TYPE=smoke")
+          import sys
           class Check(HTMLParser):
               def __init__(self): super().__init__(); self.title=False; self.in_title=False; self.viewport=False; self.links=[]
               def handle_starttag(self, tag, attrs):
@@ -578,17 +590,15 @@ jobs:
           if errors: print("\n".join(errors)); sys.exit(1)
           print("PASS: title, viewport, and local references")
           PY
-            result=$?
+            then
+              result=0
+            else
+              result=$?
+            fi
           else
-            printf '%s\n' "BRAIN_CHECK_TYPE=none" "WARN: no recognized project manifest or root HTML found; no tests claimed." > /tmp/brain-checks.log
+            check_type=none
             result=0
           fi
-          check_type="$(grep '^BRAIN_CHECK_TYPE=' /tmp/brain-checks.log | tail -1 | cut -d= -f2 || true)"
-          if [ -z "$check_type" ]; then
-            echo "::error::Project check type was not recorded; refusing to claim a check result."
-            exit 1
-          fi
-          sed -i '/^BRAIN_CHECK_TYPE=/d' /tmp/brain-checks.log
           if [ "$result" -eq 0 ]; then
             echo "Project checks passed (type=$check_type); raw command output is suppressed."
           else
