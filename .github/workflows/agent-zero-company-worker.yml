@@ -138,11 +138,32 @@ jobs:
               "lifetime_hours": 2
           }), encoding="utf-8")
           PY
-          HTTP_CODE="$(curl -sS --max-time 5400 -o /tmp/agent-zero-response.json -w '%{http_code}' \
-            -H "X-API-KEY: $A0_API_TOKEN" -H 'Content-Type: application/json' \
-            --data-binary @/tmp/agent-zero-request.json http://127.0.0.1:5080/api_message || true)"
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Agent Zero task API failed with HTTP ${HTTP_CODE:-unknown}."
+          set +e
+          docker exec -i -e A0_API_TOKEN="$A0_API_TOKEN" brain-agent-zero python -c '
+          import os, sys, urllib.request, urllib.error
+          body = sys.stdin.buffer.read()
+          request = urllib.request.Request(
+              "http://127.0.0.1:80/api/api_message",
+              data=body,
+              headers={"X-API-KEY": os.environ["A0_API_TOKEN"], "Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=5400) as response:
+                  payload = response.read()
+                  status = response.status
+          except urllib.error.HTTPError as error:
+              payload = error.read()
+              status = error.code
+          sys.stdout.buffer.write(payload)
+          print("\\n__HTTP_STATUS__=" + str(status), file=sys.stderr)
+          ' < /tmp/agent-zero-request.json > /tmp/agent-zero-response.json 2>/tmp/agent-zero-http-status.txt
+          EXEC_STATUS=$?
+          set -e
+          HTTP_CODE="$(sed -n 's/^__HTTP_STATUS__=//p' /tmp/agent-zero-http-status.txt | tail -n 1)"
+          if [ "$EXEC_STATUS" -ne 0 ] || [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Agent Zero task API failed with HTTP ${HTTP_CODE:-unknown} (request execution status $EXEC_STATUS)."
+            head -c 2000 /tmp/agent-zero-response.json || true
             docker logs --tail 80 brain-agent-zero || true
             exit 1
           fi
