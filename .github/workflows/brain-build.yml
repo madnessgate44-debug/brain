@@ -35,6 +35,7 @@ jobs:
   prepare:
     if: >-
       github.repository == 'madnessgate44-debug/brain' &&
+      vars.BRAIN_BUILD_ENABLED == 'true' &&
       (
         (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) ||
         (
