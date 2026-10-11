@@ -21,7 +21,7 @@ def test_cross_repository_build_workflow_enforces_owner_and_single_explicit_toke
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "github.event.comment.user.login == github.repository_owner" in workflow
     assert "github.event.issue.user.login == github.repository_owner" in workflow
-    assert "target.split('/', 1)[0].casefold() != owner.casefold()" in workflow
+    assert 'target.split("/", 1)[0].casefold() != owner.casefold()' in workflow
     assert "secrets.BRAIN_GITHUB_TOKEN || github.token" not in workflow
     assert "token: ${{ secrets.BRAIN_GITHUB_TOKEN }}" in workflow
     assert "persist-credentials: false" in workflow
@@ -47,3 +47,24 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     assert "Static HTML checks" in workflow
     assert "Protected workflow, environment, deployment, or credential-related changes detected" in workflow
     assert "human review and merge required" in workflow
+
+
+def test_empty_target_initialization_and_shared_queue_are_explicit():
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "Initialize an empty target repository through the Contents API" in workflow
+    assert "repos/$TARGET_REPOSITORY/contents/README.md" in workflow
+    assert "Acquire shared model-workflow queue lease" in workflow
+    assert "Release shared model-workflow queue lease" in workflow
+    assert "heads/brain-company-workflow-lock" in workflow
+
+
+def test_target_preflight_checks_only_permissions_the_build_workflow_needs():
+    workflow_path = ROOT / ".github" / "workflows" / "brain-build-preflight.yml"
+    workflow = workflow_path.read_text(encoding="utf-8")
+    assert "startsWith(github.event.issue.body, '/brain preflight')" in workflow
+    assert "secrets.BRAIN_GITHUB_TOKEN" in workflow
+    assert "Contents: write failed" in workflow
+    assert "Pull requests: write failed" in workflow
+    assert "Issues: write failed" in workflow
+    assert "Actions:write and Workflows:write are not required" in workflow
+    assert "BRAIN_MESHMESH_GITHUB_TOKEN" not in workflow
