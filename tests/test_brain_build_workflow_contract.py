@@ -80,8 +80,21 @@ def test_project_check_reporting_distinguishes_tests_smoke_and_none():
 
 def test_workflow_reports_failures_without_secrets_or_provider_bodies():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert all(x in workflow for x in ("report_failure:", "always()", "needs.prepare.result == 'failure' || needs.mission.result == 'failure'", "failed_step: ${{ steps.mission_lock.outcome", "FAILED_STEP: ${{ needs.mission.outputs.failed_step }}", "permissions:\n      issues: write", "Workflow run: ${process.env.RUN_URL}", "This report intentionally excludes secrets and provider response bodies.")) and r"].join('\n');" in workflow
-
+    assert all(x in workflow for x in (
+        "report_failure:",
+        "always()",
+        "needs.prepare.result == 'failure' || needs.mission.result == 'failure'",
+        "failed_step: ${{ steps.mission_lock.outcome",
+        "steps.initialize.outcome == 'failure' && 'target repository access/initialization'",
+        "FAILED_STEP: ${{ needs.mission.outputs.failed_step }}",
+        "permissions:\\n      issues: write",
+        "github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner",
+        "if (issueNumber)",
+        "await core.summary",
+        "Workflow run: ${process.env.RUN_URL}",
+        "This report intentionally excludes secrets and provider response bodies.",
+    ))
+    assert r"].join('\\n');" in workflow
 
 def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
