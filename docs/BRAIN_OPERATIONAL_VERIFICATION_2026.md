@@ -10,7 +10,7 @@ This report records the bounded operational end-to-end verification triggered fr
 - **PR:** [#175](https://github.com/madnessgate44-debug/brain/pull/175)
 - **PR branch:** `brain/mission-e9914a758dd3`
 - **Initial PR implementation commit:** `ac9f97bfc3acaad95d3e28572f25c17a44ed0f5b`
-- **Evidence/report correction commit:** [`4d6225aad702ce0224d2f3e1c028a072d56b3f99`](https://github.com/madnessgate44-debug/brain/commit/4d6225aad702ce0224d2f3e1c028a072d56b3f99)
+- **Latest verified report baseline:** [`918b4a146bd112352bb90e55c9f725a4835d9f43`](https://github.com/madnessgate44-debug/brain/commit/918b4a146bd112352bb90e55c9f725a4835d9f43)
 - **Changed files:** `docs/BRAIN_OPERATIONAL_VERIFICATION_2026.md`, `tests/test_mission_capabilities.py`
 
 ## Acceptance criteria
@@ -29,16 +29,16 @@ The run report records these role statuses: product owner PASS, UX designer PASS
 
 **Limitation:** The status labels and generated role outputs are not equivalent to independent proof that every role performed a substantive, independent review. At the time of this report, the PR review API returned an empty list. An independent review remains outstanding; this report is not itself evidence of an independent review.
 
-### R4 — CI, repository tests, and browser smoke: PASS on the evidence-correction commit
+### R4 — CI, repository tests, and browser smoke: PASS on the latest verified baseline
 
-These workflow runs completed successfully against PR head SHA `4d6225aad702ce0224d2f3e1c028a072d56b3f99`:
+These workflow runs completed successfully against PR head SHA `918b4a146bd112352bb90e55c9f725a4835d9f43`:
 
-- [Brain tests — run #38111723929](https://github.com/madnessgate44-debug/brain/actions/runs/38111723929): PASS.
-- [Brain Python CI — run #38111723962](https://github.com/madnessgate44-debug/brain/actions/runs/38111723962): PASS.
-- [Browser runtime smoke — run #38111723918](https://github.com/madnessgate44-debug/brain/actions/runs/38111723918): PASS.
-- [Additional Brain Python CI — run #38111721264](https://github.com/madnessgate44-debug/brain/actions/runs/38111721264): PASS.
+- [Brain tests — run #38111843433](https://github.com/madnessgate44-debug/brain/actions/runs/38111843433): PASS.
+- [Brain Python CI — PR run #38111843493](https://github.com/madnessgate44-debug/brain/actions/runs/38111843493): PASS.
+- [Browser runtime smoke — run #38111843422](https://github.com/madnessgate44-debug/brain/actions/runs/38111843422): PASS.
+- [Brain Python CI — push run #38111841481](https://github.com/madnessgate44-debug/brain/actions/runs/38111841481): PASS.
 
-The earlier full Python suites reported **238 passed, 1 skipped**; the dedicated browser workflow separately reported **1 passed**. The general pytest suites skip the live browser test, which is why the separate browser workflow is relevant. These runs validate the code and report as they existed at SHA `4d6225aad702ce0224d2f3e1c028a072d56b3f99`; the factual corrections in this document are a subsequent documentation-only update and require their own check rerun. None of these results means the PR has been merged or that main has been verified with these changes.
+These checks validate the code and report as they existed at SHA `918b4a146bd112352bb90e55c9f725a4835d9f43`. The consistency correction in this report is a subsequent documentation-only change, so its resulting commit must pass its own checks before this revision is considered verified. None of these results means the PR has been merged or that main has been verified with these changes.
 
 ### R5 — Failure recovery under an injected fault: NOT TESTED
 
@@ -50,11 +50,11 @@ PR #175 remains open and unmerged. No deployment was performed as part of this m
 
 ### R7 — Outcome report: PASS
 
-The report distinguishes passed checks from untested failure injection and the limits of specialist evidence. The initial report had inaccurate placeholder/commit references; this revision corrects the evidence references and explicitly identifies the remaining verification limits.
+The report distinguishes passed checks from untested failure injection and the limits of specialist evidence. This revision reconciles the documented CI evidence with the latest verified baseline and explicitly identifies the remaining verification limits.
 
 ## Final verdict
 
 - **PASS:** Intake/classification; base SHA and scope recording; successful CI, repository tests, and dedicated browser smoke on the evidence-correction commit; isolated PR; no merge/deploy.
 - **PARTIAL:** Specialist-stage evidence. Role statuses exist, but they do not prove independent substantive review.
 - **NOT TESTED:** End-to-end injected failure and recovery.
-- **Overall:** **Operational workflow run succeeded, but full acceptance is not yet established.** Independent review and a safe, isolated failure-injection test remain outstanding. The documentation-only correction's own checks must also pass before this revision is considered verified.
+- **Overall:** **Operational workflow run succeeded, but full acceptance is not yet established.** Independent review and a safe, isolated failure-injection test remain outstanding. The latest report consistency correction's own checks must also pass before this revision is considered verified.
