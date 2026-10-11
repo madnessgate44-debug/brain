@@ -3,7 +3,7 @@
 import pytest
 
 from brain.company.agent_runner import AgentOutputError
-from brain.company.openhands_developer import _safe_relative_path, _safe_request_paths, _sdk_model_name
+from brain.company.openhands_developer import _safe_relative_path, _safe_request_paths, _sdk_model_name, _sdk_llm_kwargs
 
 
 @pytest.mark.parametrize("path", ["../outside.py", "/tmp/outside.py", "src/../../outside.py", "brain\\unsafe.py"])
@@ -35,3 +35,16 @@ def test_openai_compatible_model_prefix_is_not_duplicated():
 
 def test_model_name_without_custom_endpoint_is_preserved():
     assert _sdk_model_name("gpt-4.1", None) == "gpt-4.1"
+
+
+def test_custom_endpoint_disables_unsupported_prompt_cache_and_reasoning_fields():
+    kwargs = _sdk_llm_kwargs(
+        "gemini-3.5-flash-lite",
+        "test-key",
+        "https://generativelanguage.googleapis.com/v1beta/openai",
+    )
+    assert kwargs["model"] == "openai/gemini-3.5-flash-lite"
+    assert kwargs["caching_prompt"] is False
+    assert kwargs["prompt_cache_retention"] is None
+    assert kwargs["reasoning_effort"] == "none"
+    assert kwargs["enable_encrypted_reasoning"] is False
