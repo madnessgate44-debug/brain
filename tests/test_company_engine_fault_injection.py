@@ -35,6 +35,7 @@ class StatefulFaultInjectionRunner:
         call_count = self.calls_by_role[role_key]
 
         # Standard valid deliverables for passing roles
+        review_decision = self._get_review_decision() if role_key == "code_reviewer" else "PASS"
         deliverables = {
             "product_owner": {
                 "product_brief": "Detailed product brief",
@@ -56,8 +57,8 @@ class StatefulFaultInjectionRunner:
                 "implementation_notes": f"Implementation attempt {call_count}",
             },
             "code_reviewer": {
-                "review_findings": self._get_review_findings(),
-                "review_decision": self._get_review_decision(),
+                "review_findings": (["Concrete finding: missing concurrency lock guard"] if review_decision == "NEEDS_WORK" else []),
+                "review_decision": review_decision,
             },
             "qa_engineer": {
                 "test_plan": ["Run end-to-end fault injection tests"],
@@ -88,7 +89,7 @@ class StatefulFaultInjectionRunner:
             blockers = ["Architectural blueprint rejected due to conflicting security constraints"]
             findings = ["Revise architecture before developer implementation."]
 
-        if role_key == "code_reviewer" and self._get_review_decision() == "NEEDS_WORK":
+        if role_key == "code_reviewer" and review_decision == "NEEDS_WORK":
             status = "NEEDS_WORK"
             blockers = ["Code review rejection: missing concurrency lock handling"]
             findings = ["Ensure shared lock acquisition is explicitly tested."]
@@ -226,7 +227,7 @@ async def test_scenario_1_invalid_change_set_repaired_within_limit():
     assert tools.apply_change_set_calls == 1
     assert tools.inspect_calls == 1
     assert tools.run_checks_calls == 1
-    assert tools.open_pull_request_calls == 0  # PR creation is deferred to human approval in engine
+    assert tools.open_pull_request_calls == 1  # The engine opens a reviewable PR; it never merges it.
     assert "brain/fault-injection-test-1" in tools.applied_branches
 
 
@@ -284,6 +285,7 @@ async def test_scenario_3_failing_repository_checks_block_release_and_preserve_e
     stage_evidence = exc_info.value.stage_evidence
     assert stage_evidence["tests_status"] == "FAIL"
     assert stage_evidence["tests_started"] is True
+    assert stage_evidence["test_evidence"]["run_url"].endswith("/999")
 
 
 @pytest.mark.asyncio
