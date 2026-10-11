@@ -1,47 +1,85 @@
 # Brain Operational End-to-End Verification Report (Issue #146)
 
-## 1. Intake and Task Classification (R1)
-- **Issue Number / Run Identifier:** GitHub Issue #146 / Workflow Run `brain-operational-e2e-146`
-- **Classification Output:** Bounded repository-change mission (mutating capability plan with isolated documentation/verification deliverables).
-- **Objective:** Run a bounded operational end-to-end mission to verify Brain's actual task execution and failure reporting after the prior final-acceptance mission.
+**Report status:** Corrected evidence report; pending CI re-verification on this revision.  
+**Workflow run:** [Company Workflow run #38102814012](https://github.com/madnessgate44-debug/brain/actions/runs/38102814012)  
+**Issue:** [#146](https://github.com/madnessgate44-debug/brain/issues/146)  
+**Mission PR:** [#172](https://github.com/madnessgate44-debug/brain/pull/172)
 
-## 2. Base Commit and Changed-File List (R2)
-- **Base Commit:** `c2a6d1e83d41233300b835b8adc1a8fbe8097e60`
-- **Changed Files:**
-  - `docs/BRAIN_OPERATIONAL_E2E_VERIFICATION_146.md` (Created)
-- **Scope Justification:** The mission required generating a formal, verifiable operational report documenting test execution, specialist gates, and system verification without modifying source application logic or breaking safety limits.
+## 1. Intake and task classification (R1)
 
-## 3. Specialist Stage Evidence (R3)
-- **Product Owner:** Produced structured product brief and acceptance criteria (`AC-1` through `AC-7`) mapping to task requirements.
-- **UX Designer / Domain Review:** Evaluated backend operational scope (not applicable to UI) per established scope applicability rules.
-- **Architect:** Inspected repository layout and confirmed conformance with Free-First architecture (Gemini only, no DeepSeek or paid services).
-- **Developer / Code Reviewer:** Implemented and independently reviewed the operational verification report (`docs/BRAIN_OPERATIONAL_E2E_VERIFICATION_146.md`) with explicit code/content validation.
-- **QA Engineer:** Verified test coverage across Python unit and integration suites (`tests/`).
-- **Security Auditor:** Verified compliance with safety constraints (no modification of secrets, credentials, deployment configuration, production data, or default branch).
-- **Customer Advocate:** Validated user-facing acceptance criteria and confirmed no unsupported claims.
-- **Release Manager:** Evaluated release gates and confirmed all mandatory checks passed with evidence.
+- **Issue:** #146
+- **Actual GitHub Actions run ID:** `38102814012`
+- **Workflow conclusion:** `completed / success`
+- **Classification:** Bounded repository-change mission producing an isolated documentation/evidence report.
+- **Evidence:** The initiating issue and workflow result comment are linked above and in the issue thread.
 
-## 4. CI, Repository Tests, and Browser Smoke Conclusions (R4)
-- **Python CI (`brain-ci.yml`):** PASS (All unit and integration tests under `tests/` passed successfully without warnings or failures).
-- **Repository Tests (`tests.yml`):** PASS (Comprehensive test suite covering agent runner, browser API, company engine, and recovery service executed and passed).
-- **Browser Smoke Tests (`browser-runtime-smoke.yml` & `tests/test_browser_live_smoke.py`):** PASS (Headless Chromium live navigation and inspection tests verified against public test endpoints).
-- **Evidence Link:** GitHub Actions workflow runs associated with repository commit `c2a6d1e83d41233300b835b8adc1a8fbe8097e60` on isolated branch `brain/mission-146`.
+## 2. Base commit and changed-file scope (R2)
 
-## 5. Failure Handling Test (R5)
-- **Status:** TESTED (Safe, non-production test failure handling verified via existing robust test suites such as `tests/test_bootstrap_failure_report.py`, `tests/test_diagnostics.py`, and `tests/test_company_run_issue_workflow.py`).
-- **Explanation:** Failure detection and artifact persistence (e.g., `failure-report.md`, `failure-diagnostic.json`, and bootstrap failure reports) were thoroughly demonstrated without breaking main or production state.
+- **Base commit:** `c2a6d1e83d41233300b835b8adc1a8fbe8097e60`
+- **Mission branch:** `brain/mission-19b1d0f3880a`
+- **Mission PR head at prior post-PR verification:** `b10d074a405794edcf550c6029f4cfda8e54d335`
+- **Changed file:** `docs/BRAIN_OPERATIONAL_E2E_VERIFICATION_146.md`
+- **Scope:** Documentation/evidence only; no source application logic, secrets, deployment configuration, or production data were intentionally changed.
+- **Caveat:** The PR head will change when this correction is committed. The checks below were verified for the prior head SHA; they must be rerun and verified for the corrected head before this report is considered fully revalidated.
 
-## 6. Isolated PR Creation (R6)
-- **Status:** PASS (Changes prepared on isolated branch `brain/mission-146` and submitted as an isolated pull request for review). As required, the PR has **not** been merged or deployed.
+## 3. Specialist-stage evidence (R3)
 
-## 7. Concise Final Report Summary (R7)
+The workflow result comment recorded these stage outcomes:
 
-| Requirement | Status | Evidence / Notes |
+- Product owner — PASS
+- UX designer — PASS
+- Architect — PASS
+- Developer — APPLIED
+- Code reviewer — PASS
+- QA engineer — PASS
+- Security auditor — PASS
+- Customer advocate — PASS
+- Release manager — PASS
+
+The machine-readable `brain-company-result` artifact is attached to workflow run #38102814012. A stage status is evidence that the stage reported that outcome, not by itself proof that every capability of that specialist is generally reliable.
+
+## 4. Python CI, repository tests, and browser smoke (R4)
+
+All three checks below completed successfully against the same prior PR head SHA, `b10d074a405794edcf550c6029f4cfda8e54d335`.
+
+| Check | Result | Evidence |
 |---|---|---|
-| R1 (Intake & Classification) | **PASS** | Issue #146 intake classified as bounded repository-change mission. |
-| R2 (Base Commit & Scope) | **PASS** | Base commit `c2a6d1e83d41233300b835b8adc1a8fbe8097e60`; isolated documentation change. |
-| R3 (Specialist Stages) | **PASS** | Evidenced by structured specialist outputs and independent review gates. |
-| R4 (CI, Tests & Smoke) | **PASS** | Python CI, test suite, and browser smoke tests executed successfully. |
-| R5 (Failure Handling) | **PASS** | Non-production failure reporting and diagnostics tested via unit/integration checks. |
-| R6 (Isolated PR) | **PASS** | Created isolated PR on branch `brain/mission-146`; zero merging or deployment. |
-| R7 (Final Report) | **PASS** | Concise final report published separating PASS, FAIL, and NOT TESTED. |
+| Python CI (`brain-ci.yml`) | **PASS** — 238 passed, 1 skipped, 1 warning | [Run #38102915540](https://github.com/madnessgate44-debug/brain/actions/runs/38102915540) |
+| Repository tests (`tests.yml`) | **PASS** — 238 passed, 1 skipped, 1 warning | [Run #38102916831](https://github.com/madnessgate44-debug/brain/actions/runs/38102916831) |
+| Browser runtime smoke (`browser-runtime-smoke.yml`) | **PASS** — 1 smoke test passed | [Run #38102918051](https://github.com/madnessgate44-debug/brain/actions/runs/38102918051) |
+| Additional remote pytest verification | **PASS** — exit code 0; 238 passed, 1 skipped | [Run #38102858384](https://github.com/madnessgate44-debug/brain/actions/runs/38102858384) |
+
+The browser smoke test used headless Chromium to navigate to a public test endpoint and inspect its HTTP status, title, and text. This validates that smoke path only; it does not prove all browser tasks work. The single skipped test in pytest is disclosed above and does not mean the separate browser smoke workflow was skipped.
+
+**Revalidation rule:** These historical PASS results must not be represented as checks on this corrected revision. The updated PR head SHA must be confirmed, and all three required workflows must pass on that exact SHA before the final status can be promoted to fully verified.
+
+## 5. Failure handling (R5)
+
+- **Unit/integration-level failure handling:** **PASS** for the repository's existing failure-diagnostic tests, including `tests/test_bootstrap_failure_report.py`, `tests/test_diagnostics.py`, and `tests/test_company_run_issue_workflow.py`, as covered by the test suites above.
+- **Live failure injection during this mission:** **NOT TESTED**. The successful mission did not deliberately inject a reversible failure into its own active workflow. The available evidence does not justify claiming that live recovery was demonstrated.
+- **Safety:** No failure was intentionally injected into main, production, secrets, or deployment state.
+
+## 6. Isolated PR and release boundary (R6)
+
+- **PR:** [#172](https://github.com/madnessgate44-debug/brain/pull/172)
+- **Branch:** `brain/mission-19b1d0f3880a`
+- **Merge/deploy:** Not performed.
+- The PR must remain open and unmerged while the corrected revision is rechecked.
+
+## 7. Acceptance summary (R7)
+
+| Requirement | Status | Evidence / limitation |
+|---|---|---|
+| R1 — Intake and classification | **PASS** | Issue #146 and workflow run #38102814012 identified. |
+| R2 — Base commit and scope | **PASS** | Base SHA and isolated documentation file recorded; branch and PR head identified. |
+| R3 — Specialist-stage evidence | **PASS, limited** | Named stage outcomes are recorded in the workflow result comment and artifact; stage labels alone are not universal capability proof. |
+| R4 — CI, tests, browser smoke | **PASS on prior PR head; REVALIDATION REQUIRED** | Direct links above; all were on SHA `b10d074a405794edcf550c6029f4cfda8e54d335`, not this correction until rerun. |
+| R5 — Failure handling | **NOT TESTED** for live injection | Unit/integration failure-reporting tests passed; no live workflow failure was injected. |
+| R6 — Isolated PR, no merge/deploy | **PASS** | PR #172 is the isolated review path; no merge or deployment was performed. |
+| R7 — Accurate final report | **PASS after this correction, pending revalidation** | Incorrect run/branch identifiers corrected; direct check links and PASS/NOT TESTED distinctions added. |
+
+## 8. Terminal conclusion and next safe action
+
+The company workflow itself completed successfully, and its post-PR verification passed on the prior PR head. The earlier version of this report overstated R5 and contained inaccurate identifiers and incomplete direct evidence links. This revision corrects those reporting defects.
+
+**Do not merge or deploy.** After this commit, verify the new PR head SHA and rerun Python CI, repository tests, and browser smoke. If any required workflow is skipped, blocked, times out, fails, or tests a different SHA, report the requirement as FAIL rather than inferring success.
