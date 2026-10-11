@@ -8,6 +8,7 @@ import re
 from typing import Any, Protocol
 
 from brain.company.agent_runner import SpecialistAgentRunner
+from brain.company.openhands_developer import run_openhands_developer
 from brain.company.roles import WORKFLOW_ORDER
 from brain.company.workflow import evaluate_release_gate
 
@@ -30,6 +31,14 @@ class CompanyWorkflowTools(Protocol):
         self, repository: str, branch: str, workflow_result: dict[str, Any]
     ) -> dict[str, Any]:
         """Open a reviewable pull request after all required gates pass."""
+
+
+async def _run_developer_stage(agent_runner: Any, user_request: str, evidence: dict[str, Any]) -> dict[str, Any]:
+    """Use OpenHands for real tool-backed coding; retain injected runners for tests."""
+    provider = getattr(agent_runner, "provider", None)
+    if provider is None:
+        return await agent_runner.run("developer", user_request, evidence)
+    return await run_openhands_developer(user_request, evidence, provider)
 
 
 class CompanyWorkflowBlocked(RuntimeError):
@@ -264,7 +273,7 @@ class CompanyWorkflowEngine:
             evidence.update(output["deliverables"])
 
         # Implementation may be repaired only a bounded number of times.
-        developer_output = await self.agent_runner.run("developer", user_request, evidence)
+        developer_output = await _run_developer_stage(self.agent_runner, user_request, evidence)
         change_set = None
         validation_errors: tuple[str, ...] = ()
         for validation_cycle in range(self.max_repair_cycles + 1):
@@ -295,8 +304,8 @@ class CompanyWorkflowEngine:
                 ),
                 "repair_cycle": validation_cycle + 1,
             }
-            developer_output = await self.agent_runner.run(
-                "developer", user_request, repair_evidence
+            developer_output = await _run_developer_stage(
+                self.agent_runner, user_request, repair_evidence
             )
         if validation_errors:
             raise CompanyWorkflowBlocked("Invalid change set reached the write boundary.")
@@ -340,7 +349,7 @@ class CompanyWorkflowEngine:
                 "review_blockers": review_output.get("blockers", []),
                 "repair_cycle": cycle + 1,
             }
-            repair = await self.agent_runner.run("developer", user_request, repair_evidence)
+            repair = await _run_developer_stage(self.agent_runner, user_request, repair_evidence)
             if repair["status"] != "PASS":
                 raise CompanyWorkflowBlocked("Developer could not resolve reviewer findings.")
             revised_change_set = repair["deliverables"].get("change_set")
