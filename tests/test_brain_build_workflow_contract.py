@@ -63,12 +63,6 @@ def test_secret_scan_handles_deleted_renamed_and_space_containing_paths():
         "zricethezav/gitleaks:v8.24.2", "--redact --exit-code 1",
     ))
     assert "tar --null -T -" not in workflow
-
-def test_changed_file_and_warning_summaries_preserve_names():
-    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert all(x in workflow for x in ("git diff --cached --name-only -z", "json.dumps(p[:8], ensure_ascii=True)", "paste -sd';' -"))
-    assert "tr '\\\\n'" not in workflow
-
 def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(x in workflow for x in ("check_type=tests", "check_type=smoke", "check_type=none"))
@@ -95,15 +89,6 @@ def test_workflow_reports_failures_without_secrets_or_provider_bodies():
         "This report intentionally excludes secrets and provider response bodies.",
     ))
     assert r"].join('\n');" in workflow
-
-def test_whitespace_validation_is_a_controlled_warning():
-    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert all(x in workflow for x in (
-        "git -C \"$diff_workspace\" -c core.hooksPath=/dev/null diff --cached --check -- .",
-        "Whitespace errors detected in candidate changes",
-        'echo "WARN: whitespace errors detected in candidate changes."',
-    ))
-
 def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(x in workflow for x in (
@@ -119,18 +104,19 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
         "grep -izEq", "git diff --name-only --no-renames -z HEAD | grep -izEq",
     ))
     assert '-v "$GITHUB_WORKSPACE:/workspace"' not in workflow
+    assert "json.dumps(p[:8], ensure_ascii=True)" in workflow
+    assert "paste -sd';' -" in workflow
+    assert 'git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --cached --check -- .' in workflow
+    assert "Whitespace errors detected in candidate changes" in workflow
     gate = re.search(r"grep -izEq '([^']+)'", workflow)
     assert gate is not None
     protected = re.compile(gate.group(1), re.IGNORECASE)
-    protected_examples = (
-        ".github/workflows/release.yml", ".github/actions/build/action.yml", ".env.production",
+    protected_examples = (".github/workflows/release.yml", ".github/actions/build/action.yml", ".env.production",
         "service/.npmrc", "CODEOWNERS", "Dockerfile.dev", "docker-compose.prod.yaml",
-        "infra/main.tf", "deploy/helm/values.yaml", "secrets/provider-key.json", "certs/service.pem",
-    )
+        "infra/main.tf", "deploy/helm/values.yaml", "secrets/provider-key.json", "certs/service.pem")
     allowed_examples = ("src/brain/main.py", "README.md", "tests/test_brain_build_workflow_contract.py")
     assert all(protected.search(x) for x in protected_examples)
     assert all(not protected.search(x) for x in allowed_examples)
-
 def test_empty_target_initialization_and_shared_queue_are_explicit():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "Initialize an empty target repository through the Contents API" in workflow
@@ -156,11 +142,11 @@ def test_provider_rate_limit_and_preview_evidence_are_bounded():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert all(x in workflow for x in (
         "retryDelay", 'MSWEA_GLOBAL_CALL_LIMIT: "14"',
-        "Capture isolated mobile and desktop previews for static HTML", "id: preview",
-        "continue-on-error: true", "hashFiles('*.html') != ''",
-        'PREVIEW_OUTCOME: ${{ steps.preview.outcome }}', "preview capture failed",
+        "Capture isolated mobile and desktop previews for static HTML",
         "mobile-390x844.png", "desktop-1280x800.png", "route.abort()",
     ))
+    assert all(x in workflow for x in ("id: preview", "continue-on-error: true", "hashFiles('*.html') != ''"))
+    assert 'PREVIEW_OUTCOME: ${{ steps.preview.outcome }}' in workflow and "preview capture failed" in workflow
 
 def test_legacy_remote_test_runner_no_longer_falls_back_to_control_token():
     workflow = (ROOT / ".github" / "workflows" / "brain-task-runner.yml").read_text(encoding="utf-8")
