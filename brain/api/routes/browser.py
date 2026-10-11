@@ -13,6 +13,7 @@ from brain.runtime.runtime_registry import RuntimeRegistry
 from brain.runtime.workers.browser_worker import (
     BrowserPolicyError,
     MUTATING_ACTIONS,
+    action_requires_owner_approval,
     browser_dispatch_payload,
     sign_browser_dispatch,
     validate_browser_actions,
@@ -64,11 +65,11 @@ async def create_browser_task(
     except BrowserPolicyError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
-    mutating = any(action["op"] in MUTATING_ACTIONS for action in actions)
-    if mutating and not data.owner_approved:
+    requires_approval = any(action_requires_owner_approval(action) for action in actions)
+    if requires_approval and not data.owner_approved:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="This task contains mutating browser actions. Set owner_approved=true only after the owner explicitly approves this exact task.",
+            detail="This task contains mutating actions or navigation to a configured sensitive origin. Set owner_approved=true only after the owner explicitly approves this exact task.",
         )
 
     metadata = {
@@ -82,7 +83,7 @@ async def create_browser_task(
             MissionCreate(
                 title=data.title,
                 objective=data.objective,
-                risk_level="HIGH" if mutating else "LOW",
+                risk_level="HIGH" if requires_approval else "LOW",
                 metadata=metadata,
             )
         )
