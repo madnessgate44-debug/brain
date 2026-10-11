@@ -156,7 +156,7 @@ jobs:
               payload = error.read()
               status = error.code
           sys.stdout.buffer.write(payload)
-          print("\\n__HTTP_STATUS__=" + str(status), file=sys.stderr)
+          print("__HTTP_STATUS__=" + str(status), file=sys.stderr)
           ' < /tmp/agent-zero-request.json > /tmp/agent-zero-response.json 2>/tmp/agent-zero-http-status.txt
           EXEC_STATUS=$?
           set -e
