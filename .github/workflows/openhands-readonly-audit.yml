@@ -34,15 +34,11 @@ jobs:
             exit 1
           fi
 
-          jq -n --arg repository "$REPOSITORY" --arg branch "$BRANCH" '{
-            initial_message: {
-              content: [{
-                type: "text",
-                text: "Perform a thorough READ-ONLY audit of Brain at the selected repository and branch. Do not edit, create, delete, commit, push, merge, deploy, open pull requests, create issues, or change settings. First verify that the workspace contains the selected repository and branch. If the repository is not actually connected or source files cannot be read, stop and report that as a blocker rather than pretending the audit ran. Inspect repository structure, workflows, tests, mission/task execution, agent orchestration, GitHub permissions/integration, and existing end-to-end tests. Run safe read-only inspection and tests only if supported without modifying tracked files or external state. Identify concrete blockers preventing a complete end-to-end company mission. For every finding, cite exact file paths and line numbers or test/log evidence, explain impact, and provide a prioritized repair plan with acceptance criteria. Clearly separate verified findings, hypotheses, and checks you could not run. Finish with a concise report in this conversation, beginning with BRAIN_AUDIT_REPORT_BEGIN and ending with BRAIN_AUDIT_REPORT_END. Do not implement fixes."
-            }],
-            selected_repository: $repository,
-            selected_branch: $branch
-          }' > /tmp/openhands-payload.json
+          cat > /tmp/openhands-prompt.txt <<'PROMPT'
+Audit Brain repository on the selected branch in READ-ONLY mode. Never modify files, commits, pull requests, issues, deployments, or settings. First verify the repository and branch are actually present in the workspace. If source access fails, report that blocker instead of claiming an audit. Inspect mission execution, agent orchestration, GitHub integration and permissions, workflows, tests, and end-to-end coverage. Cite exact paths and line numbers or logs, explain impact, separate verified findings from hypotheses, and prioritize repairs with acceptance criteria. Do not implement fixes. End the final answer with BRAIN_AUDIT_REPORT_BEGIN and BRAIN_AUDIT_REPORT_END markers surrounding the report.
+PROMPT
+
+          jq -n --arg repository "$REPOSITORY" --arg branch "$BRANCH" --rawfile text /tmp/openhands-prompt.txt '{initial_message:{content:[{type:"text",text:$text}]},selected_repository:$repository,selected_branch:$branch}' > /tmp/openhands-payload.json
 
           response="$(curl --silent --show-error --fail-with-body --retry 3             --request POST "https://app.all-hands.dev/api/v1/app-conversations"             --header "Authorization: Bearer ${OPENHANDS_API_KEY}"             --header "Content-Type: application/json"             --data @/tmp/openhands-payload.json)"
 
