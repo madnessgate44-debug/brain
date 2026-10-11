@@ -140,6 +140,62 @@ async def test_specialist_stops_after_one_failed_json_repair():
 
 
 @pytest.mark.asyncio
+async def test_production_developer_stage_uses_openhands_sdk_adapter(monkeypatch):
+    provider = OpenAICompatibleProvider(
+        api_key="test-key",
+        model="test-model",
+        base_url="https://example.test/v1",
+    )
+    captured = {}
+
+    async def fake_openhands(user_request, evidence, supplied_provider):
+        captured["request"] = user_request
+        captured["evidence"] = evidence
+        captured["provider"] = supplied_provider
+        return {
+            "status": "PASS",
+            "deliverables": {
+                "change_set": {
+                    "summary": "Implement requested feature",
+                    "files": [{"path": "src/main.py", "content": "print('updated')\\n"}],
+                },
+                "implementation_notes": "OpenHands produced the patch; tests are delegated to CI.",
+            },
+            "findings": [],
+            "blockers": [],
+            "evidence_needed": [],
+        }
+
+    monkeypatch.setattr(
+        "brain.company.openhands_developer.run_openhands_developer",
+        fake_openhands,
+        raising=False,
+    )
+    runner = SpecialistAgentRunner(provider)
+    result = await runner.run(
+        "developer",
+        "Update src/main.py",
+        {
+            "acceptance_criteria": ["AC-1"],
+            "architecture": "Keep the current module boundary.",
+            "file_plan": ["src/main.py"],
+            "repository_snapshot": {
+                "repository": "owner/repo",
+                "files": [{"path": "src/main.py", "size": 13}],
+                "source_contents": {"src/main.py": "print('old')\\n"},
+                "source_manifest": {"coverage_complete": True, "candidate_paths": ["src/main.py"], "read_paths": ["src/main.py"]},
+            },
+        },
+    )
+
+    assert result["role"] == "developer"
+    assert result["status"] == "PASS"
+    assert result["deliverables"]["change_set"]["files"][0]["content"] == "print('updated')\\n"
+    assert captured["request"] == "Update src/main.py"
+    assert captured["provider"] is provider
+
+
+@pytest.mark.asyncio
 async def test_specialist_prompt_uses_real_newlines_in_role_contract():
     """Role-specific system prompts use line breaks, not literal backslash-n text."""
     from brain.company.roles import ROLE_BY_KEY
