@@ -139,3 +139,35 @@ async def test_gateway_actual_diff_uses_real_newlines_for_multiple_files(monkeyp
     assert "\nFILE: b.py\n" in actual_diff
     assert actual_diff.count("\n") >= 5
     assert "\\n" not in actual_diff
+
+@pytest.mark.asyncio
+async def test_gateway_creates_company_pull_request_as_draft():
+    captured = []
+
+    def handler(request):
+        if request.method == "GET" and request.url.path == "/repos/example-owner/project":
+            return httpx.Response(200, json={"default_branch": "main"}, request=request)
+        if request.method == "POST" and request.url.path == "/repos/example-owner/project/pulls":
+            payload = json.loads(request.content)
+            captured.append(payload)
+            return httpx.Response(
+                201,
+                json={"number": 42, "html_url": "https://github.com/example-owner/project/pull/42",
+                      "state": "open", "merged": False},
+                request=request,
+            )
+        raise AssertionError(f"Unexpected GitHub request: {request.method} {request.url.path}")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        gateway = GitHubRepositoryGateway(
+            token="test-token",
+            allowed_owner="example-owner",
+            api_base_url="https://example.test",
+            client=client,
+        )
+        result = await gateway.create_pull_request(
+            "example-owner/project", "brain/test", "Brain: proposed fix", "Review required"
+        )
+
+    assert result["url"].endswith("/pull/42")
+    assert captured[0]["draft"] is True

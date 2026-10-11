@@ -45,10 +45,39 @@ def validate_stage_entry(role_key: str, evidence: dict[str, Any]) -> None:
 def evaluate_release_gate(evidence: dict[str, Any]) -> GateDecision:
     """Require explicit positive decisions and real QA evidence before release."""
     blockers: list[str] = []
+    decision_keys = {"review_decision", "security_decision", "customer_review"}
     for key in MANDATORY_RELEASE_GATES:
         value = evidence.get(key)
-        if value is None or value == "":
-            blockers.append(f"Missing required gate evidence: {key}")
+        if value is None:
+            blockers.append(f"{key} is missing")
+            continue
+        if key == "test_results":
+            if not isinstance(value, dict):
+                blockers.append("QA evidence must be structured tool evidence")
+                continue
+            status = str(value.get("status", "")).strip().upper()
+            if status not in {"PASS", "APPROVED"}:
+                blockers.append("test_results did not pass")
+            if value.get("executed") is not True:
+                blockers.append("QA evidence does not confirm tests were actually executed")
+            if not isinstance(value.get("run_url"), str) or not value["run_url"].strip():
+                blockers.append("QA evidence is missing the workflow run URL")
+            continue
+        if key in decision_keys:
+            if not isinstance(value, dict):
+                blockers.append(f"{key} must contain structured specialist evidence")
+                continue
+            status = str(value.get("status", "")).strip().upper()
+            if status not in {"PASS", "APPROVED"}:
+                blockers.append(f"{key} did not pass")
+            decision = str(value.get("decision", "")).strip().upper()
+            if decision not in {"PASS", "APPROVED"}:
+                blockers.append(f"{key} is missing an explicit passing specialist decision")
+            if key == "review_decision" and value.get("reviewer_role") != "code_reviewer":
+                if value.get("reviewer_role") == "developer":
+                    blockers.append("The developer cannot approve their own implementation")
+                else:
+                    blockers.append("Release requires an independent code_reviewer")
             continue
         if isinstance(value, dict):
             status = str(value.get("status", "")).strip().upper()
@@ -59,15 +88,6 @@ def evaluate_release_gate(evidence: dict[str, Any]) -> GateDecision:
                 blockers.append(f"{key} did not pass")
         else:
             blockers.append(f"{key} has no recognized decision format")
-
-    test_results = evidence.get("test_results")
-    if isinstance(test_results, dict) and test_results.get("executed") is not True:
-        blockers.append("QA evidence does not confirm tests were actually executed")
-
-    review = evidence.get("review_decision")
-    if isinstance(review, dict) and review.get("reviewer_role") == "developer":
-        blockers.append("The developer cannot approve their own implementation")
-
     return GateDecision(
         passed=not blockers,
         blockers=tuple(blockers),

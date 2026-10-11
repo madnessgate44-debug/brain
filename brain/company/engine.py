@@ -400,23 +400,35 @@ class CompanyWorkflowEngine:
 
         # Release decision is evidence-based and remains a recommendation, not an auto-merge.
         evidence["review_decision"] = {
-            "status": "PASS",
+            "status": review_output.get("status"),
             "reviewer_role": "code_reviewer",
+            "decision": review_output.get("deliverables", {}).get("review_decision"),
             "findings": review_output.get("findings", []),
+            "blockers": review_output.get("blockers", []),
         }
-        evidence["security_decision"] = {"status": "PASS"}
-        evidence["customer_review"] = {"status": "PASS"}
+        evidence["security_decision"] = {
+            "status": security_output.get("status"),
+            "decision": security_output.get("deliverables", {}).get("security_decision"),
+            "findings": security_output.get("findings", []),
+            "blockers": security_output.get("blockers", []),
+        }
+        evidence["customer_review"] = {
+            "status": customer_output.get("status"),
+            "decision": customer_output.get("deliverables", {}).get("customer_review"),
+            "findings": customer_output.get("findings", []),
+            "blockers": customer_output.get("blockers", []),
+        }
         gate = evaluate_release_gate(evidence)
         if not gate.passed:
             raise CompanyWorkflowBlocked("; ".join(gate.blockers))
 
         release_input = {
             **evidence,
-            "review_decision": "PASS",
-            "security_decision": "PASS",
-            "customer_review": "PASS",
-            "test_results": {"status": "PASS", "executed": True,
-                             "run_url": test_evidence.get("run_url")},
+            "release_gate": {
+                "passed": gate.passed,
+                "blockers": list(gate.blockers),
+                "rationale": gate.rationale,
+            },
         }
         release_output = await self.agent_runner.run(
             "release_manager", user_request, release_input
@@ -439,7 +451,17 @@ class CompanyWorkflowEngine:
             "test_evidence": test_evidence,
             "timeline": timeline,
             "role_outputs": outputs,
-            "release_gate": {"passed": gate.passed, "blockers": list(gate.blockers)},
+            "gate_evidence": {
+                "review_decision": evidence["review_decision"],
+                "test_results": evidence["test_results"],
+                "security_decision": evidence["security_decision"],
+                "customer_review": evidence["customer_review"],
+            },
+            "release_gate": {
+                "passed": gate.passed,
+                "blockers": list(gate.blockers),
+                "rationale": gate.rationale,
+            },
         }
         pull_request = await self.tools.open_pull_request(
             repository, evidence["branch"], workflow_result

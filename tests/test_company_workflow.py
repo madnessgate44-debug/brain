@@ -41,10 +41,10 @@ def test_release_is_blocked_when_gates_are_missing():
 
 def test_release_requires_executed_tests_and_independent_review():
     evidence = {
-        "review_decision": {"status": "PASS", "reviewer_role": "developer"},
-        "test_results": {"status": "PASS", "executed": False},
-        "security_decision": {"status": "PASS"},
-        "customer_review": {"status": "PASS"},
+        "review_decision": {"status": "PASS", "decision": "PASS", "reviewer_role": "developer"},
+        "test_results": {"status": "PASS", "executed": False, "run_url": "https://example.test/run/2"},
+        "security_decision": {"status": "PASS", "decision": "PASS"},
+        "customer_review": {"status": "PASS", "decision": "PASS"},
     }
     decision = evaluate_release_gate(evidence)
     assert decision.passed is False
@@ -54,10 +54,10 @@ def test_release_requires_executed_tests_and_independent_review():
 
 def test_release_passes_only_when_all_mandatory_gates_pass_with_evidence():
     evidence = {
-        "review_decision": {"status": "APPROVED", "reviewer_role": "code_reviewer"},
+        "review_decision": {"status": "PASS", "decision": "APPROVED", "reviewer_role": "code_reviewer"},
         "test_results": {"status": "PASS", "executed": True, "run_url": "https://example.test/run/1"},
-        "security_decision": {"status": "PASS"},
-        "customer_review": {"status": "PASS"},
+        "security_decision": {"status": "PASS", "decision": "PASS"},
+        "customer_review": {"status": "PASS", "decision": "PASS"},
     }
     decision = evaluate_release_gate(evidence)
     assert decision.passed is True
@@ -217,3 +217,25 @@ async def test_engine_blocks_docs_only_proposal_before_any_repository_write():
 
     assert runner.developer_calls == 3
     assert tools.apply_calls == 0
+
+def test_release_gate_rejects_unstructured_pass_strings():
+    decision = evaluate_release_gate({
+        "review_decision": "PASS",
+        "test_results": "PASS",
+        "security_decision": "PASS",
+        "customer_review": "PASS",
+    })
+    assert decision.passed is False
+    assert any("structured" in blocker for blocker in decision.blockers)
+
+
+def test_release_gate_requires_explicit_decisions_and_test_run_url():
+    decision = evaluate_release_gate({
+        "review_decision": {"status": "PASS", "reviewer_role": "code_reviewer"},
+        "test_results": {"status": "PASS", "executed": True},
+        "security_decision": {"status": "PASS", "decision": "PASS"},
+        "customer_review": {"status": "PASS", "decision": "PASS"},
+    })
+    assert decision.passed is False
+    assert any("explicit passing specialist decision" in blocker for blocker in decision.blockers)
+    assert any("workflow run URL" in blocker for blocker in decision.blockers)

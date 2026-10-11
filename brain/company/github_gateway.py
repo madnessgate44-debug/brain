@@ -268,7 +268,7 @@ class GitHubRepositoryGateway:
                 "body": body,
                 "head": branch,
                 "base": repo["default_branch"],
-                "draft": False,
+                "draft": True,
             },
         )
         return {
