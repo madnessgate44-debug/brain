@@ -665,7 +665,7 @@ jobs:
           git -c core.hooksPath=/dev/null commit --no-verify -m "Brain ${COMMAND}: automated candidate"
           branch="brain/${COMMAND}-${GITHUB_RUN_ID}"
           git branch -M "$branch"
-          git -c "http.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin "HEAD:refs/heads/$branch"
+          git -c core.hooksPath=/dev/null -c "http.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin "HEAD:refs/heads/$branch"
           pr_url="$(gh pr create --repo "$TARGET_REPOSITORY" --base "$(cat /tmp/brain-base-branch.txt)" --head "$branch" --title "Brain ${COMMAND}: candidate ${GITHUB_RUN_ID}" --body "Automated candidate patch; human review and merge required.\n\n- Command: ${COMMAND}\n- Base commit: $(cat /tmp/brain-base-sha.txt)\n- Files changed (first 8): ${files_changed}\n- Checks: ${check_summary}; gitleaks passed.\n- Warnings: ${warnings:-none}\n- Screenshots: ${screenshots}\n- Workflow evidence: ${RUN_URL}\n- No merge or deployment was performed." --json url --jq .url)"
           echo "result=PR_OPENED" >> "$GITHUB_OUTPUT"
           echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"

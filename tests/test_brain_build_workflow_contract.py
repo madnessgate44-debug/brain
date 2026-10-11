@@ -41,6 +41,7 @@ def test_cross_repository_agent_uses_a_separate_workspace_and_is_pinned():
     assert "rsync -a --delete --exclude='/.git'" in workflow
     assert 'git -C "$diff_workspace" -c core.hooksPath=/dev/null add -f -A' in workflow
     assert "git -c core.hooksPath=/dev/null apply --check /tmp/brain-build.patch" in workflow
+    assert 'git -c core.hooksPath=/dev/null -c "http.extraheader=AUTHORIZATION: basic' in workflow
     assert "GH_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}" in workflow
     agent_step = workflow.split("- name: Run bounded coding agent without GitHub credentials in sandbox", 1)[1].split("- name: Reconstruct candidate diff", 1)[0]
     assert "OPENAI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}" in agent_step
