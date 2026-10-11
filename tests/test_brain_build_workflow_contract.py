@@ -184,4 +184,6 @@ def test_provider_rate_limit_and_preview_evidence_are_bounded():
 def test_legacy_remote_test_runner_no_longer_falls_back_to_control_token():
     workflow = (ROOT / ".github" / "workflows" / "brain-task-runner.yml").read_text(encoding="utf-8")
     assert "secrets.BRAIN_GITHUB_TOKEN || github.token" not in workflow
-    assert 
+    assert "token: ${{ secrets.BRAIN_GITHUB_TOKEN }}" in workflow
+    assert "BRAIN_GITHUB_TOKEN is required for target-repository checkout" in workflow
+    assert "types: [opened, edited]" not in workflow
