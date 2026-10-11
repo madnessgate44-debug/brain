@@ -90,3 +90,52 @@ async def test_gateway_write_preflight_reads_advertised_push_permission_without_
         "write_access": True,
         "permission_evidence": "confirmed_push",
     }
+
+@pytest.mark.asyncio
+async def test_gateway_actual_diff_uses_real_newlines_for_multiple_files(monkeypatch):
+    gateway = GitHubRepositoryGateway(
+        token="test-token",
+        allowed_owner="example-owner",
+        api_base_url="https://example.test",
+    )
+
+    async def fake_request(method, path, **kwargs):
+        if method == "GET" and path == "/repos/example-owner/project":
+            return {"default_branch": "main"}
+        if path == "/repos/example-owner/project/git/ref/heads/main":
+            return {"object": {"sha": "base-sha"}}
+        if path == "/repos/example-owner/project/git/commits/base-sha":
+            return {"tree": {"sha": "base-tree"}}
+        if path == "/repos/example-owner/project/git/ref/heads/brain%2Ftest-change":
+            raise GitHubGatewayError("GitHub API GET returned 404: branch missing")
+        if path.endswith("/git/blobs"):
+            return {"sha": "blob-sha"}
+        if path.endswith("/git/trees"):
+            return {"sha": "tree-sha"}
+        if path.endswith("/git/commits"):
+            return {"sha": "commit-sha"}
+        if path.endswith("/git/refs"):
+            return {}
+        if "/compare/" in path:
+            return {"files": [
+                {"filename": "a.py", "patch": "@@ -1 +1 @@\n-old\n+new"},
+                {"filename": "b.py", "patch": "@@ -1 +1 @@\n-before\n+after"},
+            ]}
+        raise AssertionError(f"Unexpected GitHub request: {method} {path}")
+
+    monkeypatch.setattr(gateway, "_request", fake_request)
+    result = await gateway.apply_change_set(
+        repository="example-owner/project",
+        change_set={"files": [
+            {"path": "a.py", "content": "new\n"},
+            {"path": "b.py", "content": "after\n"},
+        ]},
+        branch_name="brain/test-change",
+        commit_message="test diff formatting",
+    )
+
+    actual_diff = result["diff"]
+    assert "FILE: a.py\n" in actual_diff
+    assert "\nFILE: b.py\n" in actual_diff
+    assert actual_diff.count("\n") >= 5
+    assert "\\n" not in actual_diff
