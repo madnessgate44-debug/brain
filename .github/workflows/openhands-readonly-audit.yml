@@ -35,8 +35,8 @@ jobs:
           fi
 
           cat > /tmp/openhands-prompt.txt <<'PROMPT'
-Audit Brain repository on the selected branch in READ-ONLY mode. Never modify files, commits, pull requests, issues, deployments, or settings. First verify the repository and branch are actually present in the workspace. If source access fails, report that blocker instead of claiming an audit. Inspect mission execution, agent orchestration, GitHub integration and permissions, workflows, tests, and end-to-end coverage. Cite exact paths and line numbers or logs, explain impact, separate verified findings from hypotheses, and prioritize repairs with acceptance criteria. Do not implement fixes. End the final answer with BRAIN_AUDIT_REPORT_BEGIN and BRAIN_AUDIT_REPORT_END markers surrounding the report.
-PROMPT
+          Audit Brain repository on the selected branch in READ-ONLY mode. Never modify files, commits, pull requests, issues, deployments, or settings. First verify the repository and branch are actually present in the workspace. If source access fails, report that blocker instead of claiming an audit. Inspect mission execution, agent orchestration, GitHub integration and permissions, workflows, tests, and end-to-end coverage. Cite exact paths and line numbers or logs, explain impact, separate verified findings from hypotheses, and prioritize repairs with acceptance criteria. Do not implement fixes. End the final answer with BRAIN_AUDIT_REPORT_BEGIN and BRAIN_AUDIT_REPORT_END markers surrounding the report.
+          PROMPT
 
           jq -n --arg repository "$REPOSITORY" --arg branch "$BRANCH" --rawfile text /tmp/openhands-prompt.txt '{initial_message:{content:[{type:"text",text:$text}]},selected_repository:$repository,selected_branch:$branch}' > /tmp/openhands-payload.json
 
@@ -191,7 +191,7 @@ PROMPT
             echo "## OpenHands Read-only Brain Audit"
             echo
             echo "- Conversation: [$CONVERSATION_ID]($CONVERSATION_URL)"
-            echo "- Requested repository/branch: `madnessgate44-debug/brain` / `main`"
+            echo "- Requested repository/branch: madnessgate44-debug/brain / main"
             echo "- Job status: $JOB_STATUS"
             if [ -f openhands-audit-report.md ]; then
               echo
