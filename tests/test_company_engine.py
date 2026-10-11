@@ -314,3 +314,31 @@ async def test_engine_preserves_planned_source_files_for_role_specific_prompt_se
     assert planned_path in prompt_snapshot["source_contents"]
     assert prompt_snapshot["source_selection"]["omitted_explicit_paths"] == []
     assert prompt_snapshot["source_selection"]["selected_chars"] <= 90_000
+
+class CaptureReleaseEvidenceRunner(FakeAgentRunner):
+    def __init__(self):
+        super().__init__()
+        self.release_input = None
+
+    async def run(self, role_key, user_request, evidence):
+        if role_key == "release_manager":
+            self.release_input = evidence
+        return await super().run(role_key, user_request, evidence)
+
+
+@pytest.mark.asyncio
+async def test_release_gate_and_manager_receive_actual_specialist_decisions():
+    runner = CaptureReleaseEvidenceRunner()
+    result = await CompanyWorkflowEngine(runner, FakeTools()).run(
+        "Build a small feature", "owner/repository"
+    )
+
+    gate_evidence = result["gate_evidence"]
+    assert gate_evidence["review_decision"]["decision"] == "PASS"
+    assert gate_evidence["review_decision"]["reviewer_role"] == "code_reviewer"
+    assert gate_evidence["security_decision"]["decision"] == "PASS"
+    assert gate_evidence["customer_review"]["decision"] == "PASS"
+    assert gate_evidence["test_results"]["executed"] is True
+    assert runner.release_input["review_decision"] == gate_evidence["review_decision"]
+    assert runner.release_input["test_results"]["run_url"].endswith("/123")
+    assert result["release_gate"]["passed"] is True
