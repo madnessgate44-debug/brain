@@ -18,8 +18,8 @@ class CapabilityPlan:
 _MUTATION_INTENT = re.compile(
     r"\b(?:fix(?:es|ed|ing)?|repair(?:s|ed|ing)?|refactor(?:s|ed|ing)?|"
     r"implement(?:s|ed|ing)?|edit(?:s|ed|ing)?|modify|modifies|modified|modifying|"
-    r"change(?:s|d|ing)?|create(?:s|d|ing)?|add(?:s|ed|ing)?|remove(?:s|ed|ing)?|"
-    r"delete(?:s|d|ing)?|update(?:s|d|ing)?|rewrite|rewrites|rewrote|rewriting|"
+    r"change(?:s|d|ing)?|create(?:s|ed|ing)?|add(?:s|ed|ing)?|remove(?:s|ed|ing)?|"
+    r"delete(?:s|ed|ing)?|update(?:s|d|ing)?|rewrite|rewrites|rewrote|rewriting|"
     r"patch(?:es|ed|ing)?|apply|applies|applied|applying|build|builds|built|building)"
     r"\s+(?:(?:the|all|any|these|those|identified|critical|top|following|new|existing|"
     r"target|repository|source|main|necessary|recommended|reported|remaining)\s+){0,3}"
@@ -27,7 +27,8 @@ _MUTATION_INTENT = re.compile(
     r"problems?|fixes?|changes?|patches?|branch|pull requests?|prs?|commits?|"
     r"implementation|app|application|them|it)\b"
     r"|\b(?:open|create)\s+(?:a\s+)?(?:pull request|pr|branch|commit|file)\b"
-    # Explicit "create exactly <path>" requests are affirmative file mutations.
+    # Explicit file-path requests are affirmative mutations.
+    r"|\bcreate\s+(?:exactly\s+)?(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9]+\b"
     r"|\bcreate\s+exactly\b"
     r"|\b(?:commit|push)\s+(?:the\s+)?(?:changes?|files?|code|branch|commit)\b"
     r"|\b(?:deploy|merge)\s+(?:the\s+)?(?:app|application|changes?|branch|pull request|pr|release)\b"
@@ -42,14 +43,8 @@ _NEGATED_CLAUSE = re.compile(
 
 
 def plan_capabilities(objective: str) -> CapabilityPlan:
-    """Classify affirmative mutation requests, ignoring negated constraint clauses.
-
-    Read-only is the default. Negated lists are removed at sentence level, not
-    merely when a line starts with "Do not", so audit prompts containing phrases
-    such as "do not merge, deploy, or change settings" cannot trigger write mode.
-    """
-    objective_text = objective or ""
-    objective_text = _NEGATED_CLAUSE.sub(" ", objective_text)
+    """Classify affirmative mutation requests, ignoring negated constraint clauses."""
+    objective_text = _NEGATED_CLAUSE.sub(" ", objective or "")
     matches = sorted({match.group(0).casefold() for match in _MUTATION_INTENT.finditer(objective_text)})
     if matches:
         return CapabilityPlan(
