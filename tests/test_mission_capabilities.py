@@ -2,7 +2,7 @@ from brain.company.mission_capabilities import plan_capabilities
 
 
 def test_read_only_mission_does_not_require_write_capability():
-    plan = plan_capabilities("Audit Amina and report findings. Do not change files.")
+    plan = plan_capabilities("Audit the target repository and report findings. Do not change files.")
     assert plan.mode == "read_only"
     assert "repository:write" not in plan.required_capabilities
 
