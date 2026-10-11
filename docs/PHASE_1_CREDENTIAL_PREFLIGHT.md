@@ -1,0 +1,3 @@
+# Phase 1 credential preflight
+
+Create `madnessgate44-debug/brain-sandbox` with a README. Create a fine-grained PAT restricted to that repository with Contents read/write, Pull requests read/write, Issues read/write, Workflows read/write, Actions read/write, and Metadata read-only. Save it in `madnessgate44-debug/brain` as the Actions secret `BRAIN_GITHUB_TOKEN`. Then run the Brain credential preflight workflow and retain the run URL as evidence. Never print the token.
