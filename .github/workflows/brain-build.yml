@@ -390,6 +390,18 @@ jobs:
             exit 1
           fi
 
+      - name: Scan changed files for leaked secrets
+        id: gitleaks
+        if: needs.prepare.outputs.command != 'audit'
+        shell: bash
+        run: |
+          set +x
+          set -euo pipefail
+          git diff --name-only -z | tar --null -T - -cf /tmp/brain-changed-files.tar
+          mkdir -p /tmp/brain-gitleaks-source
+          tar -xf /tmp/brain-changed-files.tar -C /tmp/brain-gitleaks-source
+          docker run --rm -v /tmp/brain-gitleaks-source:/src zricethezav/gitleaks:v8.24.2 dir --redact --exit-code 1 /src
+
       - name: Run project-aware checks
         id: checks
         if: needs.prepare.outputs.command != 'audit'
@@ -506,7 +518,7 @@ jobs:
           '
       - name: Verify protected paths and publish candidate PR
         id: publish
-        if: always() && steps.agent.outcome == 'success' && (needs.prepare.outputs.command == 'audit' || steps.checks.outcome == 'success')
+        if: always() && steps.agent.outcome == 'success' && (needs.prepare.outputs.command == 'audit' || (steps.checks.outcome == 'success' && steps.gitleaks.outcome == 'success'))
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}
