@@ -35,9 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      # Use Brain's existing provider configuration. The API key is never passed
-      # to git or the repository-writing step.
-      OPENAI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
+      # Only non-secret model settings are job-wide. Provider credentials are
+      # scoped to the preflight and agent steps, not the publication step.
       OPENAI_API_BASE: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
       MSWEA_MODEL_NAME: openai/${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
       MSWEA_GLOBAL_CALL_LIMIT: "60"
@@ -58,6 +57,8 @@ jobs:
 
       - name: Validate provider configuration
         shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
         run: |
           set +x
           if [ -z "${OPENAI_API_KEY:-}" ]; then
@@ -85,6 +86,7 @@ jobs:
           ISSUE_COMMENT: ${{ github.event.comment.body }}
           DISPATCH_TASK: ${{ inputs.task }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          OPENAI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
         run: |
           set +x
           set -u
