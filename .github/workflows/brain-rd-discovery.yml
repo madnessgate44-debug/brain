@@ -50,13 +50,29 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .
+      - name: Validate model configuration when model assessment is enabled
+        if: env.BRAIN_RD_ENABLE_MODEL_ASSESSMENT == 'true'
+        shell: bash
+        env:
+          MODEL_NAME: ${{ vars.BRAIN_AI_MODEL }}
+        run: |
+          set +x
+          if [ -z "${MODEL_NAME:-}" ]; then
+            echo "::error::Repository variable BRAIN_AI_MODEL is missing; model assessment cannot run without an explicit model."
+            exit 1
+          fi
+          if [[ ! "$MODEL_NAME" =~ ^[A-Za-z0-9._:/-]+$ ]]; then
+            echo "::error::BRAIN_AI_MODEL contains unsupported characters."
+            exit 1
+          fi
+
       - name: Run bounded R&D discovery
         env:
           # Preserve compatibility with the existing Brain Actions token secret.
           BRAIN_RD_GITHUB_TOKEN: ${{ secrets.BRAIN_RD_GITHUB_TOKEN || secrets.BRAIN_GITHUB_TOKEN }}
           BRAIN_AI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
           BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
-          BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
+          BRAIN_AI_MODEL: ${{ vars.BRAIN_AI_MODEL }}
         run: python -m brain.research.cli --max-candidates "$BRAIN_RD_MAX_CANDIDATES" --mission "$BRAIN_RD_MISSION" --output-dir .
       - name: Add shortlist to workflow summary
         if: always()
