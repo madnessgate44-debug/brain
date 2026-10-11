@@ -342,3 +342,30 @@ async def test_release_gate_and_manager_receive_actual_specialist_decisions():
     assert runner.release_input["review_decision"] == gate_evidence["review_decision"]
     assert runner.release_input["test_results"]["run_url"].endswith("/123")
     assert result["release_gate"]["passed"] is True
+
+
+@pytest.mark.asyncio
+async def test_engine_routes_provider_backed_developer_stage_through_openhands(monkeypatch):
+    """Production runners use OpenHands for coding while other specialists stay role-scoped."""
+    from brain.company import engine as engine_module
+
+    runner = FakeAgentRunner()
+    runner.provider = object()
+    tools = FakeTools()
+    openhands_calls = []
+
+    async def fake_openhands(user_request, evidence, provider):
+        openhands_calls.append((user_request, evidence, provider))
+        return await FakeAgentRunner.run(runner, "developer", user_request, evidence)
+
+    monkeypatch.setattr(engine_module, "run_openhands_developer", fake_openhands)
+    result = await CompanyWorkflowEngine(runner, tools).run(
+        "Build a small feature", "owner/repository"
+    )
+
+    assert result["status"] == "READY_FOR_HUMAN_APPROVAL"
+    assert len(openhands_calls) == 1
+    assert openhands_calls[0][0] == "Build a small feature"
+    assert openhands_calls[0][2] is runner.provider
+    assert "code_reviewer" in runner.calls
+    assert "qa_engineer" in runner.calls
