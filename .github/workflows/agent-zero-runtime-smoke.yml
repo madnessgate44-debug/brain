@@ -73,10 +73,19 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          API_TOKEN="$(docker exec agent-zero-smoke python -c 'import json; print(json.load(open("/a0/usr/settings.json"))["mcp_server_token"])' 2>/dev/null || true)"
-          if [ -z "$API_TOKEN" ]; then
+          PYTHON_BIN="$(docker exec agent-zero-smoke sh -c 'for p in /opt/venv/bin/python /opt/venv/bin/python3 /usr/local/bin/python /usr/local/bin/python3 /usr/bin/python3; do if [ -x "$p" ]; then printf "%s" "$p"; exit 0; fi; done; command -v python3 || command -v python' 2>/dev/null || true)"
+          if [ -z "$PYTHON_BIN" ]; then
+            docker exec agent-zero-smoke sh -c 'ls -la /opt/venv/bin /usr/local/bin /usr/bin 2>/dev/null | grep -E "python(3)?$" || true' || true
             docker logs --tail 100 agent-zero-smoke || true
-            echo "::error::Could not read Agent Zero's generated API token."
+            echo "::error::Could not locate Python inside the Agent Zero container."
+            exit 1
+          fi
+          echo "Agent Zero Python interpreter: $PYTHON_BIN"
+          API_TOKEN="$(docker exec agent-zero-smoke "$PYTHON_BIN" -c 'import json; print(json.load(open("/a0/usr/settings.json"))["mcp_server_token"])' 2>/dev/null || true)"
+          if [ -z "$API_TOKEN" ]; then
+            docker exec agent-zero-smoke sh -c 'ls -la /a0/usr 2>/dev/null || true' || true
+            docker logs --tail 100 agent-zero-smoke || true
+            echo "::error::Could not read Agent Zero's generated API token from /a0/usr/settings.json."
             exit 1
           fi
           echo "::add-mask::$API_TOKEN"
@@ -89,7 +98,7 @@ jobs:
           PY
           echo "Submitting the authenticated smoke request without Docker stdin piping."
           set +e
-          docker exec agent-zero-smoke python -c '
+          docker exec agent-zero-smoke "$PYTHON_BIN" -c '
           import json, sys, urllib.request, urllib.error
           body = json.dumps({"message": "Reply with exactly AGENT_ZERO_SMOKE_OK. Do not call tools."}).encode("utf-8")
           request = urllib.request.Request(
@@ -151,6 +160,7 @@ jobs:
           name: agent-zero-smoke-${{ github.run_id }}
           path: |
             /tmp/a0-response.json
+            /tmp/a0-http-status.txt
             /tmp/ollama.log
           if-no-files-found: warn
           retention-days: 7
