@@ -18,9 +18,9 @@ dependencies = [
     "pydantic>=2.13.5",
     "openhands-sdk==1.54.0",
     "openhands-tools==1.54.0",
-    "pydantic-settings==2.6.1",
+    "pydantic-settings>=2.15.0",
     "aiosqlite==0.20.0",
-    "python-dotenv>=1.1.0",
+    "python-dotenv>=1.2.2",
     "httpx==0.28.1",
 ]
 
