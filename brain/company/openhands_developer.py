@@ -9,7 +9,6 @@ are executed later by Brain's existing GitHub Actions verification path.
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 import tempfile
 from pathlib import Path
@@ -125,7 +124,6 @@ def _run_sdk_sync(
 
         changed: list[dict[str, str]] = []
         total_bytes = 0
-        seen_paths: set[str] = set()
         for target in sorted(root.rglob("*")):
             if not target.is_file() or target.is_symlink():
                 continue
@@ -146,7 +144,6 @@ def _run_sdk_sync(
             total_bytes += encoded_size
             if total_bytes > _MAX_TOTAL_BYTES:
                 raise AgentOutputError("OpenHands output exceeds the aggregate patch size limit.")
-            seen_paths.add(relative)
             changed.append({"path": relative, "content": current})
 
         deleted = sorted(set(original) - {
