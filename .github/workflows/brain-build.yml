@@ -372,8 +372,8 @@ jobs:
           final_log=""
           for attempt in 1 2; do
             final_log="/tmp/brain-build-agent-${attempt}.log"
-            /tmp/brain-agent-venv/bin/mini --config /tmp/brain-build-docker.yaml -t "$(cat /tmp/brain-build-task.txt)" -y 2>&1 | tee "$final_log"
-            agent_status=${PIPESTATUS[0]}
+            /tmp/brain-agent-venv/bin/mini --config /tmp/brain-build-docker.yaml -t "$(cat /tmp/brain-build-task.txt)" -y > "$final_log" 2>&1
+            agent_status=$?
             if [ "$agent_status" -eq 0 ]; then break; fi
             if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|retryDelay' "$final_log" && [ "$attempt" -lt 2 ]; then
               retry_seconds="$(FINAL_LOG="$final_log" python - <<'PY'
@@ -392,8 +392,16 @@ jobs:
             fi
           done
           set -e
-          cp "$final_log" /tmp/brain-build-agent.log
           echo "agent_status=$agent_status" >> "$GITHUB_OUTPUT"
+          if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|retryDelay' "$final_log"; then
+            echo "::warning::Provider rate limiting was detected; raw agent/provider output is suppressed from workflow logs."
+          elif grep -Eiq '401|403|unauthorized|invalid api key|authentication failed' "$final_log"; then
+            echo "::error::Provider authentication failed; raw agent/provider output is suppressed from workflow logs."
+          elif [ "$agent_status" -ne 0 ]; then
+            echo "::error::Coding agent failed after bounded attempts; raw agent/provider output is suppressed from workflow logs."
+          else
+            echo "Coding agent returned success; detailed agent/provider output remains in the runner temporary log only."
+          fi
           if [ "$agent_status" -ne 0 ]; then echo "::error::Coding agent failed after bounded attempts; no PR will be opened."; exit "$agent_status"; fi
           echo "Coding agent completed in the isolated workspace; candidate changes have not been trusted or applied."
 
@@ -631,14 +639,14 @@ jobs:
         run: |
           set +x
           set -euo pipefail
-          if git diff --name-only --no-renames -z HEAD | grep -zEq '(^|/)\.github/workflows/|(^|/)\.env($|\.)|(^|/)(render\.yaml|Dockerfile|.*secret.*|.*credential.*)'; then
+          if git diff --name-only --no-renames -z HEAD | grep -izEq '(^|/)\.github/workflows/|(^|/)\.env($|\.)|(^|/)(render\.yaml|Dockerfile|.*secret.*|.*credential.*)'; then
             echo "::error::Protected workflow, environment, deployment, or credential-related changes detected. Publication blocked."
             exit 1
           fi
           if [ "$COMMAND" = "audit" ]; then
             echo "result=AUDIT_COMPLETE_READ_ONLY" >> "$GITHUB_OUTPUT"
             if [ -n "$ISSUE_NUMBER" ]; then
-              GH_TOKEN="$GH_CONTROL_TOKEN" gh issue comment "$ISSUE_NUMBER" --repo madnessgate44-debug/brain --body "## Brain read-only audit\n\nNo repository changes were made. Review the run/artifact for evidence-based findings.\n\nWorkflow: $RUN_URL" || true
+              GH_TOKEN="$GH_CONTROL_TOKEN" gh issue comment "$ISSUE_NUMBER" --repo madnessgate44-debug/brain --body "$(printf '## Brain read-only audit\n\nNo repository changes were made. Review the run/artifact for evidence-based findings.\n\nWorkflow: %s' "$RUN_URL")" || true
             fi
             exit 0
           fi
@@ -671,7 +679,7 @@ jobs:
           echo "result=PR_OPENED" >> "$GITHUB_OUTPUT"
           echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
           if [ -n "$ISSUE_NUMBER" ]; then
-            GH_TOKEN="$GH_CONTROL_TOKEN" gh issue comment "$ISSUE_NUMBER" --repo madnessgate44-debug/brain --body "## Brain mission result\n\n- Status: PR candidate opened\n- Target/base: $TARGET_REPOSITORY / $(cat /tmp/brain-base-branch.txt)\n- PR: $pr_url\n- Files (first 8): $files_changed\n- Checks: ${check_summary}; gitleaks PASS\n- Warnings: ${warnings:-none}\n- Screenshots: $screenshots\n- Evidence: $RUN_URL\n- Next: human review/merge; no deployment." || true
+            GH_TOKEN="$GH_CONTROL_TOKEN" gh issue comment "$ISSUE_NUMBER" --repo madnessgate44-debug/brain --body "$(printf '## Brain mission result\n\n- Status: PR candidate opened\n- Target/base: %s / %s\n- PR: %s\n- Files (first 8): %s\n- Checks: %s; gitleaks PASS\n- Warnings: %s\n- Screenshots: %s\n- Evidence: %s\n- Next: human review/merge; no deployment.' "$TARGET_REPOSITORY" "$(cat /tmp/brain-base-branch.txt)" "$pr_url" "$files_changed" "$check_summary" "${warnings:-none}" "$screenshots" "$RUN_URL")" || true
           fi
 
       - name: Release shared model-workflow queue lease
@@ -743,7 +751,7 @@ jobs:
               `Workflow run: ${process.env.RUN_URL}`,
               '',
               'Inspect the failed step in the Actions run. This report intentionally excludes secrets and provider response bodies.'
-            ].join('\\n');
+            ].join('\n');
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,

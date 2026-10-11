@@ -47,6 +47,9 @@ def test_cross_repository_agent_uses_a_separate_workspace_and_is_pinned():
     assert "OPENAI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}" in agent_step
     assert "BRAIN_GITHUB_TOKEN" not in agent_step
     assert "Never merge, deploy, or push." in agent_step
+    assert '2>&1 | tee "$final_log"' not in workflow
+    assert ' > "$final_log" 2>&1' in workflow
+    assert "raw agent/provider output is suppressed from workflow logs" in workflow
 
 
 def test_secret_scan_handles_deleted_renamed_and_space_containing_paths():
@@ -92,6 +95,7 @@ def test_workflow_reports_failures_without_secrets_or_provider_bodies():
     assert "permissions:\n      issues: write" in workflow
     assert "Workflow run: ${process.env.RUN_URL}" in workflow
     assert "This report intentionally excludes secrets and provider response bodies." in workflow
+    assert r"].join('\n');" in workflow
 
 
 def test_whitespace_validation_is_a_controlled_warning():
@@ -108,6 +112,7 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     assert "npm test -- --run" in workflow
     assert "Static HTML checks" in workflow
     assert "Protected workflow, environment, deployment, or credential-related changes detected" in workflow
+    assert "grep -izEq" in workflow
     assert "git diff --name-only --no-renames -z HEAD | grep -zEq" in workflow
     assert "human review and merge required" in workflow
 
