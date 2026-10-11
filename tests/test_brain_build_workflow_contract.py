@@ -89,6 +89,7 @@ def test_project_check_reporting_distinguishes_tests_smoke_and_none():
     assert "- Checks: ${check_summary}; gitleaks passed." in workflow
     assert "- Checks: %s; gitleaks PASS" in workflow
     assert "BRAIN_CHECK_TYPE=" not in workflow
+    assert 'if [ "$check_type" = "none" ]; then' in workflow
     assert "cat /tmp/brain-checks.log" not in workflow
     assert "Project checks passed (type=$check_type); raw command output is suppressed." in workflow
     assert "Project checks failed (type=$check_type, exit=$result); raw command output is suppressed." in workflow
