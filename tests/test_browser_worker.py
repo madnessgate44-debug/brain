@@ -7,6 +7,7 @@ import pytest
 from brain.runtime.workers.browser_worker import (
     BrowserPolicyError,
     BrowserWorker,
+    action_requires_owner_approval,
     browser_dispatch_payload,
     domain_matches,
     is_allowed_url,
@@ -281,3 +282,10 @@ async def test_worker_extracts_deduplicated_public_links(monkeypatch):
     assert result["status"] == "succeeded"
     links = result["results"][0]["result"]["links"]
     assert links == [{"url": "https://example.com/docs", "text": "Documentation"}]
+
+def test_sensitive_navigation_requires_owner_approval(monkeypatch):
+    monkeypatch.setenv("BRAIN_BROWSER_SENSITIVE_DOMAINS", "bank.example,*.payments.example")
+    assert action_requires_owner_approval({"op": "navigate", "url": "https://bank.example/login"})
+    assert action_requires_owner_approval({"op": "navigate", "url": "https://checkout.payments.example/"})
+    assert not action_requires_owner_approval({"op": "navigate", "url": "https://example.com/"})
+    assert action_requires_owner_approval({"op": "click", "selector": "button"})
