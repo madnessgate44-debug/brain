@@ -142,43 +142,66 @@ jobs:
             exit 1
           fi
 
-          # Capture the status and response body so API validation errors are diagnosable.
-          event_status="$(curl --silent --show-error --retry 3 \
-            --output /tmp/openhands-events.json --write-out '%{http_code}' \
-            --get "https://app.all-hands.dev/api/v1/conversation/$CONVERSATION_ID/events/search" \
-            "${headers[@]}" \
-            --data-urlencode "limit=100" \
-            --data-urlencode "sort_order=TIMESTAMP_DESC")"
-          if [ "$event_status" != "200" ]; then
-            echo "::error::OpenHands event search returned HTTP ${event_status:-unknown}."
-            head -c 2000 /tmp/openhands-events.json || true
-            echo
-            exit 1
-          fi
-          cp /tmp/openhands-events.json "$GITHUB_WORKSPACE/openhands-events.json"
+          # Fetch all event pages; OpenHands reports can be emitted in tool observations, not only MessageEvent records.
+          page_id=""
+          : > /tmp/openhands-events-aggregate.json
+          printf '{"items":[]}' > /tmp/openhands-events-aggregate.json
+          for page_number in $(seq 1 20); do
+            page_args=(--data-urlencode "limit=100" --data-urlencode "sort_order=TIMESTAMP_DESC")
+            if [ -n "$page_id" ]; then page_args+=(--data-urlencode "page_id=$page_id"); fi
+            event_status="$(curl --silent --show-error --retry 3 \
+              --output /tmp/openhands-events-page.json --write-out '%{http_code}' \
+              --get "https://app.all-hands.dev/api/v1/conversation/$CONVERSATION_ID/events/search" \
+              "${headers[@]}" "${page_args[@]}")"
+            if [ "$event_status" != "200" ]; then
+              echo "::error::OpenHands event search returned HTTP ${event_status:-unknown} on page ${page_number}."
+              head -c 2000 /tmp/openhands-events-page.json || true
+              echo
+              exit 1
+            fi
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          aggregate_path = Path("/tmp/openhands-events-aggregate.json")
+          page_path = Path("/tmp/openhands-events-page.json")
+          aggregate = json.loads(aggregate_path.read_text(encoding="utf-8"))
+          page = json.loads(page_path.read_text(encoding="utf-8"))
+          aggregate["items"].extend(page.get("items", []))
+          aggregate["next_page_id"] = page.get("next_page_id")
+          aggregate_path.write_text(json.dumps(aggregate), encoding="utf-8")
+          PY
+            page_id="$(python3 -c 'import json; print(json.load(open("/tmp/openhands-events-page.json", encoding="utf-8")).get("next_page_id") or "")')"
+            if [ -z "$page_id" ]; then break; fi
+            if [ "$page_number" -eq 20 ]; then
+              echo "::error::OpenHands event history exceeded the 2000-event safety cap; report extraction refused to use a partial history."
+              exit 1
+            fi
+          done
+          cp /tmp/openhands-events-aggregate.json "$GITHUB_WORKSPACE/openhands-events.json"
           python3 - <<'PY'
           import json, os, sys
           with open("/tmp/openhands-events.json", encoding="utf-8") as f:
               data = json.load(f)
           items = data.get("items", []) if isinstance(data, dict) else []
-          messages = []
-          for event in items:
-              if event.get("kind") != "MessageEvent" or event.get("source") not in ("assistant", "agent"):
-                  continue
-              value = event.get("message", event.get("content", ""))
-              if not value and isinstance(event.get("llm_message"), dict):
-                  value = event["llm_message"].get("content", "")
+          def flatten(value):
+              if isinstance(value, str):
+                  return value
+              if isinstance(value, dict):
+                  return "\n".join(flatten(item) for item in value.values())
               if isinstance(value, list):
-                  value = "\n".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in value)
-              elif isinstance(value, dict):
-                  value = value.get("content", value.get("text", json.dumps(value, ensure_ascii=False)))
-              if value:
-                  messages.append(str(value))
+                  return "\n".join(flatten(item) for item in value)
+              return ""
+          # Search all event types, including ActionEvent/ObservationEvent payloads.
+          # OpenHands may emit the marked report through a terminal observation.
+          combined = "\n".join(flatten(event) for event in reversed(items))
           report = ""
-          for message in reversed(messages):
-              if "BRAIN_AUDIT_REPORT_BEGIN" in message and "BRAIN_AUDIT_REPORT_END" in message:
-                  report = message.split("BRAIN_AUDIT_REPORT_BEGIN", 1)[1].split("BRAIN_AUDIT_REPORT_END", 1)[0].strip()
-                  break
+          marker_start = "BRAIN_AUDIT_REPORT_BEGIN"
+          marker_end = "BRAIN_AUDIT_REPORT_END"
+          start = combined.rfind(marker_start)
+          if start >= 0:
+              end = combined.find(marker_end, start + len(marker_start))
+              if end >= 0:
+                  report = combined[start + len(marker_start):end].strip()
           if not report:
               print("::error::OpenHands finished but no marked final audit report was found in conversation events.", file=sys.stderr)
               print(f"Message events captured: {len(messages)}; total events: {len(items)}", file=sys.stderr)
