@@ -93,6 +93,9 @@ jobs:
             http://127.0.0.1:5080/api/api_message || true)"
           if [ "$status" != "200" ]; then
             echo "::error::Agent Zero API returned HTTP ${status:-unknown}."
+            echo "API error response (first 2000 characters):"
+            head -c 2000 /tmp/a0-response.json || true
+            echo
             docker logs --tail 100 agent-zero-smoke || true
             exit 1
           fi
