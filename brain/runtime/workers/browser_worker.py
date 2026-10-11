@@ -108,6 +108,28 @@ def domain_matches(hostname: str, rule: str) -> bool:
         return host.endswith(suffix) and host != allowed[2:]
     return host == allowed
 
+def action_requires_owner_approval(
+    action: dict[str, Any],
+    sensitive_domains: list[str] | None = None,
+) -> bool:
+    """Require approval for mutations and navigation to configured sensitive origins."""
+    if action.get("op") in MUTATING_ACTIONS:
+        return True
+    if action.get("op") != "navigate":
+        return False
+    try:
+        hostname = (urlsplit(str(action.get("url", ""))).hostname or "").lower().rstrip(".")
+    except ValueError:
+        return False
+    if not hostname:
+        return False
+    if sensitive_domains is None:
+        raw = os.getenv("BRAIN_BROWSER_SENSITIVE_DOMAINS", "")
+        rules = [item.strip() for item in raw.split(",") if item.strip()]
+    else:
+        rules = [item.strip() for item in sensitive_domains if item.strip()]
+    return any(domain_matches(hostname, rule) for rule in rules)
+
 
 def _host_resolves_publicly(hostname: str) -> bool:
     try:
@@ -218,9 +240,12 @@ class BrowserWorker:
         headless: bool | None = None,
         executable_path: str | None = None,
         page_session_factory: Callable[[], Any] | None = None,
+        sensitive_domains: list[str] | None = None,
     ) -> None:
         raw_domains = os.getenv("BRAIN_BROWSER_ALLOWED_DOMAINS", "") if allowed_domains is None else ",".join(allowed_domains)
         self.allowed_domains = [item.strip() for item in raw_domains.split(",") if item.strip()]
+        raw_sensitive_domains = os.getenv("BRAIN_BROWSER_SENSITIVE_DOMAINS", "") if sensitive_domains is None else ",".join(sensitive_domains)
+        self.sensitive_domains = [item.strip() for item in raw_sensitive_domains.split(",") if item.strip()]
         # General public-web browsing is the default. Explicit domain rules remain
         # available for deployments that intentionally want a narrower scope.
         if not self.allowed_domains:
@@ -233,8 +258,10 @@ class BrowserWorker:
 
     async def execute(self, actions: Any, owner_approved: bool = False) -> dict[str, Any]:
         validated = validate_browser_actions(actions)
-        if any(action["op"] in MUTATING_ACTIONS for action in validated) and not owner_approved:
-            raise BrowserPolicyError("mutating browser actions require explicit owner approval")
+        if any(action_requires_owner_approval(action, self.sensitive_domains) for action in validated) and not owner_approved:
+            raise BrowserPolicyError(
+                "mutating actions or navigation to sensitive origins require explicit owner approval"
+            )
         results: list[dict[str, Any]] = []
         async with self._page_session() as page:
             for index, action in enumerate(validated):
