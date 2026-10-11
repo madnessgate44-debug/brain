@@ -90,7 +90,7 @@ jobs:
             -H "X-API-KEY: $API_TOKEN" \
             -H 'Content-Type: application/json' \
             --data-binary @/tmp/a0-request.json \
-            http://127.0.0.1:5080/api/api_message || true)"
+            http://127.0.0.1:5080/api_message || true)"
           if [ "$status" != "200" ]; then
             echo "::error::Agent Zero API returned HTTP ${status:-unknown}."
             echo "API error response (first 2000 characters):"
