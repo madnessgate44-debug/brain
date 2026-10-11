@@ -10,8 +10,11 @@ jobs:
   prepare:
     if: >-
       github.event.issue.state == 'open' &&
-      (github.event.issue.user.login == github.repository_owner ||
-      (github.event.issue.user.login == 'github-actions[bot]' && contains(github.event.issue.body, 'brain-internal-verification: true'))) &&
+      ((github.event.issue.user.login == github.repository_owner &&
+        github.event.sender.login == github.repository_owner) ||
+       (github.event.issue.user.login == 'github-actions[bot]' &&
+        github.event.sender.login == 'github-actions[bot]' &&
+        contains(github.event.issue.body, 'brain-internal-verification: true'))) &&
       contains(github.event.issue.body, '/brain test')
     runs-on: ubuntu-latest
     permissions: {}
@@ -34,11 +37,16 @@ jobs:
           current = os.environ["GITHUB_REPOSITORY"]
           owner = current.split("/", 1)[0]
           actor = (event["issue"].get("user") or {}).get("login", "")
+          sender = (event.get("sender") or {}).get("login", "")
           internal_verification = "brain-internal-verification: true" in body
-          if actor.casefold() != owner.casefold() and not (
-              actor == "github-actions[bot]" and internal_verification
-          ):
-              raise SystemExit("Only owner issues or marked internal verification issues are allowed.")
+          owner_issue = actor.casefold() == owner.casefold() and sender.casefold() == owner.casefold()
+          internal_bot_issue = (
+              actor == "github-actions[bot]"
+              and sender == "github-actions[bot]"
+              and internal_verification
+          )
+          if not owner_issue and not internal_bot_issue:
+              raise SystemExit("Issue author and event sender are not an authorized owner/internal-verification pair.")
           if actor == "github-actions[bot]" and not internal_verification:
               raise SystemExit("Bot-authored test issues require the internal verification marker.")
           match = re.search(r"(?im)^(?:repository|repo):\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s*$", body)

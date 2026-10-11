@@ -15,6 +15,7 @@ jobs:
     if: >-
       github.event.issue.state == 'open' &&
       github.event.issue.user.login == github.repository_owner &&
+      github.event.sender.login == github.repository_owner &&
       contains(github.event.issue.body, '/brain simulate')
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -28,6 +29,7 @@ jobs:
       BRAIN_AI_BASE_URL: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
       BRAIN_AI_MODEL: ${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
       BRAIN_GITHUB_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}
+      BRAIN_CONTROL_API_KEY: ${{ secrets.BRAIN_CONTROL_API_KEY }}
       BRAIN_GITHUB_ACTIONS_TOKEN: ${{ github.token }}
       BRAIN_GITHUB_OWNER: ${{ github.repository_owner }}
       BRAIN_CONTROL_REPOSITORY: ${{ github.repository }}
@@ -151,7 +153,7 @@ jobs:
                 return;
               } catch (error) {
                 if (error.status !== 422 && error.status !== 409) throw error;
-                // Another runner won the create-ref race. Retry after observing its lease.
+                // GitHub reported a 409/422 ref conflict; retry after observing the lease. Other statuses fail closed.
                 await sleep(10000);
               }
             }

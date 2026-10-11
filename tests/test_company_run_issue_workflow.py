@@ -278,3 +278,27 @@ def test_build_audit_source_chunks_marks_truncated_long_lines():
     )
 
     assert "[LINE TRUNCATED FOR PROMPT SIZE]" in chunks[0]["text"]
+
+@pytest.mark.parametrize("control_key", [None, "too-short"])
+@pytest.mark.asyncio
+async def test_mutating_run_requires_control_key_before_gateway_construction(monkeypatch, control_key):
+    monkeypatch.setattr(workflow, "request_from_issue", lambda: ("owner/brain", "fix defects", 123))
+    monkeypatch.delenv("BRAIN_AI_API_KEY", raising=False)
+    if control_key is None:
+        monkeypatch.delenv("BRAIN_CONTROL_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("BRAIN_CONTROL_API_KEY", control_key)
+
+    gateway_called = False
+
+    async def forbidden_gateway(**kwargs):
+        nonlocal gateway_called
+        gateway_called = True
+        raise AssertionError("Gateway must not be constructed without a valid control key")
+
+    monkeypatch.setattr(workflow, "build_gateway", forbidden_gateway)
+
+    with pytest.raises(RuntimeError, match="BRAIN_CONTROL_API_KEY"):
+        await workflow.run(events=[])
+
+    assert gateway_called is False
