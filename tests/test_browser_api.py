@@ -193,3 +193,15 @@ def test_unsigned_browser_metadata_cannot_execute(monkeypatch):
         assert mission["status"] == "FAILED", mission
         assert executed["value"] is False
 
+def test_browser_endpoint_requires_approval_for_sensitive_navigation(monkeypatch):
+    monkeypatch.setenv("BRAIN_CONTROL_API_KEY", "x" * 32)
+    monkeypatch.setenv("BRAIN_BROWSER_SENSITIVE_DOMAINS", "bank.example")
+    app = create_app()
+    with TestClient(app, headers={"X-Brain-API-Key": "x" * 32}) as client:
+        response = client.post(
+            "/browser/tasks",
+            headers={"X-Brain-API-Key": "x" * 32},
+            json=_payload(actions=[{"op": "navigate", "url": "https://bank.example/login"}]),
+        )
+    assert response.status_code == 409
+    assert "sensitive origin" in response.json()["detail"]
