@@ -12,6 +12,10 @@ def test_openhands_adapter_rejects_unsafe_output_paths(path):
         _safe_relative_path(path)
 
 
+def test_safe_relative_path_accepts_github_workflows_ci_yml():
+    assert _safe_relative_path(".github/workflows/ci.yml") == ".github/workflows/ci.yml"
+
+
 def test_unsafe_path_examples_in_task_text_are_not_output_path_hints():
     assert _safe_request_paths(
         "Add a regression test for rejecting ../outside.py and /tmp/outside.py."
