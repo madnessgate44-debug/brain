@@ -452,16 +452,16 @@ class CompanyWorkflowEngine:
             "timeline": timeline,
             "role_outputs": outputs,
             "gate_evidence": {
-                            "review_decision": evidence["review_decision"],
-                            "test_results": evidence["test_results"],
-                            "security_decision": evidence["security_decision"],
-                            "customer_review": evidence["customer_review"],
-                        },
-                        "release_gate": {
-                            "passed": gate.passed,
-                            "blockers": list(gate.blockers),
-                            "rationale": gate.rationale,
-                        },
+                "review_decision": evidence["review_decision"],
+                "test_results": evidence["test_results"],
+                "security_decision": evidence["security_decision"],
+                "customer_review": evidence["customer_review"],
+            },
+            "release_gate": {
+                "passed": gate.passed,
+                "blockers": list(gate.blockers),
+                "rationale": gate.rationale,
+            },
         }
         pull_request = await self.tools.open_pull_request(
             repository, evidence["branch"], workflow_result
