@@ -28,10 +28,14 @@ class StatefulFaultInjectionRunner:
         self.scenario_mode = scenario_mode
         self.review_rejections_remaining = review_rejections
         self.calls_by_role = {role: 0 for role in WORKFLOW_ORDER}
-        self.developer_proposals = []
+        self.call_order = []
+        self.reviewed_diffs = []
 
     async def run(self, role_key: str, user_request: str, evidence: dict):
         self.calls_by_role[role_key] += 1
+        self.call_order.append(role_key)
+        if role_key == "code_reviewer":
+            self.reviewed_diffs.append(evidence.get("actual_diff"))
         call_count = self.calls_by_role[role_key]
 
         # Standard valid deliverables for passing roles
@@ -177,7 +181,7 @@ class FakeFaultInjectionTools:
     async def apply_change_set(self, change_set: dict, repository: str):
         self.apply_change_set_calls += 1
         branch = f"brain/fault-injection-test-{self.apply_change_set_calls}"
-        diff = f"diff --git a/file.py b/file.py\n+updated content"
+        diff = f"diff --git a/file.py b/file.py\n+updated content attempt {self.apply_change_set_calls}"
         self.applied_branches.append(branch)
         self.applied_diffs.append(diff)
         return {
@@ -256,6 +260,13 @@ async def test_scenario_2_code_reviewer_rejection_repaired_and_verified():
     assert tools.apply_change_set_calls == 2
     assert tools.run_checks_calls == 1  # Checks run once after the final reviewed diff.
     assert len(tools.applied_diffs) == 2
+    assert tools.applied_diffs[0] != tools.applied_diffs[1]
+    assert runner.reviewed_diffs == tools.applied_diffs
+    assert runner.call_order == [
+        "product_owner", "ux_designer", "architect", "developer", "code_reviewer",
+        "developer", "code_reviewer", "qa_engineer", "security_auditor",
+        "customer_advocate", "release_manager",
+    ]
     assert result["release_gate"]["passed"] is True
 
 
