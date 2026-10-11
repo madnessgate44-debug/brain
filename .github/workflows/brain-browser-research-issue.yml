@@ -176,7 +176,7 @@ jobs:
               ? fs.readFileSync(path, 'utf8')
               : '## Brain public-web research: FAILED\n\nNo result report was produced. Inspect the workflow logs.';
             const runUrl = context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId;
-            const body = report + '\n\n**Workflow job:** ' + (process.env.BROWSE_JOB_RESULT || 'unknown') + '\n**Evidence:** ' + runUrl;
+            const body = report.slice(0, 3000) + '\\n\\n**Workflow job:** ' + (process.env.BROWSE_JOB_RESULT || 'unknown') + '\\n**Evidence:** ' + runUrl;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
