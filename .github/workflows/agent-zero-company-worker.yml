@@ -140,7 +140,7 @@ jobs:
           PY
           HTTP_CODE="$(curl -sS --max-time 5400 -o /tmp/agent-zero-response.json -w '%{http_code}' \
             -H "X-API-KEY: $A0_API_TOKEN" -H 'Content-Type: application/json' \
-            --data-binary @/tmp/agent-zero-request.json http://127.0.0.1:5080/api/api_message || true)"
+            --data-binary @/tmp/agent-zero-request.json http://127.0.0.1:5080/api_message || true)"
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::error::Agent Zero task API failed with HTTP ${HTTP_CODE:-unknown}."
             docker logs --tail 80 brain-agent-zero || true
