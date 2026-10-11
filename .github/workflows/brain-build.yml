@@ -490,10 +490,16 @@ jobs:
         if: needs.prepare.outputs.command != 'audit'
         shell: bash
         run: |
+          set -euo pipefail
+          check_workspace=/tmp/brain-check-workspace
+          rm -rf "$check_workspace"
+          mkdir -p "$check_workspace"
+          rsync -a --delete --exclude='/.git' "$GITHUB_WORKSPACE/" "$check_workspace/"
+          cd "$check_workspace"
           set +e
           result=0
           if [ -f pyproject.toml ] || [ -f pytest.ini ] || [ -f setup.cfg ] || [ -f requirements.txt ]; then
-            docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
+            docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$check_workspace:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
               set -e
               python -m pip install --user -e ".[dev]" >/tmp/install.log 2>&1 || {
                 python -m pip install --user pytest pytest-asyncio httpx >>/tmp/install.log 2>&1
@@ -509,7 +515,7 @@ jobs:
             ' > /tmp/brain-checks.log 2>&1
             result=$?
           elif [ -f package.json ]; then
-            docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
+            docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$check_workspace:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
               set -e
               if [ -f package-lock.json ]; then npm ci; else npm install; fi
               echo Y29uc3QgZnMgPSByZXF1aXJlKCJmcyIpOwpjb25zdCBwYWNrYWdlSnNvbiA9IEpTT04ucGFyc2UoZnMucmVhZEZpbGVTeW5jKCJwYWNrYWdlLmpzb24iLCAidXRmOCIpKTsKY29uc3Qga2V5ID0gcHJvY2Vzcy5hcmd2WzJdIHx8ICJ0ZXN0IjsKY29uc29sZS5sb2coKHBhY2thZ2VKc29uLnNjcmlwdHMgfHwge30pW2tleV0gfHwgIiIpOwo= | base64 -d > /tmp/brain-package-script.cjs
@@ -592,8 +598,12 @@ jobs:
         if: needs.prepare.outputs.command != 'audit' && hashFiles('**/*.html') != ''
         shell: bash
         run: |
-          set +x
-          docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace mcr.microsoft.com/playwright:v1.52.0-noble bash -lc '
+          set -euo pipefail
+          preview_workspace=/tmp/brain-preview-workspace
+          rm -rf "$preview_workspace"
+          mkdir -p "$preview_workspace"
+          rsync -a --delete --exclude='/.git' "$GITHUB_WORKSPACE/" "$preview_workspace/"
+          docker run --rm -v "$preview_workspace:/workspace" -w /workspace mcr.microsoft.com/playwright:v1.52.0-noble bash -lc '
             set -e
             npm install --prefix /tmp/brain-playwright playwright@1.52.0 >/tmp/brain-playwright-install.log 2>&1
             mkdir -p /workspace/.brain/preview
@@ -624,6 +634,8 @@ jobs:
             PREVIEW_EOF
             node /tmp/brain-preview.cjs
           '
+          mkdir -p "$GITHUB_WORKSPACE/.brain/preview"
+          cp "$preview_workspace/.brain/preview/"*.png "$GITHUB_WORKSPACE/.brain/preview/"
       - name: Verify protected paths and publish candidate PR
         id: publish
         if: always() && steps.agent.outcome == 'success' && steps.candidate.outcome == 'success' && (needs.prepare.outputs.command == 'audit' || (steps.checks.outcome == 'success' && steps.gitleaks.outcome == 'success'))

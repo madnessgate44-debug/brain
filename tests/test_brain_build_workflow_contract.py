@@ -111,6 +111,12 @@ def test_whitespace_validation_is_a_controlled_warning():
 def test_cross_repository_build_has_project_checks_and_protected_path_gate():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "Run project-aware checks" in workflow
+    assert 'rsync -a --delete --exclude=\'/.git\' "$GITHUB_WORKSPACE/" "$check_workspace/"' in workflow
+    assert 'rsync -a --delete --exclude=\'/.git\' "$GITHUB_WORKSPACE/" "$preview_workspace/"' in workflow
+    assert '-v "$GITHUB_WORKSPACE:/workspace"' not in workflow
+    assert '-v "$check_workspace:/workspace"' in workflow
+    assert '-v "$preview_workspace:/workspace"' in workflow
+    assert 'cp "$preview_workspace/.brain/preview/"*.png "$GITHUB_WORKSPACE/.brain/preview/"' in workflow
     assert "python -m pytest -q" in workflow
     assert "npm test -- --run" in workflow
     assert "Static HTML checks" in workflow
