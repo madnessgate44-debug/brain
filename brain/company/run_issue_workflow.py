@@ -290,6 +290,18 @@ async def run(events: list[dict[str, Any]] | None = None, mission_context: dict[
     if mission_context is not None:
         mission_context.update(mission)
     events.append({"timestamp": started, "stage": "capability_planning", "status": "PASS", "detail": json.dumps(mission["capability_plan"])})
+    if plan.mode == "mutating":
+        control_key = os.environ.get("BRAIN_CONTROL_API_KEY", "").strip()
+        if len(control_key) < 24:
+            events.append({
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "stage": "control_key_preflight",
+                "status": "FAIL",
+                "detail": "BRAIN_CONTROL_API_KEY is absent or shorter than 24 characters; mutating workflow blocked before GitHub credentials or gateway construction.",
+            })
+            raise RuntimeError(
+                "BRAIN_CONTROL_API_KEY must be configured with at least 24 characters before a mutating company workflow can proceed."
+            )
     if not os.environ.get("BRAIN_AI_API_KEY"):
         raise RuntimeError("BRAIN_AI_API_KEY is not configured; model invocation is required.")
     public_web_evidence = await collect_shared_public_web_evidence(objective, events)
