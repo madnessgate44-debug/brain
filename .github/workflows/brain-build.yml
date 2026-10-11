@@ -148,6 +148,7 @@ jobs:
       pull-requests: write
     outputs:
       result: ${{ steps.publish.outputs.result }}
+      failed_step: ${{ steps.mission_lock.outcome == 'failure' && 'queue lease' || steps.agent.outcome == 'failure' && 'coding agent' || steps.candidate.outcome == 'failure' && 'candidate reconstruction' || steps.gitleaks.outcome == 'failure' && 'secret scanning' || steps.checks.outcome == 'failure' && 'project checks' || steps.publish.outcome == 'failure' && 'publication' || 'mission setup or unclassified step' }}
     env:
       TARGET_REPOSITORY: ${{ needs.prepare.outputs.target }}
       TARGET_BRANCH: ${{ needs.prepare.outputs.branch }}
@@ -727,13 +728,14 @@ jobs:
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           PREPARE_RESULT: ${{ needs.prepare.result }}
+          FAILED_STEP: ${{ needs.mission.outputs.failed_step }}
         with:
           script: |
             const issueNumber = context.payload.issue?.number;
             if (!issueNumber) return;
             const failedStage = process.env.PREPARE_RESULT === 'failure'
               ? 'intake validation'
-              : 'mission execution, validation, secret scanning, or publication';
+              : (process.env.FAILED_STEP || 'mission execution');
             const body = [
               '## Brain mission failed',
               '',

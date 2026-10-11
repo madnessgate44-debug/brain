@@ -87,6 +87,8 @@ def test_workflow_reports_failures_without_secrets_or_provider_bodies():
     assert "report_failure:" in workflow
     assert "always()" in workflow
     assert "needs.prepare.result == 'failure' || needs.mission.result == 'failure'" in workflow
+    assert "failed_step: ${{ steps.mission_lock.outcome" in workflow
+    assert "FAILED_STEP: ${{ needs.mission.outputs.failed_step }}" in workflow
     assert "permissions:\n      issues: write" in workflow
     assert "Workflow run: ${process.env.RUN_URL}" in workflow
     assert "This report intentionally excludes secrets and provider response bodies." in workflow
