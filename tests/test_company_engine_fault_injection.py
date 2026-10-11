@@ -254,7 +254,7 @@ async def test_scenario_2_code_reviewer_rejection_repaired_and_verified():
     assert runner.calls_by_role["code_reviewer"] == 2
     # Apply change set called twice (initial implementation + repair implementation)
     assert tools.apply_change_set_calls == 2
-    assert tools.run_checks_calls == 2
+    assert tools.run_checks_calls == 1  # Checks run once after the final reviewed diff.
     assert len(tools.applied_diffs) == 2
     assert result["release_gate"]["passed"] is True
 
