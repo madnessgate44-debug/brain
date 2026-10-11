@@ -366,7 +366,20 @@ class CompanyWorkflowEngine:
         if test_evidence.get("executed") is not True:
             raise CompanyWorkflowBlocked("QA tool did not confirm actual test execution.")
         if test_evidence.get("status") != "PASS":
-            raise CompanyWorkflowBlocked("Repository checks failed; release is blocked.")
+            raise CompanyWorkflowBlocked(
+                "Repository checks failed; release is blocked.",
+                stage_evidence={
+                    "stopped_at": "repository_checks",
+                    "repository_mutation_started": True,
+                    "tests_started": True,
+                    "tests_status": str(test_evidence.get("status", "UNKNOWN")).upper(),
+                    "test_evidence": test_evidence,
+                    "branch": evidence.get("branch"),
+                    "changed_files": evidence.get("changed_files", []),
+                    "timeline": timeline,
+                    "role_outputs": outputs,
+                },
+            )
         evidence["test_results"] = test_evidence
         qa_output = await self.agent_runner.run("qa_engineer", user_request, evidence)
         outputs["qa_engineer"] = qa_output
