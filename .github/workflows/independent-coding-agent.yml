@@ -38,7 +38,7 @@ jobs:
       # Only non-secret model settings are job-wide. Provider credentials are
       # scoped to the preflight and agent steps, not the publication step.
       OPENAI_API_BASE: ${{ secrets.BRAIN_AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai' }}
-      MSWEA_MODEL_NAME: openai/${{ secrets.BRAIN_AI_MODEL || 'gemini-3.5-flash-lite' }}
+      MSWEA_MODEL_NAME: openai/${{ vars.BRAIN_AI_MODEL }}
       # Gemini free-tier limit is 15 requests/minute; leave headroom for other Brain workflows.
       MSWEA_GLOBAL_CALL_LIMIT: "14"
       MSWEA_COST_TRACKING: "ignore_errors"
@@ -61,8 +61,17 @@ jobs:
         shell: bash
         env:
           OPENAI_API_KEY: ${{ secrets.BRAIN_AI_API_KEY }}
+          MODEL_NAME: ${{ vars.BRAIN_AI_MODEL }}
         run: |
           set +x
+          if [ -z "${MODEL_NAME:-}" ]; then
+            echo "::error::Repository variable BRAIN_AI_MODEL is missing. Set it to a provider-supported model ID; no default model is selected."
+            exit 1
+          fi
+          if [[ ! "$MODEL_NAME" =~ ^[A-Za-z0-9._:/-]+$ ]]; then
+            echo "::error::BRAIN_AI_MODEL contains unsupported characters."
+            exit 1
+          fi
           if [ -z "${OPENAI_API_KEY:-}" ]; then
             echo "::error::BRAIN_AI_API_KEY is missing. No agent run was started."
             exit 1
