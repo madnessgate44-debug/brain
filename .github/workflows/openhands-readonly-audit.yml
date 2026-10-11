@@ -102,6 +102,7 @@ jobs:
               --get "https://app.all-hands.dev/api/v1/app-conversations" \
               "${headers[@]}" --data-urlencode "ids=$CONVERSATION_ID")"
             printf '%s' "$response" > /tmp/openhands-conversation.json
+            cp /tmp/openhands-conversation.json openhands-conversation.json
             repository="$(printf '%s' "$response" | jq -r 'if type == "array" then (.[0].selected_repository // "") else (.selected_repository // "") end')"
             branch="$(printf '%s' "$response" | jq -r 'if type == "array" then (.[0].selected_branch // "") else (.selected_branch // "") end')"
             sandbox="$(printf '%s' "$response" | jq -r 'if type == "array" then (.[0].sandbox_status // "") else (.sandbox_status // "") end')"
@@ -149,6 +150,7 @@ jobs:
             --get "https://app.all-hands.dev/api/v1/conversation/$CONVERSATION_ID/events/search" \
             "${headers[@]}" --data-urlencode "limit=200")"
           printf '%s' "$events" > /tmp/openhands-events.json
+          cp /tmp/openhands-events.json openhands-events.json
           python3 - <<'PY'
           import json, os, sys
           with open("/tmp/openhands-events.json", encoding="utf-8") as f:
@@ -179,8 +181,6 @@ jobs:
               f.write(report + "\n")
           print(f"Audit report extracted. Message events: {len(messages)}; total events: {len(items)}")
           PY
-          cp /tmp/openhands-conversation.json openhands-conversation.json
-          cp /tmp/openhands-events.json openhands-events.json
           echo "report_path=openhands-audit-report.md" >> "$GITHUB_OUTPUT"
 
       - name: Publish audit report and evidence
