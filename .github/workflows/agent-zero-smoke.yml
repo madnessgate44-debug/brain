@@ -1,0 +1,110 @@
+name: Agent Zero Runtime Smoke Test
+
+on:
+  push:
+    branches:
+      - brain/agent-zero-operating-environment
+
+permissions:
+  contents: read
+
+jobs:
+  agent-zero-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Start local inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          nohup ollama serve >/tmp/ollama.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+          ollama pull qwen2.5-coder:3b
+
+      - name: Boot official Agent Zero and verify authenticated model response
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          export A0_RUNTIME_ID="brain-a0-smoke-$GITHUB_RUN_ID"
+          export A0_LOGIN="smoke-runner"
+          export A0_PASSWORD="$(openssl rand -hex 32)"
+          docker pull agent0ai/agent-zero:latest
+          docker run -d --name brain-agent-zero \
+            --add-host=host.docker.internal:host-gateway \
+            -p 5080:80 \
+            -v "$GITHUB_WORKSPACE:/a0/usr/workdir/brain:ro" \
+            -e A0_PERSISTENT_RUNTIME_ID="$A0_RUNTIME_ID" \
+            -e AUTH_LOGIN="$A0_LOGIN" \
+            -e AUTH_PASSWORD="$A0_PASSWORD" \
+            -e A0_SET_chat_model_provider=ollama \
+            -e A0_SET_chat_model_name=qwen2.5-coder:3b \
+            -e A0_SET_chat_model_api_base=http://host.docker.internal:11434 \
+            agent0ai/agent-zero:latest
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:5080/ >/dev/null; then break; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' brain-agent-zero 2>/dev/null || true)" != "true" ]; then
+              docker logs --tail 80 brain-agent-zero || true
+              echo "::error::Agent Zero container exited during startup."
+              exit 1
+            fi
+            sleep 4
+          done
+          curl -fsS http://127.0.0.1:5080/ >/dev/null
+          API_TOKEN="$(python - <<'PY'
+          import base64, hashlib, os
+          raw = ":".join((os.environ["A0_RUNTIME_ID"], os.environ["A0_LOGIN"], os.environ["A0_PASSWORD"])).encode()
+          print(base64.urlsafe_b64encode(hashlib.sha256(raw).digest()).decode().rstrip("=")[:16])
+          PY
+          )"
+          echo "::add-mask::$API_TOKEN"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          Path("/tmp/a0-smoke-request.json").write_text(json.dumps({
+              "message": "Reply with exactly AGENT_ZERO_SMOKE_OK and nothing else. Do not use tools.",
+              "lifetime_hours": 1
+          }), encoding="utf-8")
+          PY
+          HTTP_CODE="$(curl -sS --max-time 900 -o /tmp/a0-smoke-response.json -w '%{http_code}' \
+            -H "X-API-KEY: $API_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/a0-smoke-request.json \
+            http://127.0.0.1:5080/api_message || true)"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Authenticated Agent Zero API request failed."
+            docker logs --tail 100 brain-agent-zero || true
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("/tmp/a0-smoke-response.json").read_text(encoding="utf-8"))
+          response = data.get("response", "").strip()
+          print("Agent Zero API returned a response; content is not printed.")
+          if response != "AGENT_ZERO_SMOKE_OK":
+              raise SystemExit("Agent Zero did not return the exact smoke-test response.")
+          print("PASS: official Agent Zero runtime, authentication, and configured local model responded.")
+          PY
+
+      - name: Collect diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          docker logs --tail 150 brain-agent-zero 2>/dev/null || true
+          tail -n 100 /tmp/ollama.log 2>/dev/null || true
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: docker rm -f brain-agent-zero >/dev/null 2>&1 || true
