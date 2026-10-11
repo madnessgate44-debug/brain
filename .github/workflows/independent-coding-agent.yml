@@ -119,6 +119,7 @@ jobs:
 
           # mini-SWE-agent's shell actions are bounded by call, cost and workflow limits.
           # Re-run it with the actual test failure output when a test attempt fails.
+          TESTS_PASSED=false
           for attempt in 1 2 3; do
             if [ "$attempt" -eq 1 ]; then
               CURRENT_TASK="$(cat /tmp/agent-task.txt)"
@@ -139,6 +140,7 @@ jobs:
 
             if pytest -q > /tmp/brain-pytest.log 2>&1; then
               cat /tmp/brain-pytest.log
+              TESTS_PASSED=true
               echo "tests_passed=true" >> "$GITHUB_OUTPUT"
               break
             else
@@ -146,6 +148,7 @@ jobs:
               tail -n 180 /tmp/brain-pytest.log
               echo "Test attempt $attempt failed with status $TEST_STATUS."
               if [ "$attempt" -eq 3 ]; then
+                TESTS_PASSED=false
                 echo "tests_passed=false" >> "$GITHUB_OUTPUT"
               fi
             fi
@@ -156,7 +159,7 @@ jobs:
             echo
             echo "- Model: ${MSWEA_MODEL_NAME}"
             echo "- Bounded agent attempts: up to 3"
-            echo "- Final test result: ${{ steps.agent.outputs.tests_passed }}"
+            echo "- Final test result: ${TESTS_PASSED}"
             echo
             echo "### Test output (tail)"
             echo '~~~text'
@@ -190,6 +193,11 @@ jobs:
           set -e
           BRANCH="brain/agent-fix-${ISSUE_NUMBER:-manual}-${GITHUB_RUN_ID}"
           git status --short
+          if git diff --name-only | grep -Eq '(^|/)\\.github/workflows/|(^|/)\\.env($|\\.)|(^|/)(render\\.yaml|Dockerfile|.*secret.*)'; then
+            echo "::error::Agent changed a protected workflow, environment, deployment, or secret-related file. Refusing to publish these changes."
+            gh issue comment "${ISSUE_NUMBER}" --body "The agent touched a protected workflow, environment, deployment, or secret-related file. Publication was blocked for safety. Review logs: ${RUN_URL}" 2>/dev/null || true
+            exit 1
+          fi
           if [ -z "$(git status --porcelain)" ]; then
             gh issue comment "${ISSUE_NUMBER}" --body "Independent agent run produced no repository changes. Review the run logs: ${RUN_URL}" 2>/dev/null || true
             exit 0
