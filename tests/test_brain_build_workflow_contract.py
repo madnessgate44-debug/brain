@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "brain-build.yml"
 
 
-def test_cross_repository_build_workflow_has_exact_intake_and_retry():
+def test_cross_repository_build_workflow_has_explicit_intake_and_retry():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "issues:" in workflow and "types: [opened]" in workflow
     assert "issue_comment:" in workflow and "types: [created]" in workflow
@@ -27,7 +27,7 @@ def test_cross_repository_build_workflow_enforces_owner_and_single_explicit_toke
     assert "persist-credentials: false" in workflow
 
 
-def test_cross_repository_agent_uses_a_separate_workspace_and_is_pinned():
+def test_cross_repository_agent_is_pinned_and_sandboxed_without_github_token():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "mini-swe-agent==1.17.5" in workflow
     assert '"environment_class": "docker"' in workflow
@@ -104,6 +104,7 @@ def test_cross_repository_build_has_project_checks_and_protected_path_gate():
         "grep -izEq", "git diff --name-only --no-renames -z HEAD | grep -izEq",
     ))
     assert '-v "$GITHUB_WORKSPACE:/workspace"' not in workflow
+    assert "human review and merge required" in workflow
     assert "json.dumps(p[:8], ensure_ascii=True)" in workflow
     assert "paste -sd';' -" in workflow
     assert 'git -C "$diff_workspace" -c core.hooksPath=/dev/null diff --cached --check -- .' in workflow
@@ -140,13 +141,13 @@ def test_target_preflight_checks_only_permissions_the_build_workflow_needs():
 
 def test_provider_rate_limit_and_preview_evidence_are_bounded():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "retryDelay" in workflow
+    assert "MSWEA_GLOBAL_CALL_LIMIT: \"14\"" in workflow
     assert all(x in workflow for x in (
-        "retryDelay", 'MSWEA_GLOBAL_CALL_LIMIT: "14"',
-        "Capture isolated mobile and desktop previews for static HTML",
-        "mobile-390x844.png", "desktop-1280x800.png", "route.abort()",
+        "Capture isolated mobile and desktop previews for static HTML", "mobile-390x844.png",
+        "desktop-1280x800.png", "route.abort()", "id: preview", "continue-on-error: true",
+        "hashFiles('*.html') != ''", 'PREVIEW_OUTCOME: ${{ steps.preview.outcome }}', "preview capture failed",
     ))
-    assert all(x in workflow for x in ("id: preview", "continue-on-error: true", "hashFiles('*.html') != ''"))
-    assert 'PREVIEW_OUTCOME: ${{ steps.preview.outcome }}' in workflow and "preview capture failed" in workflow
 
 def test_legacy_remote_test_runner_no_longer_falls_back_to_control_token():
     workflow = (ROOT / ".github" / "workflows" / "brain-task-runner.yml").read_text(encoding="utf-8")
