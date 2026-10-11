@@ -626,6 +626,7 @@ jobs:
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.target }}
           ISSUE_NUMBER: ${{ needs.prepare.outputs.issue_number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CHECK_TYPE: ${{ steps.checks.outputs.check_type }}
         run: |
           set +x
           set -euo pipefail
@@ -648,22 +649,28 @@ jobs:
             echo "::error::No changes to publish."
             exit 1
           fi
+          case "$CHECK_TYPE" in
+            tests) check_summary="tests passed" ;;
+            smoke) check_summary="smoke check passed; no tests detected" ;;
+            none) check_summary="no tests/build/lint check configured" ;;
+            *) echo "::error::Unknown project check type; refusing to publish."; exit 1 ;;
+          esac
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          files_changed="$(git diff --cached --name-only | head -8 | tr '\\n' ',')"
-          warnings="$(grep '^WARN:' /tmp/brain-checks.log | head -2 | tr '\\n' ';' || true)"
+          files_changed="$(git diff --cached --name-only -z | python -c 'import json,sys; p=[x.decode("utf-8","replace") for x in sys.stdin.buffer.read().split(b"\\0") if x]; print(json.dumps(p[:8], ensure_ascii=True))')"
+          warnings="$( { grep '^WARN:' /tmp/brain-checks.log 2>/dev/null || true; cat /tmp/brain-agent-warnings.log 2>/dev/null || true; } | head -4 | paste -sd';' -)"
           screenshots="none"
           if [ -f .brain/preview/mobile-390x844.png ] && [ -f .brain/preview/desktop-1280x800.png ]; then screenshots=".brain/preview/mobile-390x844.png, .brain/preview/desktop-1280x800.png"; fi
-          git commit -m "Brain ${COMMAND}: automated candidate"
+          git -c core.hooksPath=/dev/null commit --no-verify -m "Brain ${COMMAND}: automated candidate"
           branch="brain/${COMMAND}-${GITHUB_RUN_ID}"
           git branch -M "$branch"
           git -c "http.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin "HEAD:refs/heads/$branch"
-          pr_url="$(gh pr create --repo "$TARGET_REPOSITORY" --base "$(cat /tmp/brain-base-branch.txt)" --head "$branch" --title "Brain ${COMMAND}: candidate ${GITHUB_RUN_ID}" --body "Automated candidate patch; human review and merge required.\n\n- Command: ${COMMAND}\n- Base commit: $(cat /tmp/brain-base-sha.txt)\n- Files changed (first 8): ${files_changed}\n- Checks: project checks and gitleaks passed.\n- Warnings: ${warnings:-none}\n- Screenshots: ${screenshots}\n- Workflow evidence: ${RUN_URL}\n- No merge or deployment was performed." --json url --jq .url)"
+          pr_url="$(gh pr create --repo "$TARGET_REPOSITORY" --base "$(cat /tmp/brain-base-branch.txt)" --head "$branch" --title "Brain ${COMMAND}: candidate ${GITHUB_RUN_ID}" --body "Automated candidate patch; human review and merge required.\n\n- Command: ${COMMAND}\n- Base commit: $(cat /tmp/brain-base-sha.txt)\n- Files changed (first 8): ${files_changed}\n- Checks: ${check_summary}; gitleaks passed.\n- Warnings: ${warnings:-none}\n- Screenshots: ${screenshots}\n- Workflow evidence: ${RUN_URL}\n- No merge or deployment was performed." --json url --jq .url)"
           echo "result=PR_OPENED" >> "$GITHUB_OUTPUT"
           echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
           if [ -n "$ISSUE_NUMBER" ]; then
-            GH_TOKEN="$GH_CONTROL_TOKEN" gh issue comment "$ISSUE_NUMBER" --repo madnessgate44-debug/brain --body "## Brain mission result\n\n- Status: PR candidate opened\n- Target/base: $TARGET_REPOSITORY / $(cat /tmp/brain-base-branch.txt)\n- PR: $pr_url\n- Files (first 8): $files_changed\n- Checks: project checks + gitleaks PASS\n- Warnings: ${warnings:-none}\n- Screenshots: $screenshots\n- Evidence: $RUN_URL\n- Next: human review/merge; no deployment." || true
+            GH_TOKEN="$GH_CONTROL_TOKEN" gh issue comment "$ISSUE_NUMBER" --repo madnessgate44-debug/brain --body "## Brain mission result\n\n- Status: PR candidate opened\n- Target/base: $TARGET_REPOSITORY / $(cat /tmp/brain-base-branch.txt)\n- PR: $pr_url\n- Files (first 8): $files_changed\n- Checks: ${check_summary}; gitleaks PASS\n- Warnings: ${warnings:-none}\n- Screenshots: $screenshots\n- Evidence: $RUN_URL\n- Next: human review/merge; no deployment." || true
           fi
 
       - name: Release shared model-workflow queue lease
@@ -699,3 +706,45 @@ jobs:
             .brain/preview/*.png
           if-no-files-found: ignore
           retention-days: 14
+
+
+  report_failure:
+    needs: [prepare, mission]
+    if: >-
+      always() &&
+      (needs.prepare.result == 'failure' || needs.mission.result == 'failure') &&
+      github.repository == 'madnessgate44-debug/brain' &&
+      github.event.issue.number != null &&
+      github.event.issue.user.login == github.repository_owner &&
+      (github.event_name == 'issues' || github.event_name == 'issue_comment')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      issues: write
+    steps:
+      - name: Report failure without secrets or provider response bodies
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+        with:
+          script: |
+            const issueNumber = context.payload.issue?.number;
+            if (!issueNumber) return;
+            const failedStage = process.env.PREPARE_RESULT === 'failure'
+              ? 'intake validation'
+              : 'mission execution, validation, secret scanning, or publication';
+            const body = [
+              '## Brain mission failed',
+              '',
+              `Stage: ${failedStage}`,
+              `Workflow run: ${process.env.RUN_URL}`,
+              '',
+              'Inspect the failed step in the Actions run. This report intentionally excludes secrets and provider response bodies.'
+            ].join('\\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body
+            });
