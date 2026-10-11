@@ -427,22 +427,32 @@ jobs:
             docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/workspace" -w /workspace brain-build-sandbox:local bash -lc '
               set -e
               if [ -f package-lock.json ]; then npm ci; else npm install; fi
-              if grep -Eq "\\\"test\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"]*vitest" package.json; then
-                npm test -- --run
-              elif grep -Eq "\\\"test\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"]*react-scripts test" package.json; then
-                CI=true npm test -- --watchAll=false
-              elif grep -Eq "\\\"test\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"]*jest" package.json; then
-                npm test -- --runInBand
-              elif grep -Eq "\\\"test\\\"[[:space:]]*:" package.json; then
-                npm test
-              elif grep -Eq "\\\"build\\\"[[:space:]]*:" package.json; then
-                npm run build
-                echo "WARN: no test script found; build used as smoke check."
-              elif grep -Eq "\\\"lint\\\"[[:space:]]*:" package.json; then
-                npm run lint
-                echo "WARN: no test/build script found; lint used as smoke check."
+              cat > /tmp/brain-package-script.cjs << "NODE_EOF"
+              const fs = require("fs");
+              const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+              const key = process.argv[2] || "test";
+              console.log((packageJson.scripts || {})[key] || "");
+              NODE_EOF
+              test_script="$(node /tmp/brain-package-script.cjs test)"
+              if [ -n "$test_script" ]; then
+                case "$test_script" in
+                  *vitest*) npm test -- --run ;;
+                  *react-scripts*) CI=true npm test -- --watchAll=false ;;
+                  *jest*) npm test -- --runInBand ;;
+                  *) npm test ;;
+                esac
               else
-                echo "WARN: no test, build, or lint script found; no tests claimed."
+                build_script="$(node /tmp/brain-package-script.cjs build)"
+                lint_script="$(node /tmp/brain-package-script.cjs lint)"
+                if [ -n "$build_script" ]; then
+                  npm run build
+                  echo "WARN: no test script found; build used as smoke check."
+                elif [ -n "$lint_script" ]; then
+                  npm run lint
+                  echo "WARN: no test/build script found; lint used as smoke check."
+                else
+                  echo "WARN: no test, build, or lint script found; no tests claimed."
+                fi
               fi
             ' > /tmp/brain-checks.log 2>&1
             result=$?
