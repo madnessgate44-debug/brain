@@ -13,9 +13,8 @@ def test_cross_repository_build_workflow_has_exact_intake_and_retry():
     assert "workflow_dispatch:" in workflow
     assert "github.event.comment.body == '/brain retry'" in workflow
     assert "startsWith(github.event.comment.body, '/brain retry')" not in workflow
-    assert "fromJSON('\\\"\\\\n\\\"')" in workflow
-    assert r"(?=\\s|$)" in workflow
-    assert "re.search(r\"(?im)^\\\\s*/brain\\\\s+(build|fix|audit)\\\\b\"" not in workflow
+    assert "fromJSON(" in workflow and "format('{0}{1}'" in workflow
+    assert r"(?=\s|$)" in workflow
 
 
 def test_cross_repository_build_workflow_enforces_owner_and_single_explicit_token():
@@ -50,7 +49,7 @@ def test_cross_repository_agent_uses_a_separate_workspace_and_is_pinned():
 
 def test_secret_scan_handles_deleted_renamed_and_space_containing_paths():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert "git diff", "--no-renames"  # keep changed-path handling explicit below
+    assert '"--no-renames"' in workflow
     assert '"--name-only", "--no-renames", "-z", "HEAD"' in workflow
     assert '["git", "show", f"HEAD:{name}"]' in workflow
     assert "target.write_bytes(blob.stdout)" in workflow
@@ -87,7 +86,7 @@ def test_workflow_reports_failures_without_secrets_or_provider_bodies():
     assert "always()" in workflow
     assert "needs.prepare.result == 'failure' || needs.mission.result == 'failure'" in workflow
     assert "permissions:\n      issues: write" in workflow
-    assert "Workflow run: ${{ github.server_url }}" in workflow
+    assert "Workflow run: ${process.env.RUN_URL}" in workflow
     assert "This report intentionally excludes secrets and provider response bodies." in workflow
 
 

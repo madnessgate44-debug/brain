@@ -320,7 +320,7 @@ jobs:
           git -C "$agent_workspace" init -q
           git -C "$agent_workspace" config user.name "Brain Isolated Workspace"
           git -C "$agent_workspace" config user.email "brain-isolated-workspace@invalid"
-          git -C "$agent_workspace" -c core.hooksPath=/dev/null add -A
+          git -C "$agent_workspace" -c core.hooksPath=/dev/null add -f -A
           git -C "$agent_workspace" -c core.hooksPath=/dev/null commit --no-verify -m "isolated baseline"
           echo "Prepared isolated agent workspace; it does not contain the trusted checkout's .git metadata."
 
@@ -411,7 +411,7 @@ jobs:
           git -C "$diff_workspace" init -q
           git -C "$diff_workspace" config user.name "Brain Candidate Validator"
           git -C "$diff_workspace" config user.email "brain-candidate-validator@invalid"
-          git -C "$diff_workspace" -c core.hooksPath=/dev/null add -A
+          git -C "$diff_workspace" -c core.hooksPath=/dev/null add -f -A
           git -C "$diff_workspace" -c core.hooksPath=/dev/null commit --no-verify -m "trusted baseline"
           rsync -a --delete --exclude='/.git' /tmp/brain-agent-workspace/ "$diff_workspace"/
           GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$diff_workspace" -c core.hooksPath=/dev/null add -N -f -- .
@@ -617,7 +617,7 @@ jobs:
           '
       - name: Verify protected paths and publish candidate PR
         id: publish
-        if: always() && steps.agent.outcome == 'success' && (needs.prepare.outputs.command == 'audit' || (steps.checks.outcome == 'success' && steps.gitleaks.outcome == 'success'))
+        if: always() && steps.agent.outcome == 'success' && steps.candidate.outcome == 'success' && (needs.prepare.outputs.command == 'audit' || (steps.checks.outcome == 'success' && steps.gitleaks.outcome == 'success'))
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.BRAIN_GITHUB_TOKEN }}
@@ -658,7 +658,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          files_changed="$(git diff --cached --name-only -z | python -c 'import json,sys; p=[x.decode("utf-8","replace") for x in sys.stdin.buffer.read().split(b"\\0") if x]; print(json.dumps(p[:8], ensure_ascii=True))')"
+          files_changed="$(git diff --cached --name-only -z | python -c 'import json,sys; p=[x.decode("utf-8","replace") for x in sys.stdin.buffer.read().split(b"\0") if x]; print(json.dumps(p[:8], ensure_ascii=True))')"
           warnings="$( { grep '^WARN:' /tmp/brain-checks.log 2>/dev/null || true; cat /tmp/brain-agent-warnings.log 2>/dev/null || true; } | head -4 | paste -sd';' -)"
           screenshots="none"
           if [ -f .brain/preview/mobile-390x844.png ] && [ -f .brain/preview/desktop-1280x800.png ]; then screenshots=".brain/preview/mobile-390x844.png, .brain/preview/desktop-1280x800.png"; fi
