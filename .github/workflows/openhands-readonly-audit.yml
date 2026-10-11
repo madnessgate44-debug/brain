@@ -142,9 +142,223 @@ jobs:
             exit 1
           fi
 
-          events="$(curl --silent --show-error --fail-with-body --retry 3 \
+          # The OpenHands events-search API expects an explicit sort order. Capture
+          # the HTTP status and response body so API validation errors are diagnosable.
+          events_response="$(curl --silent --show-error --retry 3 \
             --get "https://app.all-hands.dev/api/v1/conversation/$CONVERSATION_ID/events/search" \
-            "${headers[@]}" --data-urlencode "limit=200")"
+            "${headers[@]}" \
+            --data-urlencode "limit=100" \
+            --data-urlencode "sort_order=TIMESTAMP_DESC" \
+            -w 
+          python3 - <<'PY'
+          import json, os, sys
+          with open("/tmp/openhands-events.json", encoding="utf-8") as f:
+              data = json.load(f)
+          items = data.get("items", []) if isinstance(data, dict) else []
+          messages = []
+          for event in items:
+              if event.get("kind") != "MessageEvent" or event.get("source") not in ("assistant", "agent"):
+                  continue
+              value = event.get("message", event.get("content", ""))
+              if isinstance(value, list):
+                  value = "\n".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in value)
+              elif isinstance(value, dict):
+                  value = value.get("content", value.get("text", json.dumps(value, ensure_ascii=False)))
+              if value:
+                  messages.append(str(value))
+          report = ""
+          for message in reversed(messages):
+              if "BRAIN_AUDIT_REPORT_BEGIN" in message and "BRAIN_AUDIT_REPORT_END" in message:
+                  report = message.split("BRAIN_AUDIT_REPORT_BEGIN", 1)[1].split("BRAIN_AUDIT_REPORT_END", 1)[0].strip()
+                  break
+          if not report:
+              print("::error::OpenHands finished but no marked final audit report was found in conversation events.", file=sys.stderr)
+              print(f"Message events captured: {len(messages)}; total events: {len(items)}", file=sys.stderr)
+              sys.exit(1)
+          with open("openhands-audit-report.md", "w", encoding="utf-8") as f:
+              f.write("# OpenHands Brain Audit\n\n")
+              f.write(report + "\n")
+          print(f"Audit report extracted. Message events: {len(messages)}; total events: {len(items)}")
+          PY
+          echo "report_path=openhands-audit-report.md" >> "$GITHUB_OUTPUT"
+
+      - name: Publish audit report and evidence
+        if: always() && steps.start.outputs.conversation_url != ''
+        shell: bash
+        env:
+          CONVERSATION_URL: ${{ steps.start.outputs.conversation_url }}
+          CONVERSATION_ID: ${{ steps.start.outputs.conversation_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          {
+            echo "## OpenHands Read-only Brain Audit"
+            echo
+            echo "- Conversation: [$CONVERSATION_ID]($CONVERSATION_URL)"
+            echo "- Requested repository/branch: madnessgate44-debug/brain / main"
+            echo "- Job status: $JOB_STATUS"
+            if [ -f openhands-audit-report.md ]; then
+              echo
+              cat openhands-audit-report.md
+            else
+              echo
+              echo "Audit report was not verified. Inspect the failing step logs and conversation."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit evidence
+        if: always() && steps.start.outputs.conversation_id != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: openhands-brain-audit-evidence
+          path: |
+            openhands-audit-report.md
+            openhands-conversation.json
+            openhands-events.json
+          if-no-files-found: ignore
+          retention-days: 14
+\\n__HTTP_STATUS__=%{http_code}')"
+          event_status="${events_response##*
+          python3 - <<'PY'
+          import json, os, sys
+          with open("/tmp/openhands-events.json", encoding="utf-8") as f:
+              data = json.load(f)
+          items = data.get("items", []) if isinstance(data, dict) else []
+          messages = []
+          for event in items:
+              if event.get("kind") != "MessageEvent" or event.get("source") not in ("assistant", "agent"):
+                  continue
+              value = event.get("message", event.get("content", ""))
+              if isinstance(value, list):
+                  value = "\n".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in value)
+              elif isinstance(value, dict):
+                  value = value.get("content", value.get("text", json.dumps(value, ensure_ascii=False)))
+              if value:
+                  messages.append(str(value))
+          report = ""
+          for message in reversed(messages):
+              if "BRAIN_AUDIT_REPORT_BEGIN" in message and "BRAIN_AUDIT_REPORT_END" in message:
+                  report = message.split("BRAIN_AUDIT_REPORT_BEGIN", 1)[1].split("BRAIN_AUDIT_REPORT_END", 1)[0].strip()
+                  break
+          if not report:
+              print("::error::OpenHands finished but no marked final audit report was found in conversation events.", file=sys.stderr)
+              print(f"Message events captured: {len(messages)}; total events: {len(items)}", file=sys.stderr)
+              sys.exit(1)
+          with open("openhands-audit-report.md", "w", encoding="utf-8") as f:
+              f.write("# OpenHands Brain Audit\n\n")
+              f.write(report + "\n")
+          print(f"Audit report extracted. Message events: {len(messages)}; total events: {len(items)}")
+          PY
+          echo "report_path=openhands-audit-report.md" >> "$GITHUB_OUTPUT"
+
+      - name: Publish audit report and evidence
+        if: always() && steps.start.outputs.conversation_url != ''
+        shell: bash
+        env:
+          CONVERSATION_URL: ${{ steps.start.outputs.conversation_url }}
+          CONVERSATION_ID: ${{ steps.start.outputs.conversation_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          {
+            echo "## OpenHands Read-only Brain Audit"
+            echo
+            echo "- Conversation: [$CONVERSATION_ID]($CONVERSATION_URL)"
+            echo "- Requested repository/branch: madnessgate44-debug/brain / main"
+            echo "- Job status: $JOB_STATUS"
+            if [ -f openhands-audit-report.md ]; then
+              echo
+              cat openhands-audit-report.md
+            else
+              echo
+              echo "Audit report was not verified. Inspect the failing step logs and conversation."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit evidence
+        if: always() && steps.start.outputs.conversation_id != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: openhands-brain-audit-evidence
+          path: |
+            openhands-audit-report.md
+            openhands-conversation.json
+            openhands-events.json
+          if-no-files-found: ignore
+          retention-days: 14
+\\n__HTTP_STATUS__='}"
+          events="${events_response%
+          python3 - <<'PY'
+          import json, os, sys
+          with open("/tmp/openhands-events.json", encoding="utf-8") as f:
+              data = json.load(f)
+          items = data.get("items", []) if isinstance(data, dict) else []
+          messages = []
+          for event in items:
+              if event.get("kind") != "MessageEvent" or event.get("source") not in ("assistant", "agent"):
+                  continue
+              value = event.get("message", event.get("content", ""))
+              if isinstance(value, list):
+                  value = "\n".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in value)
+              elif isinstance(value, dict):
+                  value = value.get("content", value.get("text", json.dumps(value, ensure_ascii=False)))
+              if value:
+                  messages.append(str(value))
+          report = ""
+          for message in reversed(messages):
+              if "BRAIN_AUDIT_REPORT_BEGIN" in message and "BRAIN_AUDIT_REPORT_END" in message:
+                  report = message.split("BRAIN_AUDIT_REPORT_BEGIN", 1)[1].split("BRAIN_AUDIT_REPORT_END", 1)[0].strip()
+                  break
+          if not report:
+              print("::error::OpenHands finished but no marked final audit report was found in conversation events.", file=sys.stderr)
+              print(f"Message events captured: {len(messages)}; total events: {len(items)}", file=sys.stderr)
+              sys.exit(1)
+          with open("openhands-audit-report.md", "w", encoding="utf-8") as f:
+              f.write("# OpenHands Brain Audit\n\n")
+              f.write(report + "\n")
+          print(f"Audit report extracted. Message events: {len(messages)}; total events: {len(items)}")
+          PY
+          echo "report_path=openhands-audit-report.md" >> "$GITHUB_OUTPUT"
+
+      - name: Publish audit report and evidence
+        if: always() && steps.start.outputs.conversation_url != ''
+        shell: bash
+        env:
+          CONVERSATION_URL: ${{ steps.start.outputs.conversation_url }}
+          CONVERSATION_ID: ${{ steps.start.outputs.conversation_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          {
+            echo "## OpenHands Read-only Brain Audit"
+            echo
+            echo "- Conversation: [$CONVERSATION_ID]($CONVERSATION_URL)"
+            echo "- Requested repository/branch: madnessgate44-debug/brain / main"
+            echo "- Job status: $JOB_STATUS"
+            if [ -f openhands-audit-report.md ]; then
+              echo
+              cat openhands-audit-report.md
+            else
+              echo
+              echo "Audit report was not verified. Inspect the failing step logs and conversation."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit evidence
+        if: always() && steps.start.outputs.conversation_id != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: openhands-brain-audit-evidence
+          path: |
+            openhands-audit-report.md
+            openhands-conversation.json
+            openhands-events.json
+          if-no-files-found: ignore
+          retention-days: 14
+\\n__HTTP_STATUS__='*}"
+          if [ "$event_status" != "200" ]; then
+            echo "::error::OpenHands event search returned HTTP ${event_status:-unknown}."
+            printf '%s' "$events" | head -c 2000
+            echo
+            exit 1
+          fi
           printf '%s' "$events" > /tmp/openhands-events.json
           cp /tmp/openhands-events.json openhands-events.json
           python3 - <<'PY'
