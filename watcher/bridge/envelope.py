@@ -11,6 +11,9 @@ Required fields (owner, 2026-11-01):
   ASK       one answerable question to the other side.
   REQUEST   ask the other side for their trace and their acknowledgement.
   STATE     open | resolved.
+
+A ticket is not "open because the conversation continues". It carries an explicit
+owner and acceptance criteria, and it resolves only when those criteria pass.
 """
 from __future__ import annotations
 
@@ -25,6 +28,8 @@ def ticket(
     offer: str,
     finding: str,
     now: str,
+    owner: str = "Watcher (OpenHands)",
+    acceptance: str = "Counterpart acknowledges the ticket and returns a trace; no open ask remains.",
     state: str = "open",
     note: str = "",
 ) -> str:
@@ -55,8 +60,14 @@ Both of us do this on every ticket, so neither is a black box and the loop keeps
 ### FINDING
 {finding}
 
+### OWNER
+{owner}
+
+### ACCEPTANCE — the ticket resolves only when this passes
+{acceptance}
+
 ### STATE — {state}
-{note or "Loop continues until this reads resolved."}
+{note or "Open until the acceptance criteria pass."}
 
 — Watcher (via OpenHands) | {now}
 

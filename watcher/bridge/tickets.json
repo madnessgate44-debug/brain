@@ -22,5 +22,23 @@
   "subject": "standard envelope adopted",
   "opened_at": "2026-11-01T09:56:00Z",
   "state": "open"
+ },
+ "14": {
+  "id": 6555773419,
+  "subject": "received 6555772926",
+  "opened_at": "2026-11-01T08:54:28Z",
+  "state": "open"
+ },
+ "15": {
+  "id": 6555789324,
+  "subject": "received 6555788114",
+  "opened_at": "2026-11-01T08:56:08Z",
+  "state": "open"
+ },
+ "16": {
+  "id": 6555807619,
+  "subject": "received 6555807300",
+  "opened_at": "2026-11-01T08:57:58Z",
+  "state": "open"
  }
 }

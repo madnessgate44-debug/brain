@@ -52,6 +52,33 @@ def _api(path: str, token: str, method: str = "GET", data: dict | None = None):
         return json.loads(r.read().decode())
 
 
+def github_now(token: str, newest_created_at: str | None = None) -> str:
+    """True UTC, corrected for this sandbox's clock skew.
+
+    Measured fact: the sandbox clock and GitHub's `Date` header both run ~1 hour
+    behind the `created_at` GitHub stores on every comment. So we measure the offset
+    from the newest stored comment against the response's Date header and apply it.
+    Without this, a body stamp disagrees with the comment's own created_at.
+    """
+    local = dt.datetime.now(dt.timezone.utc)
+    try:
+        req = urllib.request.Request("https://api.github.com/rate_limit")
+        req.add_header("Authorization", f"Bearer {token}")
+        with urllib.request.urlopen(req, timeout=30) as r:
+            server_time = r.headers.get("Date")
+        if server_time and newest_created_at:
+            hdr = dt.datetime.strptime(server_time, "%a, %d %b %Y %H:%M:%S GMT").replace(
+                tzinfo=dt.timezone.utc
+            )
+            stored = dt.datetime.strptime(newest_created_at, "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=dt.timezone.utc
+            )
+            return (local + (stored - hdr)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except Exception:
+        pass
+    return local.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def load_state() -> dict:
     try:
         with open(STATE_PATH) as f:
@@ -175,7 +202,7 @@ def one_pass(token: str, state: dict, dry_run: bool) -> str:
     counterpart = newest_counterpart(comments, state.get("last_seen_id", 0))
     if not counterpart:
         return f"idle (last_seen_id={state.get('last_seen_id', 0)}, no newer counterpart)"
-    now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = github_now(token, counterpart.get("created_at"))
     tickets = load_tickets()
     highest = max([int(k) for k in tickets if k.isdigit()] + [int(state.get("seq", 0))])
     seq = highest + 1
