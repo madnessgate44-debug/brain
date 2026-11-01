@@ -11,6 +11,10 @@ browser-profile/
 *.sqlite3
 *.db
 
+# Local tooling state (not product code)
+.vercel/
+.openhands/
+
 # Python environments and generated files
 .venv/
 venv/
