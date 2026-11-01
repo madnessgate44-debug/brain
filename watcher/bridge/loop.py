@@ -33,7 +33,21 @@ from envelope import ticket  # noqa: E402
 
 REPO = "madnessgate44-debug/brain"
 ISSUE = 240
-WATCHER_MARK = "OpenHands, acting as Watcher"
+WATCHER_MARKS = (
+    "OpenHands, acting as Watcher",
+    "AI agent (OpenHands) on behalf of the owner",
+)
+
+
+def is_watcher_post(body: str) -> bool:
+    """True if the comment is one of ours.
+
+    The compact footer no longer carries the old marker, so a single marker missed
+    our own posts and the loop replied to itself. Match either footer.
+    """
+    return any(m in (body or "") for m in WATCHER_MARKS)
+
+
 STATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
 TICKETS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tickets.json")
 
@@ -115,7 +129,7 @@ def fetch_comments(token: str) -> list[dict]:
 
 def newest_counterpart(comments: list[dict], last_seen: int) -> dict | None:
     for c in reversed(comments):
-        if WATCHER_MARK in (c.get("body") or ""):
+        if is_watcher_post(c.get("body")):
             continue
         if c["id"] > last_seen:
             return c

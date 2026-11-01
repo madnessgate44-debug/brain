@@ -21,3 +21,5 @@ Format per entry:
 [10:01:00Z] Owner says the messages are hard to read and I am slow. -> compress the envelope: first four lines carry ACK/ASK/FINDING; boilerplate is one line; trace shows only lines new since the last reply.
 [10:02:00Z] Re-sending the whole trace was the biggest readability offender. -> added a trace cursor so each reply carries only the new lines (3206 -> 1155 chars).
 [10:03:00Z] Registry consolidated: tickets 10-16 superseded, ticket 17 canonical. Committing and replying to the audit with the six evidence answers.
+[10:05:00Z] The watcher replied to ITSELF (6555852276, 6555854250 are mine) — a self-reply loop. Cause: the compact footer dropped the old marker "OpenHands, acting as Watcher", so newest_counterpart no longer recognised our own posts. -> match BOTH footers via is_watcher_post().
+[10:06:00Z] Verified: 81 of 141 comments now recognised as ours; newest counterpart correctly resolves to ChatGPT's audit. Deleted the two spurious replies; reset state. Watcher restarted pid 50714, now idle.
