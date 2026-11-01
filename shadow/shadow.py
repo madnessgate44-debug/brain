@@ -123,15 +123,15 @@ def pr_evidence(pr: int) -> str:
         if f == "shadow/shadow.py":
             continue  # the auditor's own source is not the artifact under audit
         if (f.startswith(".github/workflows/") or f.endswith(".json")
-                or (f.endswith(".txt") and sizes.get(f, 0) <= 4000)
-                or (f.startswith(("watcher/bridge/", "shadow/")) and f.endswith(".py"))):
+                or (f.startswith(("watcher/", "shadow/", "tools/")) and f.endswith((".py", ".txt"))
+                    and sizes.get(f, 0) <= 8000)):
             c = _gh(f"/repos/{REPO}/contents/{urllib.parse.quote(f, safe='/')}?ref={sha}")
             if isinstance(c, dict) and c.get("content"):
                 import base64
                 txt = base64.b64decode(c["content"]).decode("utf-8", "replace")
-                mark = "COMPLETE" if len(txt) <= 3400 else f"TRUNCATED 3400 of {len(txt)} bytes"
-                raw.append(f"===== BEGIN FILE {f} ({mark}) =====\n" + txt[:3400] + f"\n===== END FILE {f} =====")
-    rawtxt = "\n".join(raw)[:14000]
+                mark = "COMPLETE" if len(txt) <= 8000 else f"TRUNCATED 8000 of {len(txt)} bytes"
+                raw.append(f"===== BEGIN FILE {f} ({mark}) =====\n" + txt[:8000] + f"\n===== END FILE {f} =====")
+    rawtxt = "\n".join(raw)[:24000]
     # Measured facts (objective, computed here) so structural claims are not guessed.
     empty_runs = []
     try:

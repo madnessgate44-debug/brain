@@ -327,3 +327,13 @@ FINDINGS:
 - Queue is empty ("queue is an empty backlog"), meaning `watcher/knowledge/queue.txt` lacks unprobed URLs to process — UNPROVEN — The raw contents of `watcher/knowledge/queue.txt` are missing from the evidence, so the backlog state cannot be verified.
 WEAKEST POINT: The queue file contents (`watcher/knowledge/queue.txt`) are omitted from the evidence bundle despite being referenced as an empty backlog.
 FIX: Include the full contents of `watcher/knowledge/queue.txt` in the live evidence block before claiming the queue state.
+
+
+## Shadow audit — 2026-11-01T15:49:55Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: REJECTED
+FINDINGS:
+- The queue is empty (`watcher/knowledge/queue.txt` contains only comments) making scheduled automated runs a no-op — DISPROVEN — Exact line from evidence: `# One video/reel URL per line. The scheduled run transcribes the NEWEST line and`
+- Duplicate PR defect is resolved by `--skip-existing` — UNPROVEN — The script `watcher/knowledge/tools/transcribe.py` is not present in the live evidence file contents to verify its implementation of `--skip-existing`.
+WEAKEST POINT: Relying on an empty `queue.txt` file for the scheduled learning loop without a populated backlog or dynamic feeder.
+FIX: Populate `watcher/knowledge/queue.txt` with at least one valid video URL or implement dynamic queue discovery.
