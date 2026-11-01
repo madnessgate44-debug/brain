@@ -1,4 +1,17 @@
 {
+ "19": {
+  "id": 6557100268,
+  "subject": "Forge delivered as a working link (durable Actions dispatch + HTTP API)",
+  "opened_at": "2026-11-01T11:06:36Z",
+  "owner": "Watcher (OpenHands)",
+  "acceptance": "Controller LLM acknowledges the link and names a first mission.",
+  "state": "open",
+  "external": [
+   "madnessgate44-debug/Firstborn#144 (proposal: symbol-graph context selection, tag forge)"
+  ],
+  "replies": [],
+  "last_reply_id": null
+ },
  "17": {
   "id": 6555819092,
   "subject": "canonical loop ticket (consolidates 10-16)",
@@ -80,8 +93,12 @@
    6555921270,
    6556117686,
    6556401630,
-   6556428606
+   6556428606,
+   1003,
+   1003,
+   1003,
+   1003
   ],
-  "last_reply_id": 6556428606
+  "last_reply_id": 1003
  }
 }

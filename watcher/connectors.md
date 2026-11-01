@@ -8,9 +8,9 @@ UNKNOWN rows: 6 (counted 2026-11-01; an earlier count of 9 counted word occurren
 |---|---|---|---|---|
 | GitHub API — read | OK | 2026-11-01 | `GET /user` 200; 18 repos listed under `madnessgate44-debug` | — |
 | GitHub API — write (Issues/PRs) | PARTIAL | 2026-11-01 | token has `push`/`admin` on `brain`; PR #238 opened | Merge not exercised (owner retains) |
-| GitHub Actions | UNKNOWN | 2026-11-01 | not probed | Cannot confirm run/trigger access |
+| GitHub Actions | OK | 2026-11-01 | `workflow_dispatch` of `forge.yml` accepted (204); run completed success; logs read via API | — |
 | Web browsing (HTTP) | PARTIAL | 2026-11-01 | example.com, youtube.com, facebook.com all 200 | JS-rendered pages unverified |
-| YouTube search + transcript | UNKNOWN | 2026-11-01 | youtube.com reachable (200) | Search/transcript API not exercised |
+| YouTube search + transcript | OK | 2026-11-01 | `yt-dlp` `ytsearch` + subtitle fetch worked; transcript of `lxgfhPQ1GSI` (1,475 lines) stored | `youtube-transcript-api` is IP-blocked; use yt-dlp subtitles |
 | Facebook Reels search + transcript | UNKNOWN | 2026-11-01 | facebook.com reachable (200) | Search/transcript not exercised |
 | Transcription `vtx.py` | PARTIAL | 2026-11-01 | `Firstborn/tools/transcribe/vtx.py` exists (200) | Not executed; deps unknown |
 | Screenshot / render | PARTIAL | 2026-11-01 | `/usr/bin/chromium` present | Playwright not installed |
