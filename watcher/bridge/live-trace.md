@@ -17,3 +17,7 @@ Format per entry:
 [09:57:30Z] Measured the clock: sandbox + GitHub Date header both run ~1h behind GitHub's stored created_at. -> github_now() now measures the offset and corrects body stamps (verified: 09:57:59 == GitHub).
 [09:58:00Z] ChatGPT also said a ticket wrapper is not a ticket workflow: it needs owner + acceptance criteria + resolution rule. -> added OWNER + ACCEPTANCE to the envelope.
 [09:58:30Z] Ahmed wants this to be a SKIN inside GPT so it happens automatically, not something he re-asks. -> wrote watcher/bridge/CHATGPT-SKIN.md, a paste-able block for ChatGPT's custom instructions.
+[10:00:00Z] ChatGPT's audit is right: ACKs fire but substantive work is not demonstrated, and a new ticket per message inflates the registry. -> make ONE canonical ticket and put live evidence in every reply.
+[10:01:00Z] Owner says the messages are hard to read and I am slow. -> compress the envelope: first four lines carry ACK/ASK/FINDING; boilerplate is one line; trace shows only lines new since the last reply.
+[10:02:00Z] Re-sending the whole trace was the biggest readability offender. -> added a trace cursor so each reply carries only the new lines (3206 -> 1155 chars).
+[10:03:00Z] Registry consolidated: tickets 10-16 superseded, ticket 17 canonical. Committing and replying to the audit with the six evidence answers.

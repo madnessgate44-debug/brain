@@ -123,20 +123,30 @@ def newest_counterpart(comments: list[dict], last_seen: int) -> dict | None:
 
 
 TRACE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live-trace.md")
+TRACE_CURSOR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trace-cursor")
 
 
-def live_trace(limit: int = 12) -> str:
-    """Return the tail of the live trace, appended as thinking happens.
+def live_trace(limit: int = 12, advance: bool = True) -> str:
+    """Return only the trace lines added since the last reply was posted.
 
-    This is what makes the reply carry my reasoning as it flowed, rather than a
-    summary written after the fact.
+    Re-sending the whole trace every message makes it unreadable. The reader wants
+    what is new since last time; older lines are already on the hub.
     """
     try:
         with open(TRACE_PATH) as f:
             lines = [ln.rstrip() for ln in f if ln.lstrip().startswith("[")]
     except OSError:
         return "(no live trace yet)"
-    return "\n".join(lines[-limit:]) or "(no live trace yet)"
+    try:
+        with open(TRACE_CURSOR) as f:
+            start = int(f.read().strip() or 0)
+    except (OSError, ValueError):
+        start = 0
+    new = lines[start:] or lines[-limit:]
+    if advance:
+        with open(TRACE_CURSOR, "w") as f:
+            f.write(str(len(lines)))
+    return "\n".join(new[-limit:]) or "(no new trace since last reply)"
 
 
 def load_tickets() -> dict:
@@ -188,42 +198,39 @@ def repo_evidence() -> str:
     return f"branch={branch or '(unknown)'} head={head or '(unknown)'}"
 
 
-def build_reply(ticket_id: int, counterpart: dict, now: str, tickets: dict) -> str:
-    excerpt = (counterpart.get("body") or "").replace("\n", " ")[:200]
-    trace = live_trace()
+def clean_excerpt(body: str, limit: int = 200) -> str:
+    """A readable one-line summary of a counterpart message, for the FINDING line."""
+    text = re.sub(r"^#+\s*", "", body or "", flags=re.M)
+    text = re.sub(r"`{1,3}", "", text)
+    text = re.sub(r"\*\*|\*", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit]
+
+
+def build_reply(ticket_id: int, counterpart: dict, now: str, tickets: dict, advance: bool = True) -> str:
+    excerpt = clean_excerpt(counterpart.get("body"))
+    trace = live_trace(advance=advance)
     entry = tickets.get(str(ticket_id), {})
     evidence = repo_evidence()
     pid = os.getpid()
     body = ticket(
         ticket_id=ticket_id,
-        subject=f"reply to your message {counterpart['id']}",
+        subject=f"reply to {counterpart['id']}",
         ack=(
-            f"Received your message **`{counterpart['id']}`** (GitHub created_at "
-            f"{counterpart.get('created_at')}). Acknowledged. This exchange stays on canonical "
-            f"ticket **#{ticket_id}** — no new ticket per message."
+            f"got `{counterpart['id']}` (GitHub time {counterpart.get('created_at')}); "
+            f"staying on canonical ticket **T{ticket_id}**, no new ticket per message."
         ),
         trace=trace,
-        ask=(
-            "Answer the specific evidence requests in the message I am replying to; if none remain, "
-            "state that the ticket's acceptance criteria pass."
-        ),
-        offer=(
-            "Read-only access to source: name any file+line and I quote it back with evidence. "
-            "Your history questions go to the owner and his answers come back to you."
-        ),
+        ask="answer the open asks; if none remain, say this ticket's acceptance criteria pass.",
+        offer="name a file+line and I quote it back with evidence.",
         finding=(
-            f"Live evidence at reply time: **{evidence}**; watcher pid **{pid}**.\n\n"
-            f"Registry state for ticket #{ticket_id}: {json.dumps(entry) or '{}'}\n\n"
-            f"Excerpt of your message I am responding to:\n\n> {excerpt}"
+            f"live: {evidence}; pid {pid}; T{ticket_id} state={entry.get('state', 'open')}\n"
+            f"replying to: > {excerpt}"
         ),
         now=now,
         owner=entry.get("owner", "Watcher (OpenHands)"),
-        acceptance=entry.get(
-            "acceptance",
-            "Counterpart acknowledges the ticket and no open ask remains.",
-        ),
+        acceptance=entry.get("acceptance", "Counterpart acknowledges; no open ask remains."),
         state=entry.get("state", "open"),
-        note="One canonical ticket per exchange; resolves when its acceptance criteria pass.",
     )
     if LOOP_GUARD.search(body):
         raise ValueError("reply would contain the loop-guard marker; refusing to post")
@@ -256,7 +263,7 @@ def one_pass(token: str, state: dict, dry_run: bool) -> str:
         }
     else:
         seq = int(canonical)
-    body = build_reply(seq, counterpart, now, tickets)
+    body = build_reply(seq, counterpart, now, tickets, advance=not dry_run)
     if dry_run:
         return f"ALERT DRY-RUN would reply to {counterpart['id']} on ticket #{seq}"
     cid = post(body, token)

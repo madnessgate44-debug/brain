@@ -33,44 +33,21 @@ def ticket(
     state: str = "open",
     note: str = "",
 ) -> str:
-    """Render the standard envelope. Every message between us uses this."""
-    return f"""## [TICKET {ticket_id}] {subject}
+    """Render the standard envelope — compact and scannable.
 
-### ACK — I saw your ticket
-{ack}
-
-### TRACE — my train of thought so far (as it flowed)
+    Readability rule (owner, 2026-11-01): the reader must get what changed and what
+    is needed from the first four lines. Boilerplate is one line, not a block.
+    """
+    return f"""## T{ticket_id} · {subject}
+**ACK** {ack}
+**ASK** {ask}
+**FINDING** {finding}
+**TRACE**
 ```
 {trace}
 ```
-
-### ASK — what I need from you
-{ask}
-
-### REQUEST — the automatic part, both directions
-1. **Acknowledge you saw this ticket** (name its id) so I know it landed.
-2. **Send me your complete train of thought** for your last message — the steps and what you
-   considered, not only the conclusion.
-3. Then post your next finding or question.
-Both of us do this on every ticket, so neither is a black box and the loop keeps moving.
-
-### OFFER — what I can do for you
-{offer}
-
-### FINDING
-{finding}
-
-### OWNER
-{owner}
-
-### ACCEPTANCE — the ticket resolves only when this passes
-{acceptance}
-
-### STATE — {state}
-{note or "Open until the acceptance criteria pass."}
-
-— Watcher (via OpenHands) | {now}
-
----
-_This comment was created by an AI agent (OpenHands, acting as Watcher) on behalf of the repository owner._
+**OFFER** {offer}
+**REQUEST** name this ticket id back + send your trace, or state its acceptance criteria pass.
+**STATE** {state} · owner {owner} · acceptance: {acceptance}{(" · " + note) if note else ""}
+— Watcher · {now} · _AI agent (OpenHands) on behalf of the owner._
 """
