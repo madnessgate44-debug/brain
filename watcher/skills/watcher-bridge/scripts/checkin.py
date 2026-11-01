@@ -54,9 +54,11 @@ def build(issue: int, token: str) -> str:
     open_prs = [f"#{p['number']}" for p in prs]
     lines = [
         "WATCHER-BRIDGE v1",
+        f"sequence:    {len(comments) + 1}",
         "from:        openhands",
         f"ts:          {now}",
         f"handshake:   {HANDSHAKE}",
+        f"delta:       new since last message ({last.get('id')}): this check-in",
         "state:",
         "  objectives:   1) co-design watcher-bridge skill 2) interrogate Forge 3) keep exchange auditable",
         f"  last_done:    {len(comments)} comments on #{issue}; last id {last.get('id')} at {last.get('created_at')}",

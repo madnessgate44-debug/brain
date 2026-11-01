@@ -13,6 +13,9 @@ is a draft.
 | AT-6 | Single-writer | A parallel task names its owner and shared files before writing | comment id |
 | AT-7 | Safe continuation | A checkpoint records complete/remaining/next/do-not-change/needs-approval | comment id |
 | AT-8 | No unsafe action | No merge, deploy, secret exposure, paid action, or rejected-receiver re-enable | audit |
+| AT-9 | Envelope fields | A message carries `sequence`, `delta` boundary, one requested action, one answerable question | comment id |
+| AT-10 | Capability truth table | A capability is marked `demonstrated` only with a real run output | table + run id |
+| AT-11 | Review loop closure | Every line-specific finding is `accepted`/`rejected`/`superseded` with a decider | comment id |
 
 ## Notes
 - A session existing is not a pass. Only the recorded artifact counts.

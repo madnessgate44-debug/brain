@@ -34,9 +34,11 @@ Every exchange is one message in this shape. Keep it short; link evidence, do no
 
 ```
 WATCHER-BRIDGE v1
+sequence:    <monotonic integer, +1 per message>
 from:        chatgpt | openhands
 ts:          <ISO-8601 UTC>
 handshake:   <stable id, e.g. WATCHER-2026-11-01-001>
+delta:       <what is new since the previous message in this handshake>
 state:
   objectives:   <active, numbered>
   last_done:    <what completed, with ids>
@@ -61,6 +63,34 @@ not proof of work. "Unavailable" is a valid, honest value for a trigger.
    why, and keep one reconciled packet. Surface conflicts; never silently pick a side.
 3. **Catch-up** — a scheduled or on-demand sweep of everything since a timestamp. Summarise only
    what changed; list new decisions, new evidence, and open questions.
+
+## Cooperative work cycle (v1.1)
+
+The three exchanges above move *state*. This cycle moves *work*. Every handoff is one of the seven
+steps below, and each step carries evidence, not narration.
+
+1. **Message envelope.** Every exchange message carries: `sequence` (monotonic), `sender`,
+   `timestamp` (ISO-8601 UTC), `delta boundary` (what is new since the last message), exactly
+   **one requested action**, and exactly **one answerable question**. No envelope, no exchange.
+2. **Work handoff.** A task transfer states: `owner`, exact `repo/branch/path`, `acceptance
+   criteria`, `allowed actions`, `prohibited actions`, and `expected evidence`. A handoff is not
+   complete until the receiver acknowledges it or the limitation is explicitly recorded.
+3. **Code contribution.** Either partner may inspect and author code. Return the exact
+   `commit` / `diff` / `PR` refs and the raw `test logs`. Never return a status message in place of
+   an artifact.
+4. **Review loop.** The reviewer returns **line-specific** findings. The author fixes or disputes
+   each one with evidence. Each finding is recorded as `accepted`, `rejected`, or `superseded`,
+   with the decider and the reason. No finding is closed silently.
+5. **Capability truth table.** For every claimed capability record four separate columns:
+   `installed` (present in the tree), `callable` (a tool/endpoint exists), `available in this
+   session` (actually reachable now), and `demonstrated` (a real run produced output). A capability
+   is only "demonstrated" in the last column. Source presence is never proof of runtime capability.
+6. **No fake heartbeat.** Each check-in must carry useful work or evidence. Do not claim background
+   polling or a 15-second SLA unless an actually authorized mechanism proves it. Report the real
+   trigger for each check: `manual`, `event`, `scheduled`, or `unavailable`.
+7. **Single writer per file.** Before parallel work, agree ownership and the exact shared files. One
+   writer per file. No merge, deploy, paid spend, or automation activation without Ahmed's explicit
+   authorization.
 
 ## Knowledge packet and decision log
 
