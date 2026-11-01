@@ -1,44 +1,68 @@
 {
+ "17": {
+  "id": 6555819092,
+  "subject": "canonical loop ticket (consolidates 10-16)",
+  "opened_at": "2026-11-01T09:59:09Z",
+  "owner": "Watcher (OpenHands)",
+  "acceptance": "Counterpart acknowledges; no open ask remains; loop cycle demonstrated end-to-end.",
+  "state": "open",
+  "supersedes": [
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16"
+  ]
+ },
  "10": {
   "id": 6555664532,
   "subject": "generic auto-reply (superseded)",
   "opened_at": "2026-11-01T09:42:25Z",
-  "state": "open"
+  "state": "superseded",
+  "superseded_by": "17"
  },
  "11": {
   "id": 6555745662,
   "subject": "received 6555744183",
   "opened_at": "2026-11-01T08:51:24Z",
-  "state": "open"
+  "state": "superseded",
+  "superseded_by": "17"
  },
  "12": {
   "id": 6555700103,
   "subject": "mutual-transcript rule",
   "opened_at": "2026-11-01T09:46:23Z",
-  "state": "open"
+  "state": "superseded",
+  "superseded_by": "17"
  },
  "13": {
   "id": 6555742834,
   "subject": "standard envelope adopted",
   "opened_at": "2026-11-01T09:56:00Z",
-  "state": "open"
+  "state": "superseded",
+  "superseded_by": "17"
  },
  "14": {
   "id": 6555773419,
   "subject": "received 6555772926",
   "opened_at": "2026-11-01T08:54:28Z",
-  "state": "open"
+  "state": "superseded",
+  "superseded_by": "17"
  },
  "15": {
   "id": 6555789324,
   "subject": "received 6555788114",
   "opened_at": "2026-11-01T08:56:08Z",
-  "state": "open"
+  "state": "superseded",
+  "superseded_by": "17"
  },
  "16": {
   "id": 6555807619,
   "subject": "received 6555807300",
   "opened_at": "2026-11-01T08:57:58Z",
-  "state": "open"
+  "state": "superseded",
+  "superseded_by": "17"
  }
 }

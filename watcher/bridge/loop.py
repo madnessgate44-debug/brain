@@ -159,32 +159,71 @@ def ticket_state(tickets: dict) -> str:
     return "open" if open_ids else "resolved"
 
 
-def build_reply(seq: int, counterpart: dict, now: str, tickets: dict) -> str:
+def canonical_ticket(tickets: dict) -> str | None:
+    """The single open ticket for the current exchange, if one exists.
+
+    One canonical ticket per conversation. Creating a fresh ticket for every
+    message inflates the registry and buries the real work, which is exactly the
+    defect the counterpart flagged.
+    """
+    open_ids = [k for k, v in tickets.items() if v.get("state") == "open"]
+    return max(open_ids, key=int) if open_ids else None
+
+
+def repo_evidence() -> str:
+    """Live facts a counterpart can verify, gathered at reply time."""
+    import subprocess
+
+    def run(*args: str) -> str:
+        try:
+            return subprocess.run(
+                args, cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                capture_output=True, text=True, timeout=15,
+            ).stdout.strip()
+        except Exception:
+            return "(unavailable)"
+
+    branch = run("git", "rev-parse", "--abbrev-ref", "HEAD")
+    head = run("git", "rev-parse", "--short", "HEAD")
+    return f"branch={branch or '(unknown)'} head={head or '(unknown)'}"
+
+
+def build_reply(ticket_id: int, counterpart: dict, now: str, tickets: dict) -> str:
     excerpt = (counterpart.get("body") or "").replace("\n", " ")[:200]
     trace = live_trace()
-    # The ticket being written is open by definition; resolution is set by closing tickets.
-    with_current = dict(tickets)
-    with_current[str(seq)] = {"state": "open"}
+    entry = tickets.get(str(ticket_id), {})
+    evidence = repo_evidence()
+    pid = os.getpid()
     body = ticket(
-        ticket_id=seq,
-        subject=f"received your message {counterpart['id']} — acknowledgement + live trace",
+        ticket_id=ticket_id,
+        subject=f"reply to your message {counterpart['id']}",
         ack=(
-            f"Received your message **`{counterpart['id']}`** at {counterpart.get('created_at')}. "
-            f"Acknowledged; replying now. You are reading ticket **#{seq}**."
+            f"Received your message **`{counterpart['id']}`** (GitHub created_at "
+            f"{counterpart.get('created_at')}). Acknowledged. This exchange stays on canonical "
+            f"ticket **#{ticket_id}** — no new ticket per message."
         ),
         trace=trace,
         ask=(
-            f"Reply on ticket #{seq}: acknowledge you saw it, send your train of thought, then give "
-            f"your next finding or question."
+            "Answer the specific evidence requests in the message I am replying to; if none remain, "
+            "state that the ticket's acceptance criteria pass."
         ),
         offer=(
             "Read-only access to source: name any file+line and I quote it back with evidence. "
             "Your history questions go to the owner and his answers come back to you."
         ),
-        finding=f"Excerpt of your message I am responding to:\n\n> {excerpt}",
+        finding=(
+            f"Live evidence at reply time: **{evidence}**; watcher pid **{pid}**.\n\n"
+            f"Registry state for ticket #{ticket_id}: {json.dumps(entry) or '{}'}\n\n"
+            f"Excerpt of your message I am responding to:\n\n> {excerpt}"
+        ),
         now=now,
-        state=ticket_state(with_current),
-        note="Loop continues until every open ticket reads resolved.",
+        owner=entry.get("owner", "Watcher (OpenHands)"),
+        acceptance=entry.get(
+            "acceptance",
+            "Counterpart acknowledges the ticket and no open ask remains.",
+        ),
+        state=entry.get("state", "open"),
+        note="One canonical ticket per exchange; resolves when its acceptance criteria pass.",
     )
     if LOOP_GUARD.search(body):
         raise ValueError("reply would contain the loop-guard marker; refusing to post")
@@ -204,18 +243,25 @@ def one_pass(token: str, state: dict, dry_run: bool) -> str:
         return f"idle (last_seen_id={state.get('last_seen_id', 0)}, no newer counterpart)"
     now = github_now(token, counterpart.get("created_at"))
     tickets = load_tickets()
-    highest = max([int(k) for k in tickets if k.isdigit()] + [int(state.get("seq", 0))])
-    seq = highest + 1
+    canonical = canonical_ticket(tickets)
+    if canonical is None:
+        seq = max([int(k) for k in tickets if k.isdigit()] + [int(state.get("seq", 0))]) + 1
+        tickets[str(seq)] = {
+            "id": None,
+            "subject": f"exchange from {counterpart['id']}",
+            "opened_at": now,
+            "owner": "Watcher (OpenHands)",
+            "acceptance": "Counterpart acknowledges and no open ask remains.",
+            "state": "open",
+        }
+    else:
+        seq = int(canonical)
     body = build_reply(seq, counterpart, now, tickets)
     if dry_run:
-        return f"ALERT DRY-RUN would reply to {counterpart['id']} as ticket #{seq}"
+        return f"ALERT DRY-RUN would reply to {counterpart['id']} on ticket #{seq}"
     cid = post(body, token)
-    tickets[str(seq)] = {
-        "id": cid,
-        "subject": f"received {counterpart['id']}",
-        "opened_at": now,
-        "state": "open",
-    }
+    tickets[str(seq)].setdefault("replies", []).append(cid)
+    tickets[str(seq)]["last_reply_id"] = cid
     save_tickets(tickets)
     state["last_seen_id"] = counterpart["id"]
     state["seq"] = seq
