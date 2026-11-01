@@ -27,3 +27,6 @@ build/
 
 # local Vercel CLI link (ids only, not portable)
 .vercel/
+
+# OpenHands conversation export — raw event dumps are large (tens of MB); keep readable logs only
+.openhands/export/raw/
