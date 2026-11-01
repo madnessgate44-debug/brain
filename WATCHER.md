@@ -155,7 +155,7 @@ No service that requires a bank card or payment is recommended or depended on. S
 
 
 ### 14.7 Exposed credentials
-The Gemini key pasted into chat history is exposed and must be replaced.
+The Gemini key pasted into chat history is exposed. By Ahmed's decision (2026-11-01) it stays in use on its free tier until the build is complete; Shadow replaces it after the build.
 
 
 ### 14.8 Shadow's own credentials
