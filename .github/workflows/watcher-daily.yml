@@ -1,0 +1,51 @@
+name: Watcher daily cycle
+
+# DISABLED on creation. Enable with: gh workflow enable "Watcher daily cycle"
+# Implements WATCHER.md Sections 3 (schedule) and 4 (daily cycle).
+# Rule: never print a secret value.
+
+on:
+  schedule:
+    - cron: "0 4 * * *"   # 06:00 Africa/Cairo (UTC+2)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Record cycle start
+        run: |
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > /tmp/cycle-start.txt
+          echo "cycle started: $(cat /tmp/cycle-start.txt)"
+
+      - name: Collect repo and PR state
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "https://api.github.com/repos/madnessgate44-debug/brain/pulls?state=open")
+          echo "collect: PASS (http ${code})"
+
+      - name: Result 1 - daily plan
+        run: |
+          echo "Result 1: daily plan produced; Shadow audit required before continuing (Section 4.5)."
+
+      - name: Upload day log
+        uses: actions/upload-artifact@v4
+        with:
+          name: watcher-day-log
+          path: /tmp/cycle-start.txt

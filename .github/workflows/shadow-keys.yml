@@ -1,0 +1,50 @@
+name: Shadow key sweep
+
+# DISABLED on creation. Enable with: gh workflow enable "Shadow key sweep"
+# Implements WATCHER.md §14.4. Runs every 6 hours and on manual dispatch.
+# Rule: this workflow never prints a secret value. Output is PASS/FAIL only.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Probe Gemini API route
+        env:
+          GEMINI_KEY: ${{ secrets.OHGeminiAPI }}
+        run: |
+          if [ -z "${GEMINI_KEY}" ]; then
+            echo "gemini: FAIL (secret not set)"
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}")
+          if [ "$code" = "200" ]; then
+            echo "gemini: PASS"
+          else
+            echo "gemini: FAIL (http ${code})"
+          fi
+
+      - name: Probe GitHub API route
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "https://api.github.com/user")
+          if [ "$code" = "200" ]; then
+            echo "github: PASS"
+          else
+            echo "github: FAIL (http ${code})"
+          fi
