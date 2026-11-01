@@ -241,3 +241,49 @@ FINDINGS:
 - self-audit claim — CONFIRMED — the simulation exercised the real code.
 WEAKEST POINT: the fake server is not GitHub.
 FIX: none; this is a simulation.
+
+
+## Shadow audit — 2026-11-01T11:19:24Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: REJECTED
+FINDINGS:
+- Proposal opened: Firstborn issue #144 — DISPROVEN — The live evidence states open_tickets=['17', '18'], meaning issue #144 does not exist in the live tracker state.
+WEAKEST POINT: Claiming issue #144 was opened when the live ticket list is explicitly ['17', '18'].
+FIX: Create issue #144 in the tracker before logging it in the artifact, ensuring state matches reality.
+
+
+## Shadow audit — 2026-11-01T11:19:47Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: PARTIAL
+FINDINGS:
+- Firstborn issue #144 EXISTS title='[Forge proposal] Symbol-graph context selection (Aider repo map)' state=open labels=['enhancement'] created=2026-11-01T11:18:44Z — CONFIRMED — Live evidence proves issue #144 exists with the correct title and label.
+- Brain hub open tickets: ['17', '18'] — DISPROVEN — The subject artifact claims hub tracking, but `watcher/bridge/tickets.json` lists tickets '17', '18', whereas the Watcher submitted an issue instead of updating the hub tickets JSON. Exact quote: "brain hub open tickets (watcher/bridge/tickets.json — NOT GitHub issues): ['17', '18']".
+- gemini-flash-lite-latest -> HTTP 200 — CONFIRMED — Probe confirms HTTP 200.
+WEAKEST POINT: The Watcher opened a GitHub issue (#144) instead of logging the ticket in the internal hub (`watcher/bridge/tickets.json`).
+FIX: Update `watcher/bridge/tickets.json` to include the ticket corresponding to #144 so the internal brain hub stays in sync with GitHub.
+
+
+## Shadow audit — 2026-11-01T11:22Z (Watcher note: false-reject + fix)
+
+VERDICT: REJECTED (first pass) then PARTIAL (second pass)
+FINDING: The first pass rejected the loop-run report because live evidence showed
+`open_tickets=['17','18']` and concluded Firstborn issue #144 "does not exist". That was a
+FALSE REJECT. #144 exists: https://github.com/madnessgate44-debug/Firstborn/issues/144
+(state=open, labels=['enhancement'], created 2026-11-01T11:18:44Z).
+ROOT CAUSE: `live_evidence()` read only `watcher/bridge/tickets.json` — the brain hub's
+internal ticket registry — and labelled it bare `open_tickets`, so the model conflated the
+hub registry with GitHub issues.
+FIX APPLIED: `shadow.py` now (a) labels the hub list as "brain hub open tickets
+(... NOT GitHub issues)", and (b) accepts `--issue owner/repo#N` and attaches the real
+GitHub issue state via a new `issue_evidence()`. Re-run with `--issue
+madnessgate44-debug/Firstborn#144` returned PARTIAL and CONFIRMED #144, with a real fix:
+keep the hub registry in sync. Applied: added ticket "19" to `tickets.json`.
+
+
+## Shadow audit — 2026-11-01T11:20:12Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: PARTIAL
+FINDINGS:
+- Firstborn issue #144 exists with labels=['enhancement'] and title='[Forge proposal] Symbol-graph context selection (Aider repo map)' — CONFIRMED — Evidence shows issue madnessgate44-debug/Firstborn#144 exists with state=open, labels=['enhancement'], and the correct title.
+WEAKEST POINT: The report claims step 4.4 and various artifacts were generated, but none of those local files or code paths are verified in the live evidence.
+FIX: Ensure local artifact paths (`watcher/knowledge/tools/yt_transcript.py`, etc.) are explicitly checked or committed in the branch before claiming them in the loop run.

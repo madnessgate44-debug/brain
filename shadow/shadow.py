@@ -160,7 +160,20 @@ def pr_evidence(pr: int) -> str:
             f"  workflow run history (independent, before this PR):\n" + "\n".join(history))
 
 
-def live_evidence(pr: int | None = None) -> str:
+def issue_evidence(ref: str) -> str:
+    """ref = 'owner/repo#N'. Returns real GitHub state so a claim is checked at its source."""
+    try:
+        repo, num = ref.split("#")
+        d = _gh(f"/repos/{repo}/issues/{num}")
+        if "number" not in d:
+            return f"issue {ref} -> NOT FOUND (HTTP {d.get('error', '?')})"
+        return (f"issue {ref} -> EXISTS title={d['title']!r} state={d['state']} "
+                f"labels={[l['name'] for l in d.get('labels', [])]} created={d['created_at']}")
+    except Exception as e:  # noqa: BLE001
+        return f"issue {ref} -> UNVERIFIED ({e})"
+
+
+def live_evidence(pr: int | None = None, issue: str | None = None) -> str:
     head = _git(["rev-parse", "--short", "HEAD"])
     branch = _git(["rev-parse", "--abbrev-ref", "HEAD"])
     dirty = "yes" if _git(["status", "--porcelain"]) else "no"
@@ -183,14 +196,18 @@ def live_evidence(pr: int | None = None) -> str:
             except Exception as e:  # noqa: BLE001
                 probe.append(f"{m} -> HTTP {getattr(e, 'code', '?')}")
     probe_txt = "\n".join(probe)
-    out = f"branch={branch} head={head} dirty={dirty} open_tickets={open_t}\nlive model probe (independent, real API calls):\n{probe_txt}"
+    out = (f"branch={branch} head={head} dirty={dirty}\n"
+           f"brain hub open tickets (watcher/bridge/tickets.json — NOT GitHub issues): {open_t}\n"
+           f"live model probe (independent, real API calls):\n{probe_txt}")
+    if issue:
+        out += f"\n{issue_evidence(issue)}"
     if pr is not None:
         out += f"\n{pr_evidence(pr)}"
     return out
 
 
-def audit(subject: str, context: str = "", pr: int | None = None) -> str:
-    prompt = (f"{SYSTEM}\n\nLIVE EVIDENCE:\n{live_evidence(pr)}\n\n"
+def audit(subject: str, context: str = "", pr: int | None = None, issue: str | None = None) -> str:
+    prompt = (f"{SYSTEM}\n\nLIVE EVIDENCE:\n{live_evidence(pr, issue)}\n\n"
               f"CONTEXT:\n{context}\n\nSUBJECT TO AUDIT:\n{subject}\n")
     model, verdict = generate(prompt)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -205,6 +222,7 @@ def main() -> int:
     ap.add_argument("--subject-file", help="file containing the text to audit")
     ap.add_argument("--context", default="", help="extra context")
     ap.add_argument("--pr", type=int, help="attach independent CI evidence for a PR")
+    ap.add_argument("--issue", help="owner/repo#N to attach real GitHub issue state")
     a = ap.parse_args()
     if a.subject_file:
         subject = open(a.subject_file).read()
@@ -212,7 +230,7 @@ def main() -> int:
         subject = a.subject
     else:
         subject = sys.stdin.read()
-    print(audit(subject, a.context, a.pr))
+    print(audit(subject, a.context, a.pr, a.issue))
     return 0
 
 
