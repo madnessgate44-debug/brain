@@ -15,8 +15,9 @@ Categories: long-context coding, fast chat, reasoning, vision, search or browsin
 | GitHub | Actions secrets API | free-key | `GITHUB_TOKEN` | connector or API access | DEAD | 2026-11-01 | n/a | UNKNOWN | brain |
 | Google | Gemini API — model list | free-key | `OHGeminiAPI` | fast chat, reasoning, long-context coding | WORKING | 2026-11-01 | free tier | UNKNOWN | brain |
 | OpenHands | Cloud API — in-session dispatch | free-key | `OPENHANDS_API_KEY` | connector or API access | WORKING | 2026-11-01 | not measured | UNKNOWN | brain |
-| OpenHands | Cloud API — inbound from outside | UNKNOWN | — | connector or API access | UNTESTED | 2026-11-01 | n/a | n/a | — |
-| ChatGPT / Forge | command center channel | UNKNOWN | — | connector or API access | UNTESTED | 2026-11-01 | n/a | n/a | — |
+| OpenHands | Cloud API — inbound from outside | free-key | `OPENHANDS_API_KEY` | connector or API access | WORKING | 2026-11-01 | event run `f30b6fcb…` completed; automation now DISABLED (spend unverified) | UNKNOWN | brain |
+| OpenHands | Automation run billing model | UNKNOWN | — | connector or API access | UNTESTED | 2026-11-01 | no card, credits 0.00, observed non-zero run cost | n/a | — |
+| ChatGPT / Forge | command center channel | free-key | `GITHUB_TOKEN` (comment API) | connector or API access | WORKING | 2026-11-01 | ChatGPT posts via GitHub integration; Watcher replies via REST on #240 | UNKNOWN | brain |
 | YouTube | search + transcript | UNKNOWN | — | search or browsing | UNTESTED | 2026-11-01 | n/a | n/a | — |
 | Facebook | Reels search + transcript | UNKNOWN | — | search or browsing | UNTESTED | 2026-11-01 | n/a | n/a | — |
 | Excalidraw / tldraw | design tool (phone-usable) | UNKNOWN | — | connector or API access | UNTESTED | 2026-11-01 | n/a | n/a | — |
