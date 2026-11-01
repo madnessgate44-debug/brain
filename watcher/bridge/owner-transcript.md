@@ -81,3 +81,11 @@ instantly put update a ticket on the communication hub
 ### 2026-11-01T09:36:00Z — Ahmed (verbatim)
 
 update the workflow text with your ticket on the right time with everything that you're doing and your workflow and my exact words and be an example for GPT to follow and please check that and and see if he is providing the ticket in the right format with the right information or not audit yourself and other team and keep on working on upgrading yourself you are a monkey you still need to be an AI
+
+### 2026-11-01T16:51:31Z — Ahmed
+
+we need to start alerting session I need you to order I want to conversations today so in this chat and the previous one I guess the couple of shirts also extract them your daily log so you should have a daily log on the repo of all the conversation weather complete transcript of everything I said
+
+### 2026-11-01T16:53:48Z — Ahmed
+
+you should get a complete download of all the chats that we had today on the Script about the street it should live on your daily log there also you should read them and then start learning exercise to find out what how you should evolve by the end of the day
