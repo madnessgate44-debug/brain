@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
@@ -100,11 +101,19 @@ def pr_evidence(pr: int) -> str:
     runs = _gh(f"/repos/{REPO}/commits/{sha}/check-runs?per_page=100").get("check_runs", [])
     fails = [c["name"] for c in runs if c.get("conclusion") == "failure"]
     pend = [c["name"] for c in runs if c.get("status") != "completed"]
-    files = [f["filename"] for f in _gh(f"/repos/{REPO}/pulls/{pr}/files?per_page=100")
-             if isinstance(f, dict)]
+    fl = [f for f in _gh(f"/repos/{REPO}/pulls/{pr}/files?per_page=100") if isinstance(f, dict)]
+    files = [f["filename"] for f in fl]
+    patch = "\n".join(f.get("patch", "") for f in fl)[:4000]
+    history = []
+    for f in files:
+        if f.startswith(".github/workflows/"):
+            rr = _gh(f"/repos/{REPO}/actions/workflows/{urllib.parse.quote(f, safe=chr(39)+chr(39))}/runs?per_page=6")
+            for run in (rr.get("workflow_runs") or [])[:6]:
+                history.append(f"{f}: {run['created_at']} {run['head_branch'][:24]} -> {run['conclusion']}")
     return (f"PR #{pr} sha={sha[:8]} mergeable={p.get('mergeable')} draft={p.get('draft')}\n"
             f"  checks: {len(runs)} total, failing={fails}, pending={pend}\n"
-            f"  files: {files}")
+            f"  files ({len(files)}): {files}\n  diff:\n{patch}\n"
+            f"  workflow run history (independent, before this PR):\n" + "\n".join(history))
 
 
 def live_evidence(pr: int | None = None) -> str:

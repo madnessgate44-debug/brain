@@ -47,3 +47,55 @@ FINDINGS:
 - only 3 workflow files changed — DISPROVEN — The evidence lists 47 files, not 3.
 WEAKEST POINT: The claim about the number of files changed is factually incorrect.
 FIX: Accurately state the number of files changed in the PR description.
+
+
+## Shadow audit — 2026-11-01T09:32:33Z (route OHGeminiAPI:gemini-2.5-flash)
+
+VERDICT: REJECTED
+FINDINGS:
+- (a) the blocker is cleared — UNPROVEN — No evidence identifies "chromium-smoke" as a prior blocker or confirms it is among the passing checks.
+- (b) the change is the smallest complete fix (only 3 workflow files, pinning to ubuntu-24.04) — UNPROVEN — While 3 files are listed, their content is not provided to confirm "pinning to ubuntu-24.04", nor is "smallest complete fix" supported.
+- (c) it is safe to merge — UNPROVEN — Passing CI checks and mergeability do not inherently prove "safety" without further context on test coverage or potential regressions.
+WEAKEST POINT: The claim of "pinning to ubuntu-24.04" is a specific technical detail entirely unsupported by the evidence.
+FIX: Provide the content of the 3 workflow files and explicit evidence that "chromium-smoke" was a failing blocker now resolved.
+
+
+## Shadow audit — 2026-11-01T09:32:44Z (route OHGeminiAPI:gemini-2.5-flash)
+
+VERDICT: PARTIAL
+FINDINGS:
+- PR #249 clears the chromium-smoke merge blocker — UNPROVEN — The evidence confirms all checks are currently passing, including `chromium-smoke` by implication, but provides no data to prove `chromium-smoke` *was* a failing check prior to this PR.
+- the diff changes runs-on to ubuntu-24.04 in exactly 3 workflow files — CONFIRMED — The diff clearly shows three instances of `runs-on: ubuntu-latest` being changed to `runs-on: ubuntu-24.04` across the three listed files.
+- no other file changed — CONFIRMED — The `files (3)` list explicitly states the only files modified by the PR.
+WEAKEST POINT: The claim that `chromium-smoke` was a failing check lacks any historical evidence.
+FIX: Provide evidence of the `chromium-smoke` check's status *before* PR #249 was applied or merged.
+
+
+## Shadow audit — 2026-11-01T09:33:00Z (route OHGeminiAPI:gemini-2.5-flash)
+
+VERDICT: PARTIAL
+FINDINGS:
+- (a) chromium-smoke was failing on prior PRs and is now success on this PR — UNPROVEN — The current PR #249 shows all checks passing, confirming `chromium-smoke` is successful *now*. However, the claim that it "was failing on prior PRs" is entirely unsupported by the provided evidence; the "workflow run history" section is empty.
+- (b) the diff changes runs-on to ubuntu-24.04 in exactly 3 workflow files — CONFIRMED — The `files (3)` list matches the three diff blocks, each showing `runs-on: ubuntu-latest` changed to `runs-on: ubuntu-24.04`.
+- (c) no other file changed — CONFIRMED — The evidence explicitly lists only three files as changed, with no other files appearing in the diff or file list.
+
+WEAKEST POINT: The assertion that `chromium-smoke` was failing on prior PRs is completely unsubstantiated.
+FIX: Present the `workflow run history` for prior PRs, explicitly demonstrating `chromium-smoke` failures.
+
+
+## Shadow audit — 2026-11-01T09:33:24Z (route OHGeminiAPI:gemini-2.5-flash)
+
+VERDICT: VERIFIED
+FINDINGS:
+- PR #249 clears the chromium-smoke merge blocker. Claim: (a) browser-runtime-smoke (chromium-smoke) was failing on prior PRs and is now success on this PR — CONFIRMED — Workflow history shows `browser-runtime-smoke.yml` failing on `watcher/channel-handshak` branch, and PR #249's checks are all passing (`failing=[]`), making it `mergeable=True`.
+- (b) the diff changes runs-on to ubuntu-24.04 in exactly 3 workflow files — CONFIRMED — The diff shows `runs-on: ubuntu-latest` changed to `runs-on: ubuntu-24.04` in `.github/workflows/brain-browser-issue.yml`, `.github/workflows/brain-browser-research-issue.yml`, and `.github/workflows/browser-runtime-smoke.yml`.
+- (c) no other file changed — CONFIRMED — The PR explicitly lists `files (3)` and the diff confirms changes only in those three files.
+WEAKEST POINT: The evidence implies, but does not explicitly state, the causal link between the `runs-on` change and the `chromium-smoke` success.
+FIX: Include a brief explanation in the PR description or a commit message detailing why `ubuntu-latest` caused failures and how `ubuntu-24.04` resolved them for `chromium-smoke`.
+
+## 2026-11-01T11:05Z — PR #249 chromium-smoke fix — VERDICT: VERIFIED
+- Subject: pin browser jobs to ubuntu-24.04 (Playwright 1.52 unsupported on ubuntu 26.04).
+- Evidence the Shadow read itself: PR #249 check-runs (all success, failing=[]), the 3-file diff
+  (runs-on ubuntu-latest -> ubuntu-24.04), and workflow run history showing prior failures.
+- Gate: CI green + Shadow Verified + owner grant in docs/LOOP.md -> merged (squash) as 9305a30.
+- Shadow improvement this session: --pr now pulls check-runs, the diff, and run history.
