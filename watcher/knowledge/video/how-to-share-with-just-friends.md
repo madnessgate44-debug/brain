@@ -1,0 +1,17 @@
+# How to Share With Just Friends
+
+- **Source:** https://www.facebook.com/reel/10153231379946729
+- **Platform:** facebook
+- **Duration:** 74.304s
+- **Detected language:** en
+
+## Transcript
+
+[00:00] How to share with just friends on Facebook. If you decided to learn how to paint so
+[00:07] you got an easel and some paints and your music and you found the perfect tree and
+[00:16] you started painting. And you painted for a while. And when you looked at how it was
+[00:32] coming along, it was good. So you wanted to show it to your friends but you weren't
+[00:38] quite sure that you were ready to show it to the world. Did you might like to know how
+[00:43] to share with just friends on Facebook. Just put the finishing touches on your art.
+[00:47] Put a little more over there. Yeah. Then when you make a post, just tap where it says
+[00:57] to and select friends, then hit back, then hit post. Beautiful.
