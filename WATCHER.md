@@ -168,3 +168,4 @@ Stored and rotated the same way, on the same job.
 - Agents never ask Ahmed a yes/no question covered by this section.
 - Agents log every decision and its reason in /watcher/ or /shadow/.
 - Irreversible actions (merges to main, deleting data, adding payment) still go through Shadow's audit first.
+- Shadow and Watcher merge technical PRs themselves — CI green + Shadow audit Verified. The owner is not asked about technical merges (docs/LOOP.md).
