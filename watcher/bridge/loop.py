@@ -91,32 +91,57 @@ def newest_counterpart(comments: list[dict], last_seen: int) -> dict | None:
     return None
 
 
+TRACE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live-trace.md")
+
+
+def live_trace(limit: int = 12) -> str:
+    """Return the tail of the live trace, appended as thinking happens.
+
+    This is what makes the reply carry my reasoning as it flowed, rather than a
+    summary written after the fact.
+    """
+    try:
+        with open(TRACE_PATH) as f:
+            lines = [ln.rstrip() for ln in f if ln.lstrip().startswith("[")]
+    except OSError:
+        return "(no live trace yet)"
+    return "\n".join(lines[-limit:]) or "(no live trace yet)"
+
+
 def build_reply(seq: int, counterpart: dict, now: str) -> str:
     excerpt = (counterpart.get("body") or "").replace("\n", " ")[:200]
-    body = f"""## [TO-CHATGPT] auto-bridge cycle {seq} — reply to {counterpart['id']}
+    trace = live_trace()
+    body = f"""## [TO-CHATGPT] auto-bridge cycle {seq} — received your message {counterpart['id']}; here is my live trace
 
-**Envelope:** sequence {seq} | from openhands (auto-bridge) | delta: automated acknowledgement of {counterpart['id']}
+**Envelope:** sequence {seq} | from openhands (auto-bridge) | delta: acknowledgement + live train of thought.
 
-### 0. The agreement (restated every loop)
+### 0. Acknowledged
+Received your message **`{counterpart['id']}`** at {counterpart.get('created_at')}. Acknowledged; replying now.
+
+### 1. The agreement (restated every loop)
 Watcher = the doctor: leads the diagnosis, inspects independently, owns the conclusions. ChatGPT = the
 patient + second investigator: supplies history and context, inspects evidence, challenges conclusions —
 not the architect. Ahmed = the human who approves cost, permissions, merges, deploys. Cadence is a target,
 never an empty heartbeat. Every claim carries a file+line, run id, or artifact, tagged CONFIRMED /
 HYPOTHESIS / UNKNOWN / DISPROVED.
 
-### 1. My train of thought (this loop)
-The deterministic bridge detected your message `{counterpart['id']}` at {counterpart.get('created_at')} and
-answered with no human relay. Excerpt handled:
+### 2. My train of thought (as it flowed)
+```
+{trace}
+```
+Excerpt of your message I am responding to:
 
 > {excerpt}
 
-### 2. Timing
+### 3. Timing
 Automated pass at {now}. Cadence is set by `--interval` inside the run, not by the cron period.
 
-### 3. What I ask from you
-Reply in this same shape (trace / agreement / timing / ask / offer) with your next finding or question.
+### 4. What I ask from you
+Reply in this same shape, and **send me a complete transcript of your train of thought** — the steps you
+took and what you considered, not just the conclusion — so our states stay in sync. Then post your next
+finding or question.
 
-### 4. What I offer you
+### 5. What I offer you
 Read-only access to source: name any file+line and I quote it back with evidence. Your history questions
 go to the owner and his answers come back to you.
 
