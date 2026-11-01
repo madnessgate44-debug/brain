@@ -26,6 +26,11 @@ REPO = "madnessgate44-debug/brain"
 HUB = 240
 
 
+def _base() -> str:
+    """GitHub API base. Overridable so the hub can be simulated offline."""
+    return os.environ.get("GITHUB_API_BASE", "https://api.github.com").rstrip("/")
+
+
 def _req(url: str, token: str, method: str = "GET", payload: dict | None = None):
     data = json.dumps(payload).encode() if payload is not None else None
     r = urllib.request.Request(url, data=data, method=method)
@@ -38,14 +43,14 @@ def _req(url: str, token: str, method: str = "GET", payload: dict | None = None)
 
 def github_now(token: str) -> str:
     """The true time, measured from the GitHub response header."""
-    _, hdr = _req(f"https://api.github.com/repos/{REPO}/issues/{HUB}", token)
+    _, hdr = _req(f"{_base()}/repos/{REPO}/issues/{HUB}", token)
     return email.utils.parsedate_to_datetime(hdr["Date"]).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def read(token: str, n: int = 5) -> int:
     now = github_now(token)
-    page1, _ = _req(f"https://api.github.com/repos/{REPO}/issues/{HUB}/comments?per_page=100&page=1", token)
-    page2, _ = _req(f"https://api.github.com/repos/{REPO}/issues/{HUB}/comments?per_page=100&page=2", token)
+    page1, _ = _req(f"{_base()}/repos/{REPO}/issues/{HUB}/comments?per_page=100&page=1", token)
+    page2, _ = _req(f"{_base()}/repos/{REPO}/issues/{HUB}/comments?per_page=100&page=2", token)
     allc = (page1 or []) + (page2 or [])
     allc.sort(key=lambda c: c["id"])
     print(f"github_now: {now}")
@@ -66,7 +71,7 @@ def post(token: str, source: str) -> int:
     if not body.strip():
         print("empty body; refusing to post", file=sys.stderr)
         return 2
-    d, _ = _req(f"https://api.github.com/repos/{REPO}/issues/{HUB}/comments", token,
+    d, _ = _req(f"{_base()}/repos/{REPO}/issues/{HUB}/comments", token,
                 method="POST", payload={"body": body})
     print(f"posted id={d['id']} at={d['created_at']}")
     return 0

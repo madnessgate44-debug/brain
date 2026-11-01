@@ -33,6 +33,11 @@ from envelope import ticket  # noqa: E402
 
 REPO = "madnessgate44-debug/brain"
 ISSUE = 240
+
+
+def _gh_base() -> str:
+    """GitHub API base. Overridable so the loop can run end-to-end offline."""
+    return os.environ.get("GITHUB_API_BASE", "https://api.github.com").rstrip("/")
 WATCHER_MARKS = (
     "OpenHands, acting as Watcher",
     "AI agent (OpenHands) on behalf of the owner",
@@ -57,7 +62,7 @@ LOOP_GUARD = re.compile(r"@\s*watcher", re.I)
 
 def _api(path: str, token: str, method: str = "GET", data: dict | None = None):
     body = json.dumps(data).encode() if data is not None else None
-    req = urllib.request.Request(f"https://api.github.com{path}", data=body, method=method)
+    req = urllib.request.Request(f"{_gh_base()}{path}", data=body, method=method)
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Accept", "application/vnd.github+json")
     if data is not None:
@@ -76,7 +81,7 @@ def github_now(token: str, newest_created_at: str | None = None) -> str:
     """
     local = dt.datetime.now(dt.timezone.utc)
     try:
-        req = urllib.request.Request("https://api.github.com/rate_limit")
+        req = urllib.request.Request(f"{_gh_base()}/rate_limit")
         req.add_header("Authorization", f"Bearer {token}")
         with urllib.request.urlopen(req, timeout=30) as r:
             server_time = r.headers.get("Date")

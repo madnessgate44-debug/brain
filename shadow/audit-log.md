@@ -205,3 +205,39 @@ FINDINGS:
 
 WEAKEST POINT: Model ids in the pool fail with HTTP 429 or loop.py is truncated in the audit evidence.
 FIX: Ensure model fallback handles HTTP 429 rate limits gracefully or supply complete file contents without truncation.
+
+
+## Shadow audit — 2026-11-01T10:49:13Z (route OHGeminiAPI:gemini-2.5-flash)
+
+VERDICT: VERIFIED
+FINDINGS:
+- self-audit claim — CONFIRMED — the simulation exercised the real code.
+WEAKEST POINT: the fake server is not GitHub.
+FIX: none; this is a simulation.
+
+
+## Shadow audit — 2026-11-01T10:49:41Z (route OHGeminiAPI:gemini-2.5-flash)
+
+VERDICT: VERIFIED
+FINDINGS:
+- self-audit claim — CONFIRMED — the simulation exercised the real code.
+WEAKEST POINT: the fake server is not GitHub.
+FIX: none; this is a simulation.
+
+
+## Shadow audit — 2026-11-01T10:49:46Z (route OHGeminiAPI:gemini-2.5-flash)
+
+VERDICT: VERIFIED
+FINDINGS:
+- self-audit claim — CONFIRMED — the simulation exercised the real code.
+WEAKEST POINT: the fake server is not GitHub.
+FIX: none; this is a simulation.
+
+
+## Shadow audit — 2026-11-01T10:50:45Z (route OHGeminiAPI:gemini-2.5-flash)
+
+VERDICT: VERIFIED
+FINDINGS:
+- self-audit claim — CONFIRMED — the simulation exercised the real code.
+WEAKEST POINT: the fake server is not GitHub.
+FIX: none; this is a simulation.

@@ -24,9 +24,17 @@ LOG = os.path.join(HERE, "audit-log.md")
 sys.path.insert(0, HERE)
 from keypool import routes  # noqa: E402
 
-BASE = "https://generativelanguage.googleapis.com/v1beta"
 KEY_ENV = "OHGeminiAPI"
 REPO = "madnessgate44-debug/brain"
+
+
+def _gemini_base() -> str:
+    """Gemini API base. Overridable so Shadow can run end-to-end offline."""
+    return os.environ.get("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
+
+
+def _gh_base() -> str:
+    return os.environ.get("GITHUB_API_BASE", "https://api.github.com").rstrip("/")
 
 SYSTEM = """You are Shadow, the black-box auditor for the Watcher agent (WATCHER.md §1).
 Temperament: cold on evidence, adversarial until proven wrong, a mentor who explains every correction.
@@ -56,7 +64,7 @@ def generate(prompt: str, timeout: int = 90) -> tuple[str, str]:
     """
     last = "no route attempted"
     for label, key, model in routes():
-        url = f"{BASE}/models/{model}:generateContent"
+        url = f"{_gemini_base()}/models/{model}:generateContent"
         body = {"contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.2}}
         req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST")
@@ -86,7 +94,7 @@ def _gh(path: str) -> dict:
     token = os.environ.get("GITHUB_TOKEN", "")
     if not token:
         return {}
-    req = urllib.request.Request(f"https://api.github.com{path}")
+    req = urllib.request.Request(f"{_gh_base()}{path}")
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Accept", "application/vnd.github+json")
     try:
@@ -166,7 +174,7 @@ def live_evidence(pr: int | None = None) -> str:
     if key:
         import urllib.request as _u
         for m in ("gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview"):
-            rq = _u.Request(f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent",
+            rq = _u.Request(f"{_gemini_base()}/models/{m}:generateContent",
                             data=b'{"contents":[{"parts":[{"text":"ok"}]}]}', method="POST")
             rq.add_header("x-goog-api-key", key); rq.add_header("Content-Type", "application/json")
             try:
