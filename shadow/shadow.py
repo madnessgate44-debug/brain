@@ -25,6 +25,7 @@ from keypool import routes  # noqa: E402
 
 BASE = "https://generativelanguage.googleapis.com/v1beta"
 KEY_ENV = "OHGeminiAPI"
+REPO = "madnessgate44-debug/brain"
 
 SYSTEM = """You are Shadow, the black-box auditor for the Watcher agent (WATCHER.md §1).
 Temperament: cold on evidence, adversarial until proven wrong, a mentor who explains every correction.
@@ -75,7 +76,38 @@ def _git(args: list[str]) -> str:
         return ""
 
 
-def live_evidence() -> str:
+def _gh(path: str) -> dict:
+    """GET a GitHub API path with GITHUB_TOKEN. Returns {} on any failure."""
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if not token:
+        return {}
+    req = urllib.request.Request(f"https://api.github.com{path}")
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/vnd.github+json")
+    try:
+        with urllib.request.urlopen(req, timeout=40) as r:
+            return json.load(r)
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def pr_evidence(pr: int) -> str:
+    """Independent CI evidence for a PR — so the Shadow audits the merge gate itself."""
+    p = _gh(f"/repos/{REPO}/pulls/{pr}")
+    if not p:
+        return f"PR #{pr}: could not read"
+    sha = p.get("head", {}).get("sha", "")
+    runs = _gh(f"/repos/{REPO}/commits/{sha}/check-runs?per_page=100").get("check_runs", [])
+    fails = [c["name"] for c in runs if c.get("conclusion") == "failure"]
+    pend = [c["name"] for c in runs if c.get("status") != "completed"]
+    files = [f["filename"] for f in _gh(f"/repos/{REPO}/pulls/{pr}/files?per_page=100")
+             if isinstance(f, dict)]
+    return (f"PR #{pr} sha={sha[:8]} mergeable={p.get('mergeable')} draft={p.get('draft')}\n"
+            f"  checks: {len(runs)} total, failing={fails}, pending={pend}\n"
+            f"  files: {files}")
+
+
+def live_evidence(pr: int | None = None) -> str:
     head = _git(["rev-parse", "--short", "HEAD"])
     branch = _git(["rev-parse", "--abbrev-ref", "HEAD"])
     dirty = "yes" if _git(["status", "--porcelain"]) else "no"
@@ -84,11 +116,14 @@ def live_evidence() -> str:
         open_t = sorted(k for k, v in reg.items() if v.get("state") == "open")
     except Exception:  # noqa: BLE001
         open_t = []
-    return f"branch={branch} head={head} dirty={dirty} open_tickets={open_t}"
+    out = f"branch={branch} head={head} dirty={dirty} open_tickets={open_t}"
+    if pr is not None:
+        out += f"\n{pr_evidence(pr)}"
+    return out
 
 
-def audit(subject: str, context: str = "") -> str:
-    prompt = (f"{SYSTEM}\n\nLIVE EVIDENCE:\n{live_evidence()}\n\n"
+def audit(subject: str, context: str = "", pr: int | None = None) -> str:
+    prompt = (f"{SYSTEM}\n\nLIVE EVIDENCE:\n{live_evidence(pr)}\n\n"
               f"CONTEXT:\n{context}\n\nSUBJECT TO AUDIT:\n{subject}\n")
     model, verdict = generate(prompt)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -102,6 +137,7 @@ def main() -> int:
     ap.add_argument("--subject", help="text to audit")
     ap.add_argument("--subject-file", help="file containing the text to audit")
     ap.add_argument("--context", default="", help="extra context")
+    ap.add_argument("--pr", type=int, help="attach independent CI evidence for a PR")
     a = ap.parse_args()
     if a.subject_file:
         subject = open(a.subject_file).read()
@@ -109,7 +145,7 @@ def main() -> int:
         subject = a.subject
     else:
         subject = sys.stdin.read()
-    print(audit(subject, a.context))
+    print(audit(subject, a.context, a.pr))
     return 0
 
 

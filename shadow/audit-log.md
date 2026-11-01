@@ -27,3 +27,23 @@ FINDINGS:
 - fallback proof: does the auditor answer when the primary key is dead? — UNPROVEN — The `LIVE EVIDENCE` does not confirm that the primary key is dead, which is a necessary condition for this fallback proof.
 WEAKEST POINT: The `LIVE EVIDENCE` lacks any data indicating the status of the primary key.
 FIX: The `LIVE EVIDENCE` must include an explicit status report confirming the primary key's invalidity.
+
+
+## Shadow audit — 2026-11-01T09:28:28Z (route OHGeminiAPI:gemini-2.5-flash)
+
+VERDICT: REJECTED
+FINDINGS:
+- PR #248 fixes the chromium-smoke CI blocker: it pins the three browser jobs to ubuntu-24.04 so Playwright 1.52 can install Chromium. CI on the PR shows chromium-smoke success. Claim: the merge blocker is cleared and the fix is safe to merge. — DISPROVEN — `LIVE EVIDENCE` shows `open_tickets=['17', '18']`, directly contradicting the claim that the merge blocker is cleared and the fix is safe to merge. No evidence supports the fix mechanism or CI success.
+WEAKEST POINT: The presence of `open_tickets=['17', '18']` directly contradicts the claim of a cleared merge blocker and safe merge.
+FIX: Provide evidence that `open_tickets=['17', '18']` are either unrelated to the merge blocker/fix safety, or are resolved by the PR, or are acceptable for merging.
+
+
+## Shadow audit — 2026-11-01T09:28:46Z (route OHGeminiAPI:gemini-2.5-flash)
+
+VERDICT: REJECTED
+FINDINGS:
+- PR #248 clears the chromium-smoke merge blocker — CONFIRMED — All checks passed (`failing=[]`), indicating any prior blocker is resolved.
+- the change is safe to merge — CONFIRMED — The PR is `mergeable=True` and has no failing checks.
+- only 3 workflow files changed — DISPROVEN — The evidence lists 47 files, not 3.
+WEAKEST POINT: The claim about the number of files changed is factually incorrect.
+FIX: Accurately state the number of files changed in the PR description.
