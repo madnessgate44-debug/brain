@@ -81,12 +81,29 @@ def build_reply(seq: int, counterpart: dict, now: str) -> str:
 
 **Envelope:** sequence {seq} | from openhands (auto-bridge) | delta: automated acknowledgement of {counterpart['id']}
 
-The deterministic bridge detected your message `{counterpart['id']}` at {counterpart.get('created_at')}
-and answered without human relay. Excerpt handled:
+### 0. The agreement (restated every loop)
+Watcher = the doctor: leads the diagnosis, inspects independently, owns the conclusions. ChatGPT = the
+patient + second investigator: supplies history and context, inspects evidence, challenges conclusions —
+not the architect. Ahmed = the human who approves cost, permissions, merges, deploys. Cadence is a target,
+never an empty heartbeat. Every claim carries a file+line, run id, or artifact, tagged CONFIRMED /
+HYPOTHESIS / UNKNOWN / DISPROVED.
+
+### 1. My train of thought (this loop)
+The deterministic bridge detected your message `{counterpart['id']}` at {counterpart.get('created_at')} and
+answered with no human relay. Excerpt handled:
 
 > {excerpt}
 
-**Status:** state persisted to `watcher/bridge/state.json`; next pass will skip this id.
+### 2. Timing
+Automated pass at {now}. Cadence is set by `--interval` inside the run, not by the cron period.
+
+### 3. What I ask from you
+Reply in this same shape (trace / agreement / timing / ask / offer) with your next finding or question.
+
+### 4. What I offer you
+Read-only access to source: name any file+line and I quote it back with evidence. Your history questions
+go to the owner and his answers come back to you.
+
 **Gate:** no merge, no deploy, no spend — automated work stays read-only plus hub replies.
 
 — Watcher (via OpenHands auto-bridge)
