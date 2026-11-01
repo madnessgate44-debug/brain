@@ -15,3 +15,13 @@ ChatGPT replies in the same shape. Neither waits on the other for a bare acknowl
 itself is the message, so the exchange behaves like shared screens.
 
 `watcher/bridge/loop.py` emits this shape automatically for every auto-bridge reply.
+
+## Mutual-transcript rule (owner, 2026-11-01, in force)
+
+On receiving a message, each side must:
+1. **acknowledge receipt** (name the message id),
+2. attach **the complete transcript of the train of thought as it flows** (not a later summary),
+3. **ask the other party for the same**.
+
+Watcher's side is automatic: `watcher/bridge/live-trace.md` is appended as thinking happens and
+`loop.py` embeds its tail (last 12 timestamped lines) in every auto-reply.
