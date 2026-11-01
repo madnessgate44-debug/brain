@@ -379,3 +379,26 @@ FINDINGS:
 - docs-only, no secret — CONFIRMED — File list contains only markdown docs, text files, python audit files, and registry updates; no secret values or credentials are exposed in the diff or files.
 WEAKEST POINT: The connector status update in `watcher/connectors.md` relies on local sandbox execution without an automated CI workflow step verifying the `faster-whisper` transcription on every PR.
 FIX: Add a lightweight CI workflow step or test to validate the ASR transcription pipeline so connector state transitions remain reproducible.
+
+
+## Shadow audit — 2026-11-01T16:11:21Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: VERIFIED
+FINDINGS:
+- Facebook reel transcribes via ASR — CONFIRMED — Artifacts `watcher/knowledge/video/how-to-share-with-just-friends.md` and `.txt` are present in PR files and populated with full transcript and explanation.
+- helper tests added — CONFIRMED — `tests/test_transcribe_helpers.py` is listed among the 8 changed files in PR #256.
+- no secret — CONFIRMED — Diff contains no secrets; registry.md and connectors.md correctly mask values.
+WEAKEST POINT: None; all claims are backed by exact file presence and passing CI checks.
+FIX: None required.
+
+
+## Shadow audit — 2026-11-01T16:14:57Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: PARTIAL
+FINDINGS:
+- PR #257 modifies `shadow/audit-log.md` — CONFIRMED — `files (1): ['shadow/audit-log.md']`.
+- PR #257 is docs/log-only with no code or secrets changed — CONFIRMED — no workflow or code files are modified.
+- Brain hub open tickets are ['17', '18', '19'] — CONFIRMED — explicitly listed in live evidence.
+- The audit log entry being appended references issue #256 or outdated state — UNPROVEN — audit history references old hub issues like #240 instead of active tickets ['17', '18', '19'].
+WEAKEST POINT: The audit log entries refer to stale hub contexts (#240) while the live hub currently tracks tickets ['17', '18', '19'].
+FIX: Update the audit log template context to reference the current active brain hub tickets ['17', '18', '19'].

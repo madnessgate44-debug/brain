@@ -1,5 +1,22 @@
 # Project memory — Amina / Miss Noor
 
+## Mission 17 (2026-11-01) — Facebook Reels + the learning loop PUBLISHED to main
+- Owner correction: "why is something in a sandbox — it should be published on main and working."
+  Work that only runs in a session is not delivered; publish it and prove it runs on main.
+- **Facebook Reels:** metadata + audio OK, but **no captions and no search** → ASR is the only
+  transcript route. Proven on reel `10153231379946729` (20 seg, local faster-whisper).
+- **On main now:** `watcher/knowledge/tools/transcribe.py` (YouTube captions fast path + ASR +
+  optional Gemini), `.github/workflows/watcher-learning.yml` (schedule + dispatch, opens a PR,
+  never pushes main), `queue.txt`, transcript artifacts under `watcher/knowledge/video/`,
+  `tests/test_transcribe_helpers.py`. PRs #253/#255/#256 merged (`224fdfb`/`6c94b8a`/`c99c340`).
+- **Live proof on main:** dispatched the workflow → run 41322381979 transcribed the reel and
+  opened PR #254 by itself; re-dispatch on the same URL logs "already have … nothing to do".
+- **Shadow auditor was blind to the artifacts it judged** (`pr_evidence` only read
+  workflows/JSON/`watcher/bridge|shadow` `.py`) → it flapped REJECTED/PARTIAL. Now reads
+  `watcher/**`,`shadow/**`,`tools/**` `.py|.txt|.md` (≤8 KB). Audit with **`--subject`**, not
+  `--context` (else "SUBJECT TO AUDIT" is empty); run in background with `< /dev/null`.
+- Detail: `2026-11-01-facebook-learning-loop.md`.
+
 ## Brain (madnessgate44-debug/brain) — MCP connector + Vercel deploy (2026-11-01)
 - Brain now ships as a **deployable MCP connector**: one URL + one Bearer key adds it to
   ChatGPT/Claude/Gemini/OpenHands. Branch `feat/connector-mcp`, PR #242 (draft).
