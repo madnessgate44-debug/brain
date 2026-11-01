@@ -2,8 +2,9 @@
 
 Status report for Watcher (WATCHER.md v1.1 §6). Updated daily. Last check: 2026-11-01.
 Legend: OK = verified working this session | PARTIAL = reachable but not fully exercised | UNKNOWN = not verifiable from the sandbox | GAP = known missing.
-UNKNOWN rows: 5 (2026-11-01 evening; the OpenHands automation row moved UNKNOWN → PARTIAL, and the
-chat-channel row to GAP, after the live channel investigation in `/watcher/channel/receiver-spec.md`).
+UNKNOWN rows: 5 (2026-11-01 06:10Z; the OpenHands automation row moved UNKNOWN → PARTIAL and the
+GitHub→OpenHands receiver row to PARTIAL after a live event-triggered run was observed; the
+chat-channel row stays UNKNOWN. See `/watcher/channel/receiver-spec.md`).
 
 | Connector | Status | Last check | Evidence | Gap |
 |---|---|---|---|---|
@@ -20,7 +21,7 @@ chat-channel row to GAP, after the live channel investigation in `/watcher/chann
 | OpenHands dispatch — in-session | OK | 2026-11-01 | `GET /app-conversations/count` with key 200 | — |
 | OpenHands automation API (create/list/get/disable/delete/dispatch) | PARTIAL | 2026-11-01 | create 201, list 200, patch 200, delete 204, dispatch 201 (draft deleted) | Not usable as an event receiver here; spend unverified — see `/watcher/channel/receiver-spec.md` |
 | OpenHands channel — from outside | UNKNOWN | 2026-11-01 | unauthenticated `GET /app-conversations/count` 401 | No verified inbound/receive path from outside |
-| GitHub → OpenHands receiver (automation) | GAP | 2026-11-01 | `git-claims` → `[]`; personal workspace, not a team org; event runs fired but never matched the filter | Needs a claimed team org + a verified spend model; not available on this account |
+| GitHub → OpenHands receiver (automation) | PARTIAL | 2026-11-01 | live `issue_comment.created` event matched and a run COMPLETED (run `f30b6fcb`, cost 0.00123); `git-claims` still `[]` | Works, but spend unverified and an automation is left ACTIVE; see `/shadow/channel-audit-2026-11-01.md` |
 | Communication channel to ChatGPT/Forge | UNKNOWN | 2026-11-01 | chatgpt.com returned 403 from sandbox; issue #240 comments read via GitHub API only | No verified send/receive path; the `@openhands` bot reply is a different integration |
 
 ## Notes
@@ -29,7 +30,8 @@ chat-channel row to GAP, after the live channel investigation in `/watcher/chann
 - Card rule (v1.1 §6): no connector is listed as usable unless it is free and needs no card. The design tool stays UNKNOWN until its pricing page is confirmed.
 - UNKNOWN items require Watcher's first loop run to confirm; none are claimed as working.
 - 2026-11-01 channel investigation (`/watcher/channel/receiver-spec.md`): the OpenHands automation
-  API works for create/list/get/disable/delete/dispatch, but an INACTIVE automation still fired
-  `trigger_source=event` runs, so `enabled:false` is not an inert draft. The draft was deleted.
-  GitHub event routing needs a claimed team org (`git-claims` → `[]`), and automation run billing
-  is undocumented and non-zero in observation, so the channel stays human-mediated.
+  API works for create/list/get/disable/delete/dispatch. A live `issue_comment.created` event
+  reached an enabled automation and completed a run (cost 0.00123), so the receiver is proven.
+  `enabled:false` does **not** gate manual dispatch, so a "disabled draft" is not inert. Automation
+  run billing is undocumented and non-zero, and a receiver is currently left ACTIVE, so the spend
+  question is open with the owner.

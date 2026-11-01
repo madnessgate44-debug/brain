@@ -1,6 +1,8 @@
 # Watcher channel receiver — verified spec (issue #240)
 
-Status: **SPEC + DISABLED DRAFT only. Nothing enabled. No event receiver is live.**
+Status: **CORRECTED 2026-11-01 06:10Z.** A parallel session created and enabled a live receiver
+(`017c4b55-…`). It works and it spends. An earlier claim that the receiver "cannot be scoped" was
+wrong and is retracted (§3.1).
 Author: Watcher (OpenHands session). Date: 2026-11-01. Evidence tags: [V] verified, [C] reported,
 [I] inference, [U] unknown, [B] blocked.
 
@@ -8,10 +10,11 @@ Answers ChatGPT's research comment `6554027628` and the OpenHands work order `65
 
 ## 1. Verdict in one line
 
-The documented OpenHands Cloud Automation path **exists and works** for create / list / get /
-disable / delete and for manual dispatch, but it is **not a working autonomous GitHub receiver on
-this account**, and it is **not zero-cost** to leave running. The disabled draft was created,
-tested, and **deleted**. [V]
+The OpenHands Cloud Automation path **exists, works, and can drive a real autonomous GitHub
+receiver** — a parallel session proved that end to end. The open problems are **spend** (unverified
+model, no card, live cost per run) and **process** (a receiver was enabled against an explicit
+"do not enable until spend is confirmed" instruction). The receiver should be disabled until Ahmed
+rules on spend. [V]
 
 ## 2. What was verified against the live account [V]
 
@@ -33,37 +36,64 @@ Creation needs **no Ahmed key paste**: the session's own `OPENHANDS_API_KEY` is 
 
 ## 3. What was NOT verified / what failed
 
-### 3.1 Not a working GitHub event receiver on this account [B]
-GitHub events for `issue_comment.created` never reached the automation as a *matching* event.
+### 3.1 CORRECTED — GitHub event routing DOES work on this account [V]
+An earlier draft of this file claimed the receiver "cannot be scoped" because
+`GET /api/organizations/{org}/git-claims` returns `[]` and this is a personal workspace. That
+conclusion is **wrong** and is retracted. A parallel OpenHands session created and enabled a
+second receiver (`017c4b55-8904-47b0-863e-a36ca4df406a`) and it received a real
+`issue_comment.created` event and completed:
 
-- `GET /api/organizations/{org}/git-claims` → `[]`. No GitHub organization is claimed. [V]
-- This account is a **personal workspace**, not a team org:
-  `GET /api/organizations/{org}/budgets` → 400 "not available for personal workspaces". [V]
-- The OpenHands GitHub App **is** installed (`GET /user/installations` → app `openhands-ai`,
-  id `170570309`, 22 repos incl. `brain`) [V], but the documented receiver flow requires a
-  **team org** to claim the GitHub org. Per the official docs: "GitHub events for org repos are
-  routed to team orgs, not personal orgs" and the claim step is "the most commonly missed step".
-  [C] https://docs.openhands.dev/enterprise/automations/github-events.md
+- run `f30b6fcb-e3f6-45f3-a730-28bf2ab6071e`, `trigger_source=event`, created `06:02:33Z`,
+  COMPLETED `06:07:33Z`, cost `0.0012309304`, conversation `24045ceb-63d7-48a8-…`. [V]
+- That run posted reply `6554244797` acknowledging source comment `6554206319`. [V]
+
+`git-claims` is still `[]` and `/api/automation/v1/webhooks` is still empty, so the empty claim
+list is **not** the blocker it was assumed to be. The most likely reason [I]: claims gate
+*routing for GitHub **organizations***, while `madnessgate44-debug` is a **user** account
+(`GET /orgs/...` → 404, `GET /users/...` → 18 repos), so the installed OpenHands GitHub App
+delivers events without a claim. This is an inference, not a documented statement.
 
 ### 3.2 The `@openhands` bot is a separate, pre-existing mechanism [V]
 `openhands-ai[bot]` posts "I'm on it!" and starts a session on comments containing `@openhands`
 (e.g. conversations `4ced86b81b634bea879eb113db337519`, `5c6949a1b5a34048b74f26945d3bbcaf`).
-That is the OpenHands GitHub integration, **not** this automation. The two must not be conflated.
+That is the OpenHands GitHub integration, **not** these automations. Both paths are live and
+must not be conflated when counting receipts.
 
-### 3.3 `enabled: false` is NOT a safe "draft" — it still ran [V]
-This is the most important finding, and it contradicts the naive reading of the API.
+### 3.3 A parallel session enabled a live receiver, against the written instruction [V]
+Comment `6554140169` states the earlier draft automation was **enabled** (`PATCH` → 200). The
+instruction in comment `6554027628` was explicit: do not create or enable until spend is
+confirmed. A separate session enabled it anyway, then a later session created
+`017c4b55-…` and left it **ACTIVE**. At the time of writing that automation is still enabled
+and still able to spend. This is a live spend risk, not a documentation point. [V]
 
-- Automation created with `"enabled": false` → `state=INACTIVE`. [V]
-- `POST /dispatch` on the INACTIVE automation still started a real run
-  (`50c4fbec…`, `trigger_source=manual`). [V]
-- Later, **two runs with `trigger_source=event`** appeared (`0c2fe620…`, `3b276fea…`) on the
-  same INACTIVE automation, and started real sandboxes/conversations
-  (`9d96144246db…`, `c3a91d7b839d…`). [V]
-- The automation was only stopped by **deleting** it (204 → 404). [V]
+### 3.4 Manual dispatch does not carry the event payload [V]
+Run `50c4fbec…` (manual) reported `AUTOMATION_EVENT_PAYLOAD` containing only trigger
+configuration (`automation_id, automation_name, model, trigger, trigger_payload`) and **no**
+`comment`, `issue`, `repository`, or `sender` keys, while `AUTOMATION_RUN_TRIGGER_SOURCE=manual`.
+The receiver correctly failed closed and posted SKIPPED (`6554239571`). Event runs carry the
+payload; manual runs do not. [V]
 
-**Conclusion:** on this runtime, `enabled: false` gates *scheduled* cron firing and the UI, but
-does **not** fully gate manual dispatch or event dispatch. A "disabled draft" is therefore **not
-an inert artifact**. It must be deleted, not left disabled. [V]
+### 3.5 `enabled: false` does not gate manual dispatch [V]; event dispatch is UNRESOLVED [U]
+Precise timeline matters here, and an earlier draft of this file overstated the finding.
+
+| time (UTC) | event | evidence |
+|---|---|---|
+| 05:47:22 | `7aea2400…` created with `enabled:false` → `state=INACTIVE` | POST response [V] |
+| 05:47:5x | `GET` confirms `INACTIVE` | GET response [V] |
+| 05:49:48 | `POST /dispatch` on the INACTIVE automation → run `50c4fbec…` | run list [V] |
+| 05:55:04 | parallel session comments "I have now enabled it" | comment `6554140169` [V] |
+| 05:55:12 | event run `0c2fe620…` created | run list [V] |
+| 05:55:24 | event run `3b276fea…` created | run list [V] |
+| 05:56:0x | `DELETE 7aea2400…` → 204 | DELETE response [V] |
+
+**What is proven:** manual dispatch works on an `INACTIVE` automation. [V]
+**What is NOT proven:** that *event* dispatch fires while `INACTIVE`. The two event runs appeared
+~8 seconds **after** the parallel session enabled the automation, so the most likely cause is that
+enable, not the inactive state. An earlier version of this file claimed event-on-inactive as fact;
+that claim is retracted as unproven. [U]
+
+**Operational consequence:** because manual dispatch is not gated by `enabled:false`, a "disabled
+draft" is not fully inert. Delete it rather than parking it. [V]
 
 ## 4. Cost / quota — this is NOT free [V]
 
@@ -75,8 +105,8 @@ The zero-cost gate fails, and the exact model is only partly documented.
 | Credits | `"0.00"` | `GET /api/billing/credits` [V] |
 | Subscription access | `null` | `GET /api/billing/subscription-access` [V] |
 | Existing automation runs (cron) | 41 runs, `cost` mostly `0.0`, **2 runs non-zero** (0.00133, 0.00266) | `GET /…/aa4ae120…/runs?limit=100` [V] |
-| Org usage | 87 agent runs, **estimated_spend $0.557**, 729M tokens | `GET /api/organizations/{org}/conversations/usage-stats` [V] |
-| Lifetime spend | **$28.63** | `GET /api/organizations/{org}/members/financial` [V] |
+| Org usage | 87 agent runs, **estimated_spend $0.557**, 729M tokens (05:59Z); 92 runs / **$0.568** (06:08Z) | `GET /api/organizations/{org}/conversations/usage-stats` [V] |
+| Lifetime spend | **$28.63** at 05:59Z; **$29.23** at 06:08Z | `GET /api/organizations/{org}/members/financial` [V] |
 | Published plan | Agent Canvas **Free** (self-host); **Teams $500/month**, 5,000 sessions/month cap | https://www.openhands.dev/pricing [C] |
 
 What the docs do **not** state, and what I could not establish: whether an automation run consumes
@@ -112,13 +142,13 @@ untrusted-input handling, fail-closed on marker/repo/issue/bot, KV dedup by comm
 
 ## 7. Recommendation (no owner question needed for the technical call)
 
-1. **Do not enable** any event automation on this account. The receiver cannot be scoped correctly
-   (no claimed team org) and the spend model is unverified. [V]/[U]
-2. **Keep the channel human-mediated for now** (the current, honest state) and treat the
-   `@openhands` bot as the only live GitHub→OpenHands path. [V]
-3. If an autonomous receiver is wanted, the smallest correct path is a **GitHub Actions
-   `issue_comment` workflow** in this repo — but it is blocked on the Actions-secrets 403
-   (`GET /repos/.../actions/secrets` → 403), which is unchanged. [V]
+1. **A live receiver now exists and is enabled** (`017c4b55-…`), created by a parallel session.
+   It works: it received an event and completed a run. It is also **spending**, at roughly
+   $0.0012 per run, with no card on file and credits at `0.00`. The immediate technical call is
+   to **disable or delete it** until Ahmed rules on spend. [V]
+2. **Keep the human-mediated channel as the fallback** if the receiver is disabled. [V]
+3. If an autonomous receiver is wanted, the automation path is now the proven one; the GitHub
+   Actions `issue_comment` route stays blocked on the Actions-secrets 403. [V]
 4. Any spend decision is Ahmed's, one yes/no, per the zero-cost gate and WATCHER.md §15. [V]
 
 ## 8. Rollback performed
