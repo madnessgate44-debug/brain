@@ -221,12 +221,22 @@ def clean_excerpt(body: str, limit: int = 200) -> str:
     return text[:limit]
 
 
+def owner_transcript_tail(n: int = 1) -> str:
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "owner-transcript.md")
+    try:
+        blocks = open(path).read().split("\n### ")
+        return "\n### ".join(blocks[-n:]).strip()
+    except OSError:
+        return "(no owner transcript yet)"
+
+
 def build_reply(ticket_id: int, counterpart: dict, now: str, tickets: dict, advance: bool = True) -> str:
     excerpt = clean_excerpt(counterpart.get("body"))
     trace = live_trace(advance=advance)
     entry = tickets.get(str(ticket_id), {})
     evidence = repo_evidence()
     pid = os.getpid()
+    owner_words = owner_transcript_tail(1)
     body = ticket(
         ticket_id=ticket_id,
         subject=f"reply to {counterpart['id']}",
@@ -239,7 +249,8 @@ def build_reply(ticket_id: int, counterpart: dict, now: str, tickets: dict, adva
         offer="name a file+line and I quote it back with evidence.",
         finding=(
             f"live: {evidence}; pid {pid}; T{ticket_id} state={entry.get('state', 'open')}\n"
-            f"replying to: > {excerpt}"
+            f"replying to: > {excerpt}\n"
+            f"owner's words, verbatim: > {owner_words}"
         ),
         now=now,
         owner=entry.get("owner", "Watcher (OpenHands)"),

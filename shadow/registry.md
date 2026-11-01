@@ -14,6 +14,14 @@ Categories: long-context coding, fast chat, reasoning, vision, search or browsin
 | GitHub | REST API — write (Issues/PRs) | free-key | `GITHUB_TOKEN` | connector or API access | WORKING | 2026-11-01 | not measured | UNKNOWN | brain |
 | GitHub | Actions secrets API | free-key | `GITHUB_TOKEN` | connector or API access | DEAD | 2026-11-01 | n/a | UNKNOWN | brain |
 | Google | Gemini API — model list | free-key | `OHGeminiAPI` | fast chat, reasoning, long-context coding | WORKING | 2026-11-01 | free tier | UNKNOWN | brain |
+| Google | `gemini-2.5-flash` — generateContent | free-key | `OHGeminiAPI` | fast chat, reasoning, audit | WORKING | 2026-11-01 | OK (3 rapid calls) | UNKNOWN | brain |
+| Google | `gemini-3-flash-preview` — generateContent | free-key | `OHGeminiAPI` | fast chat, reasoning, audit | WORKING | 2026-11-01 | OK | UNKNOWN | brain |
+| Google | `gemini-flash-lite-latest` — generateContent | free-key | `OHGeminiAPI` | fast chat | WORKING | 2026-11-01 | OK | UNKNOWN | brain |
+| Google | `gemini-3.1-flash-lite-preview` — generateContent | free-key | `OHGeminiAPI` | fast chat | WORKING | 2026-11-01 | OK | UNKNOWN | brain |
+| Google | `gemini-2.5-pro` | free-key | `OHGeminiAPI` | long-context coding | DEAD | 2026-11-01 | n/a | UNKNOWN | brain |
+| Google | `gemini-3.1-pro-preview` | free-key | `OHGeminiAPI` | long-context coding | RATE-LIMITED | 2026-11-01 | HTTP 429 on free tier | UNKNOWN | brain |
+| Google | `gemini-flash-latest` | free-key | `OHGeminiAPI` | fast chat | RATE-LIMITED | 2026-11-01 | timed out under probe | UNKNOWN | brain |
+| Google | `gemma-4-31b-it` | free-key | `OHGeminiAPI` | fast chat | DEAD | 2026-11-01 | HTTP 500 | UNKNOWN | brain |
 | OpenHands | Cloud API — in-session dispatch | free-key | `OPENHANDS_API_KEY` | connector or API access | WORKING | 2026-11-01 | not measured | UNKNOWN | brain |
 | OpenHands | Cloud API — inbound from outside | UNKNOWN | — | connector or API access | UNTESTED | 2026-11-01 | n/a | n/a | — |
 | ChatGPT / Forge | command center channel | UNKNOWN | — | connector or API access | UNTESTED | 2026-11-01 | n/a | n/a | — |
