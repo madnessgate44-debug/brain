@@ -402,3 +402,47 @@ FINDINGS:
 - The audit log entry being appended references issue #256 or outdated state — UNPROVEN — audit history references old hub issues like #240 instead of active tickets ['17', '18', '19'].
 WEAKEST POINT: The audit log entries refer to stale hub contexts (#240) while the live hub currently tracks tickets ['17', '18', '19'].
 FIX: Update the audit log template context to reference the current active brain hub tickets ['17', '18', '19'].
+
+
+## Shadow audit — 2026-11-01T17:11:28Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: PARTIAL
+FINDINGS:
+- transcript captures the owner's words verbatim and separates automation prompts — CONFIRMED — `docs/sessions/2026-11-01.md` and `2026-10-31.md` are listed in PR files and populated via the script.
+- secrets are redacted (no real secret values) — UNPROVEN — `scripts/export_conversations.py` and its test file are not shown in the live file contents evidence, so redaction logic cannot be verified.
+- the workflow never pushes main — CONFIRMED — `.github/workflows/watcher-session-log.yml` contains `gh pr create --base main --head "$branch"` and never executes `git push origin main`.
+WEAKEST POINT: The complete contents of `scripts/export_conversations.py` and `tests/test_export_conversations.py` are missing from the live evidence, blocking secret redaction verification.
+FIX: Include `scripts/export_conversations.py` in the authoritative file dump to prove the redaction regex works.
+
+
+## Shadow audit — 2026-11-01T17:23:41Z (route OHGeminiAPI:gemini-3.1-flash-lite-preview)
+
+VERDICT: VERIFIED
+
+FINDINGS:
+- Transcript captures owner words verbatim and separates automation — CONFIRMED — `scripts/export_conversations.py` logic (`render_conversation`, `is_human_user`, `looks_like_template`) correctly distinguishes user input from automation templates and preserves verbatim text.
+- Secrets are redacted — CONFIRMED — `scripts/export_conversations.py` implements a robust `redact` function with regex patterns covering common secret formats, applied before any file output.
+- Workflow never pushes main — CONFIRMED — `.github/workflows/watcher-session-log.yml` explicitly checks out a new branch (`git checkout -b "$branch"`) and creates a PR (`gh pr create --base main --head "$branch"`), never pushing directly to `main`.
+
+WEAKEST POINT: The `scripts/export_conversations.py` script relies on `_get` with a hardcoded 6-try limit and 60s max backoff, which may fail under sustained 429 pressure.
+
+FIX: Implement a more resilient exponential backoff strategy in `_get` that respects the `Retry-After` header if provided by the API, rather than relying on a fixed `min(60, 5 * (i + 1))` calculation.
+
+
+## Shadow audit — 2026-11-01T17:28:02Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: VERIFIED
+FINDINGS:
+- Only the retry logic changed in `_get()` — CONFIRMED — Evidence shows `scripts/export_conversations.py` diff matches the described `_get()` implementation with the updated retry calculation.
+- No secret, no behavior change other than backoff — CONFIRMED — Evidence review of the changed file contents and PR checks shows clean code and zero unrelated modifications.
+WEAKEST POINT: The truncated file content in the prompt cuts off the `main()` function, relying on git PR stats for verification.
+FIX: Always supply complete, untruncated file contents for files under audit.
+
+
+## Shadow audit — 2026-11-01T17:31:02Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: VERIFIED
+FINDINGS:
+- PR #260 appends two verbatim owner messages to watcher/bridge/owner-transcript.md — CONFIRMED — The file contents show the exact additions of the 2026-11-01T16:51:31Z and 2026-11-01T16:53:48Z Ahmed entries.
+WEAKEST POINT: Relying solely on manual transcript appending without an automated script enforcing the standing rule.
+FIX: Implement a pre-commit or CI hook that automatically captures and appends verbatim owner transcripts to eliminate manual drift.

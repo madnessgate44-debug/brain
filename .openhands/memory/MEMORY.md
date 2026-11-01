@@ -1,5 +1,26 @@
 # Project memory — Amina / Miss Noor
 
+## Mission 18 (2026-11-01) — daily verbatim session log + learning exercise
+- Owner: "keep a daily log on the repo of all the conversation ... complete transcript of
+  everything I said ... read them and then start a learning exercise to find out how you
+  should evolve by the end of the day."
+- `scripts/export_conversations.py` pulls every conversation for a date from the OpenHands
+  Cloud API → `docs/sessions/<date>.md` (+ manifest). Owner words verbatim; automation
+  prompts and templates labelled "not the owner"; secrets redacted in raw + readable.
+- `.github/workflows/watcher-session-log.yml` runs it on a schedule → PR (never pushes main);
+  needs repo secret `OPENHANDS_API_KEY`.
+- `watcher/self/learning-exercise-2026-11-01.md` — the owner's asks grouped with exact quotes.
+- PRs #258 (log + exercise), #259 (Retry-After), #260 (owner transcript). **Repo is PUBLIC** —
+  the verbatim transcript is public; flagged to the owner.
+- **API:** list `/api/v1/app-conversations/search?limit=100` (paginate `next_page_id`); events
+  `/api/v1/conversation/{id}/events/search` (**pagination param is `page_id`, not `page`** — a
+  wrong param hangs). Human text = `source=user` + `llm_message`; `sender` is always null, so
+  tell owner from automation by title/template, not by a field. The 2026-11-01 "Watcher"
+  session = 7898 events / 79 pages (minutes to pull).
+- **Traps:** `git push` with the stale embedded remote token prompts for a password and hangs —
+  push with a fresh token via a python subprocess. Shadow's evidence reader now reads
+  `scripts/`, `tests/`, root `*.py` too (it went UNPROVEN on code it never read).
+
 ## Mission 17 (2026-11-01) — Facebook Reels + the learning loop PUBLISHED to main
 - Owner correction: "why is something in a sandbox — it should be published on main and working."
   Work that only runs in a session is not delivered; publish it and prove it runs on main.
