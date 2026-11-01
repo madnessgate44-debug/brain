@@ -1,10 +1,10 @@
-**1) What it is**  
+**1) What it is**
 This is a video recording of a developer webinar introducing how to build AI coding agents from scratch, using open-source tools, function calling, and language models.
 
-**2) Summary**  
+**2) Summary**
 The presenter, Zan from the DevRel team at Together, hosts a webinar guiding participants through building a coding language model capable of searching, reading, running, and modifying code to solve open-ended tasks end-to-end. He begins with a quick introduction and a community raffle announcement before diving into the foundational building blocks of coding agents. The core of the session focuses on function calling, breaking down how a language model interacts with external tools through a multi-step request-and-response loop. Zan then introduces the essential tools a coding agent requires—such as reading files, listing directory contents, and editing files—and walks through code notebooks in real-time to demonstrate how the model executes these operations in a sandbox environment.
 
-**3) Key points**  
+**3) Key points**
 * [00:13] A live tweet was scheduled for a $100 credit pack raffle on the Together platform for users who engage by liking, retweeting, and commenting on the coding agents they build or use.
 * [01:16] The webinar covers building a language model that can code, search, run, modify code, and solve open-ended tasks end-to-end like a software engineer or data scientist.
 * [02:10] The three main building blocks of coding agents covered are function calling, retrieval and context, and code execution.
@@ -15,7 +15,7 @@ The presenter, Zan from the DevRel team at Together, hosts a webinar guiding par
 * [18:01] In the code walkthrough, Zan demonstrates a file-reading function, its schema description, and how the model requests it.
 * [21:52] Additional tools are introduced to list files in a directory and edit files by specifying an old string and a new replacement string.
 
-**4) Walkthrough**  
+**4) Walkthrough**
 * **Introduction & Raffle [00:00]:** Zan welcomes attendees, announces a Twitter raffle for a $100 credit pack on the Together platform, and encourages active questions in the chat.
 * **Overview of Coding Agents [01:16]:** He outlines the goals of the session: explaining how language models can handle file I/O, code execution, codebase searching, and open-ended problem-solving.
 * **The Concept of Function Calling [06:56]:** Zan explains limitations of standard text-in/text-out models (like outdated training cutoffs) and introduces tool calling as a mechanism to let models perform external actions.
@@ -28,7 +28,7 @@ The presenter, Zan from the DevRel team at Together, hosts a webinar guiding par
   * Expanding the setup to include a directory-listing tool and an edit-file tool (which replaces an old string with a new string).
   * Letting the model create, save, and modify a Python script (like a FizzBuzz program) in a sandbox environment.
 
-**5) Topics/keywords**  
+**5) Topics/keywords**
 * Coding agents
 * Function calling / Tool use
 * Language models (LLMs)
@@ -38,7 +38,7 @@ The presenter, Zan from the DevRel team at Together, hosts a webinar guiding par
 * Together platform
 * Python programming and Google Colab
 
-**6) Takeaways**  
+**6) Takeaways**
 * Coding agents require more than basic text generation; they need external tools to interact with file systems and execute code.
 * Function calling is not magical; it is a structured loop where the model requests a specific tool payload, the application executes it locally, and the result is fed back into the model's chat history.
 * Essential tools for any coding agent include file readers, file editors, and directory listers.
