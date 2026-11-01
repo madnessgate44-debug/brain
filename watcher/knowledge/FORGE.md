@@ -6,9 +6,11 @@ copied from prose. Cite the file path for each.
 ## Mission path vs engine
 - `docs/CHATGPT-OPERATING-FORGE.md`: the *mission* is a fixed pipeline
   `VALIDATE → INSPECT → PLAN → APPLY → TEST → COMMIT → PR → POLICY`. Forge cannot act outside it.
-- The lower *engine* is an open-ended bounded loop: `src/agent/loop.ts` (8869 B),
-  `src/kernel/loop.ts`, `src/agent/loop-runner.ts`, `src/agent/stages.ts`. So an open-ended
-  loop is partly built already.
+- The lower *engine* is a bounded look/think/act/observe loop: `src/agent/loop.ts` (8869 B),
+  wired by `src/agent/loop-runner.ts` (to `ModelService.chooseNextAction` + tools). **Classification
+  (per ChatGPT reconciliation 6554500481): implemented in a separate runner; use by the default
+  Forge mission path is NOT yet demonstrated** — the default `.github/workflows/forge.yml` path
+  invokes `src/agent/forge-runner.ts` (the fixed-stage mission), not the loop runner.
 
 ## Model routing (`src/model-routing.ts`)
 - Policy is a pure function of environment + tier (`easy` / `hard`).
@@ -55,3 +57,13 @@ push permission cannot be verified.
 `tests/company.test.ts:270` expects `/Runtime ceiling/` but gets `Step ceiling reached (3)`: a
 tool deadline caught at `src/kernel/loop.ts:180` becomes a failed observation, so the loop exits
 at the step ceiling (`:186`) before the runtime check (`:121`).
+
+## Tools and commands (`src/agent/tools.ts`, `src/services/test-runner.ts`)
+- Capability tiers in `tools.ts`: read-only tools always registered (`list_files, read_file,
+  search, find_files, think, fetch_url`); mutating tools (`edit_file, write_file, run_check`)
+  registered only when the permission profile allows branch writes.
+- `AUTHORIZED_COMMANDS` is an allow-list of exactly **10** entries (verified 2026-11-01):
+  `npm install --ignore-scripts`, `npm run lint`, `npm run test`, `npm test`, `npm run build`,
+  `npm run model:smoke`, `npx tsc --noEmit`, `git status`, `git diff`, `git diff --check`.
+  Arbitrary shell is impossible by design.
+- `src/services/browser.ts`: 9 browser tools; single viewport 1280x800 (no mobile viewport).
