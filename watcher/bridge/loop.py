@@ -63,7 +63,23 @@ def save_state(state: dict) -> None:
 
 
 def fetch_comments(token: str) -> list[dict]:
-    return _api(f"/repos/{REPO}/issues/{ISSUE}/comments?per_page=100&page=2", token)
+    """Fetch every page of comments and return them oldest-first.
+
+    Reading a single fixed page is a bug: page 2 is a moving window, so the
+    newest comments fall off it as the thread grows. Page until exhausted.
+    """
+    out: list[dict] = []
+    page = 1
+    while page <= 10:
+        batch = _api(f"/repos/{REPO}/issues/{ISSUE}/comments?per_page=100&page={page}", token)
+        if not batch:
+            break
+        out.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    out.sort(key=lambda c: c["id"])
+    return out
 
 
 def newest_counterpart(comments: list[dict], last_seen: int) -> dict | None:
