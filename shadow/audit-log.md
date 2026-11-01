@@ -296,3 +296,15 @@ FINDINGS:
 - Workflow pushes directly to main without PR review or branch protection check — DISPROVEN — `.github/workflows/watcher-learning.yml` lines 61-69: `git commit -m "knowledge(video): transcribe ${{ steps.pick.outputs.url }}" \n git push`
 WEAKEST POINT: The learning workflow commits and pushes directly to `main`, bypassing code review and creating a race condition on scheduled runs.
 FIX: Change the workflow to push to a feature branch and open a pull request automatically instead of executing a direct `git push` on `main`.
+
+
+## Shadow audit — 2026-11-01T15:37:33Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: REJECTED
+FINDINGS:
+- Pushing learning loop output via a feature branch and `gh pr create` — CONFIRMED — The workflow now correctly avoids pushing directly to main and opens a PR (`git checkout -b "$branch"`, `git push origin "$branch"`, `gh pr create --base main`).
+- No secret values printed in the workflow — CONFIRMED — `GEMINI_API_KEY` and `GH_TOKEN` are safely passed via environment variables, and no echo statements expose secrets.
+- Workflow execution policy check passes — DISPROVEN — The PR checks explicitly show pending/failing validation: `checks: 2 total, failing=[], pending=['Check execution policy files']`.
+
+WEAKEST POINT: The required workflow check 'Check execution policy files' remains pending on PR #253.
+FIX: Wait for the 'Check execution policy files' CI check to successfully complete before merging.

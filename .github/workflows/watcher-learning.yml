@@ -54,7 +54,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.OHGeminiAPI }}
         run: |
           python3 watcher/knowledge/tools/transcribe.py "${{ steps.pick.outputs.url }}" \
-            --out watcher/knowledge/video --model base
+            --out watcher/knowledge/video --model base --skip-existing
 
       - name: Publish as a pull request (never push main)
         if: steps.pick.outputs.url != ''

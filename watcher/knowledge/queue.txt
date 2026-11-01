@@ -1,5 +1,5 @@
-# Video/reel URLs for the Watcher learning loop (WATCHER.md §4.3/§4.4).
-# One URL per line. The scheduled run transcribes the newest line not starting with '#'.
-# Blank = nothing to do. yt-dlp handles YouTube, Facebook Reels, and any supported site.
-https://www.youtube.com/watch?v=lxgfhPQ1GSI
-https://www.facebook.com/reel/10153231379946729
+# Backlog for the Watcher learning loop (WATCHER.md §4.3/§4.4).
+# One video/reel URL per line. The scheduled run transcribes the NEWEST line and
+# skips any URL whose transcript already exists (--skip-existing).
+# Keep this to material not yet transcribed; an empty queue means nothing to do.
+# On-demand: Actions -> "Watcher learning loop" -> Run workflow -> paste a URL.
