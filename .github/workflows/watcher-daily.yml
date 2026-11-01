@@ -46,7 +46,8 @@ jobs:
         run: |
           # One bounded pass: reads the newest counterpart comment on hub #240 and, if
           # it is new, posts the canonical ticket envelope. Writes state only on success.
-          python3 watcher/bridge/loop.py --once || echo "loop pass: FAIL (see log)"
+          # Fail loudly: a broken loop must turn the job red, not warn.
+          python3 watcher/bridge/loop.py --once
 
       - name: Result 1 - daily plan
         run: |
