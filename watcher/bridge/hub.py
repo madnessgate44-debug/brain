@@ -44,9 +44,9 @@ def github_now(token: str) -> str:
 
 def read(token: str, n: int = 5) -> int:
     now = github_now(token)
-    data, _ = _req(f"https://api.github.com/repos/{REPO}/issues/{HUB}/comments?per_page=100&page=2", token)
-    page1, _ = _req(f"https://api.github.com/repos/{REPO}/issues/{HUB}/comments?per_page=100", token)
-    allc = (page1 or []) + (data or [])
+    page1, _ = _req(f"https://api.github.com/repos/{REPO}/issues/{HUB}/comments?per_page=100&page=1", token)
+    page2, _ = _req(f"https://api.github.com/repos/{REPO}/issues/{HUB}/comments?per_page=100&page=2", token)
+    allc = (page1 or []) + (page2 or [])
     allc.sort(key=lambda c: c["id"])
     print(f"github_now: {now}")
     print(f"total comments seen: {len(allc)}")

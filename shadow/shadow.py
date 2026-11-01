@@ -33,6 +33,10 @@ Temperament: cold on evidence, adversarial until proven wrong, a mentor who expl
 Audit the Watcher's claim or artifact against the LIVE EVIDENCE only.
 Rules:
 - CONFIRMED only if the evidence actually proves the claim. Otherwise UNPROVEN or DISPROVEN, with the reason.
+- For any DISPROVEN claim you MUST quote the exact line from the evidence that proves it false. If you
+  cannot quote such a line, the verdict is UNPROVEN, not DISPROVEN. Do not invent file contents, model
+  ids, or empty blocks; if the raw file is present in the evidence, read it before judging.
+- A model id is valid if the LIVE model probe shows HTTP 200 or 429. HTTP 404 means invalid.
 - Name the single weakest point and the exact missing evidence.
 - If it fails, give the fix, not only the rejection.
 - Short. Phone-readable. No preamble.
@@ -103,20 +107,41 @@ def pr_evidence(pr: int) -> str:
     pend = [c["name"] for c in runs if c.get("status") != "completed"]
     fl = [f for f in _gh(f"/repos/{REPO}/pulls/{pr}/files?per_page=100") if isinstance(f, dict)]
     files = [f["filename"] for f in fl]
-    patch = "\n".join(f.get("patch", "") for f in fl)[:4000]
     # Include raw content of small changed files so the Shadow reads ground truth, not a diff excerpt.
     raw = []
-    for f in files:
-        if f.startswith(".github/workflows/") or f.endswith((".json",)) or f.startswith(("watcher/bridge/","shadow/")) and f.endswith(".py"):
+    prio = sorted(files, key=lambda f: (0 if f.startswith(".github/workflows/") else 1))
+    for f in prio:
+        if f == "shadow/shadow.py":
+            continue  # the auditor's own source is not the artifact under audit
+        if f.startswith(".github/workflows/") or f.endswith((".json",)) or (f.startswith(("watcher/bridge/","shadow/")) and f.endswith(".py")):
             c = _gh(f"/repos/{REPO}/contents/{urllib.parse.quote(f, safe='/')}?ref={sha}")
             if isinstance(c, dict) and c.get("content"):
                 import base64
-                raw.append(f"--- {f} ---\n" + base64.b64decode(c["content"]).decode("utf-8","replace")[:4000])
+                txt = base64.b64decode(c["content"]).decode("utf-8", "replace")
+                mark = "COMPLETE" if len(txt) <= 2600 else f"TRUNCATED {2600} of {len(txt)} bytes"
+                raw.append(f"===== BEGIN FILE {f} ({mark}) =====\n" + txt[:2600] + f"\n===== END FILE {f} =====")
     reg = _gh(f"/repos/{REPO}/contents/shadow/registry.md")
     if isinstance(reg, dict) and reg.get("content"):
         import base64
         raw.append("--- shadow/registry.md (which models are WORKING) ---\n" + base64.b64decode(reg["content"]).decode("utf-8","replace")[:1800])
-    rawtxt = "\n".join(raw)[:18000]
+    rawtxt = "\n".join(raw)[:14000]
+    # Measured facts (objective, computed here) so structural claims are not guessed.
+    empty_runs = []
+    try:
+        import yaml
+        for f in files:
+            if f.startswith(".github/workflows/"):
+                c = _gh(f"/repos/{REPO}/contents/{urllib.parse.quote(f, safe='/')}?ref={sha}")
+                if isinstance(c, dict) and c.get("content"):
+                    import base64
+                    d = yaml.safe_load(base64.b64decode(c["content"]).decode("utf-8", "replace"))
+                    for jn, j in (d.get("jobs") or {}).items():
+                        for st in (j.get("steps") or []):
+                            if "run" in st and not str(st["run"]).strip():
+                                empty_runs.append(f"{f}:{jn}:{st.get('name')}")
+    except Exception:  # noqa: BLE001
+        pass
+    facts = f"MEASURED: empty run blocks = {empty_runs or 'none'}"
     history = []
     for f in files:
         if f.startswith(".github/workflows/"):
@@ -125,7 +150,9 @@ def pr_evidence(pr: int) -> str:
                 history.append(f"{f}: {run['created_at']} {run['head_branch'][:24]} -> {run['conclusion']}")
     return (f"PR #{pr} sha={sha[:8]} mergeable={p.get('mergeable')} draft={p.get('draft')}\n"
             f"  checks: {len(runs)} total, failing={fails}, pending={pend}\n"
-            f"  files ({len(files)}): {files}\n  diff:\n{patch}\n  raw content of changed workflows/json:\n{rawtxt}\n"
+            f"  files ({len(files)}): {files}\n"
+            f"  {facts}\n"
+            f"  COMPLETE FILE CONTENTS of changed workflows/json/py (authoritative; no diff truncation):\n{rawtxt}\n"
             f"  workflow run history (independent, before this PR):\n" + "\n".join(history))
 
 
@@ -142,7 +169,7 @@ def live_evidence(pr: int | None = None) -> str:
     key = os.environ.get("OHGeminiAPI")
     if key:
         import urllib.request as _u
-        for m in ("gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-1.5-flash"):
+        for m in ("gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview", "gemini-1.5-flash"):
             rq = _u.Request(f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent",
                             data=b'{"contents":[{"parts":[{"text":"ok"}]}]}', method="POST")
             rq.add_header("x-goog-api-key", key); rq.add_header("Content-Type", "application/json")
