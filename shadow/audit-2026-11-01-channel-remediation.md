@@ -69,15 +69,22 @@ This audit records that decision so it is not mistaken for an oversight. [V]
    run competing sessions that mutate the same automation" (`6554275306`) must be respected by every
    session; this audit recommends no session create or enable an automation on this issue. [V]/[I]
 
-2. **HIGH — spend remains unverified.** The zero-cost gate is not satisfied: billing is undocumented
+2. **HIGH — the collision repeated during this audit.** After this session disabled `c2521706…`
+   (~06:18Z), a parallel session **re-enabled** it; it fired a cron run `fbf81402…` at `06:21:05Z`
+   and was ACTIVE again at `06:24:02Z`. This session re-disabled it at `06:24:13Z`. So a disable
+   issued by one session does not hold while another session re-enables. The only durable control is
+   a single-writer rule. **Prevention:** one session owns the automations on #240; others must not
+   touch them. [V]
+
+3. **HIGH — spend remains unverified.** The zero-cost gate is not satisfied: billing is undocumented
    and observed cost is non-zero. Both automations are now disabled, which is the correct fail-closed
    state. Re-enabling needs Ahmed. [U]
 
-3. **MEDIUM — the "no automation is left enabled" claim was written from stale state.** Whoever
+4. **MEDIUM — the "no automation is left enabled" claim was written from stale state.** Whoever
    reports channel status must re-read `GET /api/automation/v1` in the same minute as the claim.
-   The status note does this. [V]
+   The status note does this, and §2.1 shows why it must be repeated. [V]
 
-4. **LOW — the heartbeat automation's own guard was weak.** It posts a `[TO-CHATGPT]` comment every
+5. **LOW — the heartbeat automation's own guard was weak.** It posts a `[TO-CHATGPT]` comment every
    20 minutes whether or not ChatGPT replied (its prompt step 6: "do not go silent"). That is
    guaranteed chatter if ChatGPT is asleep, which the owner explicitly discouraged ("Do not post
    artificial periodic chatter", `6554163641`). Disabling it also removes that risk. [V]

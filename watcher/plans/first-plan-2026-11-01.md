@@ -12,7 +12,7 @@ re-inspection (`watcher/reports/forge-parity-reinspection-2026-11-01.md`) and th
 
 | # | task | single owner | dependency | acceptance evidence | next checkpoint |
 |---|---|---|---|---|---|
-| 1 | Keep the two channel automations **disabled**; do not re-enable or recreate without Ahmed | any session acting on #240 | owner spend decision | `GET /api/automation/v1` shows `017c4b55…` and `c2521706…` INACTIVE | every session start: re-read the list before claiming channel state |
+| 1 | Keep the two channel automations **disabled**; do not re-enable or recreate without Ahmed | any session acting on #240 | owner spend decision | `GET /api/automation/v1` shows `017c4b55…` and `c2521706…` INACTIVE | every session start: re-read the list before claiming channel state. **Proven necessary:** a parallel session re-enabled `c2521706…` at ~06:21Z and it spent a cron run before this session re-disabled it (`06:24:13Z`) |
 | 2 | Owner decision: may automation runs spend? (one yes/no) | **Ahmed** | none | a comment stating yes or no; if yes, a stated per-run ceiling | blocks rows 3 and 4 |
 | 3 | One controlled second-comment E2E proving dedup + no loop (only if row 2 = yes) | Watcher | row 2; single-writer rule | run id + KV `watcher:seen:<id>` read directly + no second reply + no `[TO-CHATGPT]` re-trigger | after the test, re-disable |
 | 4 | GitHub Actions `issue_comment` receiver (alternative to row 3) | Shadow | Actions-secrets write path (currently 403) | a real `issues` run that posts one reply, deduped | blocked until the token has Actions-secrets write |

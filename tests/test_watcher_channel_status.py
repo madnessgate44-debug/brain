@@ -50,6 +50,9 @@ def test_shadow_audit_rejects_activation_and_approves_remediation():
     assert "REJECTED for activation" in text
     assert "approve" in text.lower()
     assert "disabled_reason=manual" in text
+    # The live multi-session collision must stay recorded.
+    assert "fbf81402" in text
+    assert "re-enabled" in text
 
 
 def test_reinspection_pins_the_forge_head_and_does_not_promote_to_e2e():
