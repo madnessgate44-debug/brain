@@ -1,0 +1,62 @@
+name: Watcher session log
+
+# Owner instruction (2026-11-01): keep a daily log on the repo with the complete
+# transcript of every conversation, including everything the owner said, verbatim.
+# This runs the exporter on a schedule so the archive is produced on main without a
+# live session. Never push main: the log arrives as a PR (CI + Shadow audit gate it).
+#
+# Requires repo secret OPENHANDS_API_KEY (Cloud API read).
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "UTC date to export (YYYY-MM-DD); blank = yesterday"
+        required: false
+  schedule:
+    - cron: "30 0 * * *"   # 02:30 Africa/Cairo, for the previous UTC day
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Export the day's conversations
+        env:
+          OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+        run: |
+          day="${{ github.event.inputs.date }}"
+          [ -z "$day" ] && day="$(date -u -d yesterday +%F)"
+          echo "exporting ${day}"
+          python3 scripts/export_conversations.py --date "$day"
+
+      - name: Publish as a pull request (never push main)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "watcher-bot"
+          git config user.email "watcher-bot@users.noreply.github.com"
+          git add docs/sessions
+          if git diff --cached --quiet; then
+            echo "no conversation changes to commit"
+            exit 0
+          fi
+          day="${{ github.event.inputs.date }}"
+          [ -z "$day" ] && day="$(date -u -d yesterday +%F)"
+          branch="session-log/${day}-$(date -u +%Y%m%d%H%M)"
+          git checkout -b "$branch"
+          git commit -m "docs(sessions): verbatim conversation log for ${day}"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "docs(sessions): verbatim conversation log for ${day}" \
+            --body "Automated daily archive of every conversation created on ${day} (UTC), including the owner's words verbatim. Secrets are redacted by the exporter. CI + Shadow audit gate the merge."
