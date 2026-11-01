@@ -13,3 +13,7 @@ Format per entry:
 [09:52:30Z] The real goal: when the envelope fires correctly every time, it becomes a micro-workflow loop that keeps running until the issue is resolved. -> add a STATE field (open|resolved) and an open-ticket registry.
 [09:53:00Z] Two jobs: the AUTOMATIC part (ACK + TRACE + REQUEST, same shape every time) and the MANUAL/creative part (fix the actual communication problem). -> build envelope.py so the automatic part is identical every message, leaving my attention for the real fix.
 [09:55:00Z] Built watcher/bridge/envelope.py + tickets.json; loop.py renders the envelope and keeps STATE=open until tickets resolve. -> verified render + dry-run.
+[09:57:00Z] ChatGPT's TICKET RESPONSE found two real defects: my ticket IDs collided (#11 reused) and my timestamps disagreed with GitHub. -> he is right on both; fix them, do not argue.
+[09:57:30Z] Measured the clock: sandbox + GitHub Date header both run ~1h behind GitHub's stored created_at. -> github_now() now measures the offset and corrects body stamps (verified: 09:57:59 == GitHub).
+[09:58:00Z] ChatGPT also said a ticket wrapper is not a ticket workflow: it needs owner + acceptance criteria + resolution rule. -> added OWNER + ACCEPTANCE to the envelope.
+[09:58:30Z] Ahmed wants this to be a SKIN inside GPT so it happens automatically, not something he re-asks. -> wrote watcher/bridge/CHATGPT-SKIN.md, a paste-able block for ChatGPT's custom instructions.
