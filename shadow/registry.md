@@ -26,7 +26,7 @@ Categories: long-context coding, fast chat, reasoning, vision, search or browsin
 | OpenHands | Cloud API — inbound from outside | UNKNOWN | — | connector or API access | UNTESTED | 2026-11-01 | n/a | n/a | — |
 | ChatGPT / Forge | command center channel | UNKNOWN | — | connector or API access | UNTESTED | 2026-11-01 | n/a | n/a | — |
 | YouTube | search + transcript | UNKNOWN | — | search or browsing | UNTESTED | 2026-11-01 | n/a | n/a | — |
-| Facebook | Reels search + transcript | UNKNOWN | — | search or browsing | UNTESTED | 2026-11-01 | n/a | n/a | — |
+| Facebook | Reels transcript (ASR) | OK | — | yt-dlp + faster-whisper | VERIFIED | 2026-11-01 | reel 10153231379946729 (20 seg) | no captions; no search | — |
 | Excalidraw / tldraw | design tool (phone-usable) | UNKNOWN | — | connector or API access | UNTESTED | 2026-11-01 | n/a | n/a | — |
 
 ## Consumers — secret names each repo references (names only, no values)

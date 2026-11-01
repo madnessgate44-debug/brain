@@ -11,8 +11,8 @@ UNKNOWN rows: 6 (counted 2026-11-01; an earlier count of 9 counted word occurren
 | GitHub Actions | OK | 2026-11-01 | `workflow_dispatch` of `forge.yml` accepted (204); run completed success; logs read via API | — |
 | Web browsing (HTTP) | PARTIAL | 2026-11-01 | example.com, youtube.com, facebook.com all 200 | JS-rendered pages unverified |
 | YouTube search + transcript | OK | 2026-11-01 | `yt-dlp` `ytsearch` + subtitle fetch worked; transcript of `lxgfhPQ1GSI` (1,475 lines) stored | `youtube-transcript-api` is IP-blocked; use yt-dlp subtitles |
-| Facebook Reels search + transcript | UNKNOWN | 2026-11-01 | facebook.com reachable (200) | Search/transcript not exercised |
-| Transcription `vtx.py` | PARTIAL | 2026-11-01 | `Firstborn/tools/transcribe/vtx.py` exists (200) | Not executed; deps unknown |
+| Facebook Reels transcript (ASR) | OK | 2026-11-01 | reel 10153231379946729 -> 20 segments via local faster-whisper | no captions exist; search not supported |
+| Transcription `vtx.py` | OK | 2026-11-01 | ran on reel 10153231379946729 -> 18 segments + Gemini explanation | slower than transcribe.py; superseded |
 | Screenshot / render | PARTIAL | 2026-11-01 | `/usr/bin/chromium` present | Playwright not installed |
 | Design tool (phone-usable) | UNKNOWN | 2026-11-01 | excalidraw.com 200, tldraw.com 308 (reachable) | Free / no-card requirement NOT confirmed from an official pricing page; not listed as usable |
 | Gemini API | OK | 2026-11-01 | `GET /v1beta/models` 200 with key | Free-tier rate limits not measured |

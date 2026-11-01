@@ -337,3 +337,13 @@ FINDINGS:
 - Duplicate PR defect is resolved by `--skip-existing` — UNPROVEN — The script `watcher/knowledge/tools/transcribe.py` is not present in the live evidence file contents to verify its implementation of `--skip-existing`.
 WEAKEST POINT: Relying on an empty `queue.txt` file for the scheduled learning loop without a populated backlog or dynamic feeder.
 FIX: Populate `watcher/knowledge/queue.txt` with at least one valid video URL or implement dynamic queue discovery.
+
+
+## Shadow audit — 2026-11-01T15:54:12Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: VERIFIED
+FINDINGS:
+- `--skip-existing` flag logic present in `transcribe.py` and workflow configuration — CONFIRMED — Verified via live evidence file contents.
+- Model IDs in fallbacks tested against live model probe — CONFIRMED — `gemini-flash-lite-latest` responds with HTTP 200, matching `GEMINI_FALLBACKS`.
+WEAKEST POINT: Truncated `transcribe.py` file contents in raw evidence block.
+FIX: Ensure complete file views for future audits to avoid truncation risks.
