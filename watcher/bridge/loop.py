@@ -147,12 +147,12 @@ def one_pass(token: str, state: dict, dry_run: bool) -> str:
     seq = int(state.get("seq", 0)) + 1
     body = build_reply(seq, counterpart, now)
     if dry_run:
-        return f"DRY-RUN would reply to {counterpart['id']} as seq {seq}"
+        return f"ALERT DRY-RUN would reply to {counterpart['id']} as seq {seq}"
     cid = post(body, token)
     state["last_seen_id"] = counterpart["id"]
     state["seq"] = seq
     save_state(state)
-    return f"replied to {counterpart['id']} with {cid} (seq {seq})"
+    return f"ALERT new counterpart {counterpart['id']} -> replied with {cid} (seq {seq})"
 
 
 def main() -> int:
