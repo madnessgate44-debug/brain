@@ -56,3 +56,28 @@ yeah one of your main job is to maintain the API keys and use them when they're 
 ### 2026-11-01T03:37:00Z — Ahmed
 
 now as soon as you understand this initiate I think it was all your train of thought and my conversations especially especially by conversations be tasted exactly SDR always a complete script of what I say in the next text
+
+### 2026-11-01T09:20:00Z — Ahmed (verbatim, this session)
+
+delete everything in thisrepo
+
+### 2026-11-01T09:21:00Z — Ahmed (verbatim)
+
+protected by you and also passed by Shadow and I didn't get any reports from you at all both of you ever
+ever so both of you guys three of you are fading
+
+### 2026-11-01T09:22:00Z — Ahmed (verbatim)
+
+now before you complete work in stop and upgrade your skills with epi keys and and check what really skills that you need to work on this
+
+### 2026-11-01T09:28:00Z — Ahmed (verbatim)
+
+so one of the things that you fix immediately also given a chromium to chat gptp
+
+### 2026-11-01T09:33:00Z — Ahmed (verbatim)
+
+instantly put update a ticket on the communication hub
+
+### 2026-11-01T09:36:00Z — Ahmed (verbatim)
+
+update the workflow text with your ticket on the right time with everything that you're doing and your workflow and my exact words and be an example for GPT to follow and please check that and and see if he is providing the ticket in the right format with the right information or not audit yourself and other team and keep on working on upgrading yourself you are a monkey you still need to be an AI

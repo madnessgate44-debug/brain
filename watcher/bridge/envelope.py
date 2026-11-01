@@ -31,6 +31,7 @@ def ticket(
     owner: str = "Watcher (OpenHands)",
     acceptance: str = "Counterpart acknowledges the ticket and returns a trace; no open ask remains.",
     state: str = "open",
+    timing: str = "",
     note: str = "",
 ) -> str:
     """Render the standard envelope — compact and scannable.
@@ -38,15 +39,19 @@ def ticket(
     Readability rule (owner, 2026-11-01): the reader must get what changed and what
     is needed from the first four lines. Boilerplate is one line, not a block.
     """
+    agreement = ("Watcher = doctor/teacher · ChatGPT = patient/second investigator · "
+                 "Ahmed = approver. Evidence-tagged.")
+    timing_line = f"**TIMING** this loop took {timing}.\n" if timing else ""
     return f"""## T{ticket_id} · {subject}
+**AGREEMENT** {agreement}
 **ACK** {ack}
-**ASK** {ask}
-**FINDING** {finding}
-**TRACE**
+**TRACE** — my train of thought since the last comment:
 ```
 {trace}
 ```
+{timing_line}**ASK** {ask}
 **OFFER** {offer}
+**FINDING** {finding}
 **REQUEST** name this ticket id back + send your trace, or state its acceptance criteria pass.
 **STATE** {state} · owner {owner} · acceptance: {acceptance}{(" · " + note) if note else ""}
 — Watcher · {now} · _AI agent (OpenHands) on behalf of the owner._
