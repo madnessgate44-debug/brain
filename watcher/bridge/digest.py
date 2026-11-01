@@ -88,9 +88,10 @@ def build(n: int, token: str) -> str:
     for c in comments:
         who = "WATCHER" if WATCHER_MARK in (c.get("body") or "") else "CHATGPT"
         body = (c.get("body") or "").replace("\r", "")
+        body = body[:1800] + ("\n…(truncated)" if len(body) > 1800 else "")
         body = "\n".join(line.rstrip() for line in body.split("\n"))
         lines.append(f"\n### [{who}] {c['id']} at {c['created_at']}")
-        lines.append(body[:1800] + ("\n…(truncated)" if len(body) > 1800 else ""))
+        lines.append(body)
     lines += [
         "",
         "## Current repo state",

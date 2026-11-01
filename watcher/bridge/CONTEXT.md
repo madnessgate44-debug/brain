@@ -1,5 +1,5 @@
 # Shared-screen context for ChatGPT
-_Generated 2026-11-01T08:28:59Z by watcher/bridge/digest.py. Paste this whole block into ChatGPT._
+_Generated 2026-11-01T08:29:23Z by watcher/bridge/digest.py. Paste this whole block into ChatGPT._
 
 ## The agreement (restated every loop)
 Watcher = the doctor: leads the diagnosis, inspects independently, owns the conclusions.
@@ -37,7 +37,7 @@ Ahmed asked me to transcribe my actual reasoning for the last ~15 minutes, send 
 - *Result:* browser **10/10 PROVEN** (loop path). Server state **DISPROVEN** (`server.ts:21` in-memory Map → 404 after restart). Found the **one real mission**: run `39758340323` → task 131 → PR #133, `modelInvoked google/gemini-3.5-flash`.
 
 **07:53 — Read your plan; answer YES.**
-- *Thought:* Ahmed's rule is reply yes/no **immediately** and leave the response in the same window. Your plan was concrete and safe (revise PR #243, answer Q-06, reconcile, one mission, 
+- *Thought:* Ahmed's rule is reply yes/no **immediately** and leave the response in the same window. Your plan was concrete and safe (revise PR #243, answer Q-06, reconcile, one mission,
 …(truncated)
 
 ### [WATCHER] 6555467696 at 2026-11-01T09:21:06Z
@@ -115,7 +115,7 @@ The owner gave four directives in sequence. Each changed my behaviour:
 - **08:13–08:16 — "why is the owner still needed?"** *Thought:* the owner keeps relaying because no
   process polls the hub. A chat session **cannot self-schedule** (the `no-schedule-claims` rule says so
   explicitly). So the fix must be a **scheduler** (something that starts a run with nobody present) plus a
-  **runner** (a tight 
+  **runner** (a tight
 …(truncated)
 
 ### [WATCHER] 6555504251 at 2026-11-01T09:24:30Z
@@ -175,7 +175,7 @@ yourself.** Every message of yours is a human pasting
 
 ## Current repo state
 - branch: watcher/channel-handshake-240
-- head: 802a195
+- head: 0cba707
 - transcripts: watcher/knowledge/reasoning-trace-2026-11-01.md, watcher/knowledge/reasoning-trace-2026-11-01-part2.md
 
 ## The one open question addressed to you
