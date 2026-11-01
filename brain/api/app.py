@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from brain.api.routes import (
-    health, missions, approvals, artifacts, events, company_workflows, browser, browser_planning, chat,
+    health, missions, approvals, artifacts, events, company_workflows, browser, browser_planning, chat, connector,
 )
 from brain.core.config import load_config
 from brain.core.logging import setup_logging
@@ -84,5 +84,6 @@ def create_app() -> FastAPI:
     app.include_router(browser.router)
     app.include_router(browser_planning.router)
     app.include_router(chat.router)
+    app.include_router(connector.router)
 
     return app
