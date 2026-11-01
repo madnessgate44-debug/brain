@@ -87,6 +87,7 @@ def test_main_export_is_deterministic(tmp_path, monkeypatch):
              "updated_at": "2026-11-01T18:00:00Z", "sandbox_status": "PAUSED",
              "sandbox_id": "volatile-xyz"}
     events = [_user_event("delete everything in thisrepo"), _user_event("carry on")]
+    monkeypatch.setattr(ex, "KEY", "test-key")  # main() bails if the module KEY is empty
     monkeypatch.setattr(ex, "list_conversations", lambda: [convo])
     monkeypatch.setattr(ex, "pull_events", lambda cid: (events, 1))
 
