@@ -24,3 +24,6 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# local Vercel CLI link (ids only, not portable)
+.vercel/
