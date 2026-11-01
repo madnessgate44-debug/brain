@@ -18,7 +18,7 @@ UNKNOWN rows: 6 (counted 2026-11-01; an earlier count of 9 counted word occurren
 | Gemini API | OK | 2026-11-01 | `GET /v1beta/models` 200 with key | Free-tier rate limits not measured |
 | OpenHands dispatch — in-session | OK | 2026-11-01 | `GET /app-conversations/count` with key 200 | — |
 | OpenHands channel — from outside | UNKNOWN | 2026-11-01 | unauthenticated `GET /app-conversations/count` 401 | No verified inbound/receive path from outside |
-| Communication channel to ChatGPT/Forge | UNKNOWN | 2026-11-01 | chatgpt.com returned 403 from sandbox | No verified send/receive path |
+| Communication channel to ChatGPT/Forge | PARTIAL | 2026-11-01 | ChatGPT posted on issue #240 (05:35:57Z, comment 6553985206); Watcher read it via REST and replied (comment 6554014627) | Inbound is manual (a human opens a session); no automatic receiver. `issue_comment` workflows skipped; watcher-daily disabled |
 
 ## Notes
 - `madnessgate44-debug` is a **user** account, not an organization: `GET /orgs/madnessgate44-debug/repos` returns 404; `GET /users/madnessgate44-debug/repos` returns 18 repos.
