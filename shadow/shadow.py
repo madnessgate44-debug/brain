@@ -20,10 +20,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 LOG = os.path.join(HERE, "audit-log.md")
 
-# Lowest tier first (WATCHER.md §14.1). Verified working 2026-11-01:
-#   gemini-2.5-flash OK | gemini-3-flash-preview OK | gemini-flash-lite-latest OK
-#   gemini-2.5-pro 404 (retired) | gemini-3.1-pro-preview 429 (free-tier quota)
-MODELS = ["gemini-2.5-flash", "gemini-3-flash-preview", "gemini-flash-lite-latest"]
+sys.path.insert(0, HERE)
+from keypool import routes  # noqa: E402
+
 BASE = "https://generativelanguage.googleapis.com/v1beta"
 KEY_ENV = "OHGeminiAPI"
 
@@ -43,18 +42,14 @@ WEAKEST POINT: <one line>
 FIX: <one line>"""
 
 
-def _key() -> str:
-    k = os.environ.get(KEY_ENV, "")
-    if not k:
-        raise RuntimeError(f"{KEY_ENV} not set")
-    return k
-
-
 def generate(prompt: str, timeout: int = 90) -> tuple[str, str]:
-    """Try each model in tier order; return (model_used, text)."""
-    key = _key()
-    last = "no attempt"
-    for model in MODELS:
+    """Walk the pool (key × model) and return (route_label, text).
+
+    A quota or rate error on one route moves to the next; one exhausted key never
+    stops the job (WATCHER.md §14.2 fallback).
+    """
+    last = "no route attempted"
+    for label, key, model in routes():
         url = f"{BASE}/models/{model}:generateContent"
         body = {"contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.2}}
@@ -64,12 +59,12 @@ def generate(prompt: str, timeout: int = 90) -> tuple[str, str]:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 d = json.load(r)
-            return model, d["candidates"][0]["content"]["parts"][0]["text"].strip()
+            return f"{label}:{model}", d["candidates"][0]["content"]["parts"][0]["text"].strip()
         except urllib.error.HTTPError as e:
-            last = f"{model}: HTTP {e.code}"
+            last = f"{label}:{model} HTTP {e.code}"
         except Exception as e:  # noqa: BLE001
-            last = f"{model}: {type(e).__name__}"
-    raise RuntimeError(f"all models failed ({last})")
+            last = f"{label}:{model} {type(e).__name__}"
+    raise RuntimeError(f"all routes failed (last: {last})")
 
 
 def _git(args: list[str]) -> str:
@@ -98,7 +93,7 @@ def audit(subject: str, context: str = "") -> str:
     model, verdict = generate(prompt)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     with open(LOG, "a") as f:
-        f.write(f"\n\n## Shadow audit — {ts} (model {model})\n\n{verdict}\n")
+        f.write(f"\n\n## Shadow audit — {ts} (route {model})\n\n{verdict}\n")
     return verdict
 
 
