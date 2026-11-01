@@ -337,3 +337,45 @@ FINDINGS:
 - Duplicate PR defect is resolved by `--skip-existing` — UNPROVEN — The script `watcher/knowledge/tools/transcribe.py` is not present in the live evidence file contents to verify its implementation of `--skip-existing`.
 WEAKEST POINT: Relying on an empty `queue.txt` file for the scheduled learning loop without a populated backlog or dynamic feeder.
 FIX: Populate `watcher/knowledge/queue.txt` with at least one valid video URL or implement dynamic queue discovery.
+
+
+## Shadow audit — 2026-11-01T15:54:12Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: VERIFIED
+FINDINGS:
+- `--skip-existing` flag logic present in `transcribe.py` and workflow configuration — CONFIRMED — Verified via live evidence file contents.
+- Model IDs in fallbacks tested against live model probe — CONFIRMED — `gemini-flash-lite-latest` responds with HTTP 200, matching `GEMINI_FALLBACKS`.
+WEAKEST POINT: Truncated `transcribe.py` file contents in raw evidence block.
+FIX: Ensure complete file views for future audits to avoid truncation risks.
+
+
+## Shadow audit — 2026-11-01T15:58:57Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: REJECTED
+FINDINGS:
+- PR #256 status and checks — CONFIRMED — Evidence shows branch at 8f4fcee, PR #256 mergeable=True with 7/7 passing checks.
+- Model IDs validity — CONFIRMED — Probe shows HTTP 200/429 for listed models.
+- Subject claims / Watcher artifact — UNPROVEN — The subject to audit section is completely empty; no claims or artifacts were provided for evaluation.
+WEAKEST POINT: The subject to audit section is blank, leaving no claims or artifacts to verify against the live evidence.
+FIX: Populate the subject to audit section with the specific claims or Watcher artifact that require auditing.
+
+
+## Shadow audit — 2026-11-01T16:00:07Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: PARTIAL
+FINDINGS:
+- Claim 1: Facebook Reels transcription proven by local faster-whisper — UNPROVEN — Live evidence contains no filesystem artifacts, logs, or file contents proving local faster-whisper execution on reel 10153231379946729.
+- Claim 2: Firstborn/tools/transcribe/vtx.py works — UNPROVEN — Live evidence contains zero file contents or execution output for `Firstborn/tools/transcribe/vtx.py`.
+- Claim 3: PR is docs-only and exposes no secret — CONFIRMED — PR #256 lists only `shadow/audit-log.md`, `shadow/registry.md`, and `watcher/connectors.md` in its changed files.
+WEAKEST POINT: Claiming execution success for local scripts and APIs without providing the actual file contents or execution output in the evidence block.
+FIX: Attach the actual execution logs and script outputs for faster-whisper and `vtx.py` to the evidence before submitting the claim.
+
+
+## Shadow audit — 2026-11-01T16:05:39Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: PARTIAL
+FINDINGS:
+- Facebook reel transcribes via ASR — CONFIRMED — Artifacts `watcher/knowledge/video/how-to-share-with-just-friends.md` and `.txt` are present in the files list and contain valid transcription and explanation data.
+- docs-only, no secret — CONFIRMED — File list contains only markdown docs, text files, python audit files, and registry updates; no secret values or credentials are exposed in the diff or files.
+WEAKEST POINT: The connector status update in `watcher/connectors.md` relies on local sandbox execution without an automated CI workflow step verifying the `faster-whisper` transcription on every PR.
+FIX: Add a lightweight CI workflow step or test to validate the ASR transcription pipeline so connector state transitions remain reproducible.
