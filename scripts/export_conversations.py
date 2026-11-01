@@ -52,7 +52,7 @@ def redact(text: str) -> str:
     return text
 
 
-def _get(url: str, tries: int = 6) -> dict:
+def _get(url: str, tries: int = 8) -> dict:
     for i in range(tries):
         req = urllib.request.Request(url)
         req.add_header("Authorization", "Bearer " + KEY)
@@ -62,7 +62,8 @@ def _get(url: str, tries: int = 6) -> dict:
                 return json.load(r)
         except urllib.error.HTTPError as e:
             if e.code == 429:
-                wait = min(60, 5 * (i + 1))
+                retry_after = e.headers.get("Retry-After") if e.headers else None
+                wait = int(retry_after) if (retry_after or "").isdigit() else min(120, 10 * (i + 1))
                 print(f"  429, backing off {wait}s", file=sys.stderr)
                 time.sleep(wait)
                 continue
