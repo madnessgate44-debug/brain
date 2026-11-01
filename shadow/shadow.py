@@ -115,13 +115,16 @@ def pr_evidence(pr: int) -> str:
     pend = [c["name"] for c in runs if c.get("status") != "completed"]
     fl = [f for f in _gh(f"/repos/{REPO}/pulls/{pr}/files?per_page=100") if isinstance(f, dict)]
     files = [f["filename"] for f in fl]
+    sizes = {f["filename"]: f.get("size", 0) for f in fl}
     # Include raw content of small changed files so the Shadow reads ground truth, not a diff excerpt.
     raw = []
     prio = sorted(files, key=lambda f: (0 if f.startswith(".github/workflows/") else 1))
     for f in prio:
         if f == "shadow/shadow.py":
             continue  # the auditor's own source is not the artifact under audit
-        if f.startswith(".github/workflows/") or f.endswith((".json",)) or (f.startswith(("watcher/bridge/","shadow/")) and f.endswith(".py")):
+        if (f.startswith(".github/workflows/") or f.endswith(".json")
+                or (f.endswith(".txt") and sizes.get(f, 0) <= 4000)
+                or (f.startswith(("watcher/bridge/", "shadow/")) and f.endswith(".py"))):
             c = _gh(f"/repos/{REPO}/contents/{urllib.parse.quote(f, safe='/')}?ref={sha}")
             if isinstance(c, dict) and c.get("content"):
                 import base64

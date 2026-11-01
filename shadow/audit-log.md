@@ -318,3 +318,12 @@ FINDINGS:
 - Live model probe and open tickets state are valid — CONFIRMED — Models return HTTP 200/429 and tickets match hub state.
 WEAKEST POINT: The workflow hardcodes `--model base` for local ASR without leveraging the live-tested Gemini models or verifying API keys.
 FIX: Pass a validated model from the live probe to the transcription script instead of defaulting to a static local model string.
+
+
+## Shadow audit — 2026-11-01T15:45:52Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: REJECTED
+FINDINGS:
+- Queue is empty ("queue is an empty backlog"), meaning `watcher/knowledge/queue.txt` lacks unprobed URLs to process — UNPROVEN — The raw contents of `watcher/knowledge/queue.txt` are missing from the evidence, so the backlog state cannot be verified.
+WEAKEST POINT: The queue file contents (`watcher/knowledge/queue.txt`) are omitted from the evidence bundle despite being referenced as an empty backlog.
+FIX: Include the full contents of `watcher/knowledge/queue.txt` in the live evidence block before claiming the queue state.
