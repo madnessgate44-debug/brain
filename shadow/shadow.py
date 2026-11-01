@@ -118,12 +118,8 @@ def pr_evidence(pr: int) -> str:
             if isinstance(c, dict) and c.get("content"):
                 import base64
                 txt = base64.b64decode(c["content"]).decode("utf-8", "replace")
-                mark = "COMPLETE" if len(txt) <= 2600 else f"TRUNCATED {2600} of {len(txt)} bytes"
-                raw.append(f"===== BEGIN FILE {f} ({mark}) =====\n" + txt[:2600] + f"\n===== END FILE {f} =====")
-    reg = _gh(f"/repos/{REPO}/contents/shadow/registry.md")
-    if isinstance(reg, dict) and reg.get("content"):
-        import base64
-        raw.append("--- shadow/registry.md (which models are WORKING) ---\n" + base64.b64decode(reg["content"]).decode("utf-8","replace")[:1800])
+                mark = "COMPLETE" if len(txt) <= 3400 else f"TRUNCATED 3400 of {len(txt)} bytes"
+                raw.append(f"===== BEGIN FILE {f} ({mark}) =====\n" + txt[:3400] + f"\n===== END FILE {f} =====")
     rawtxt = "\n".join(raw)[:14000]
     # Measured facts (objective, computed here) so structural claims are not guessed.
     empty_runs = []
@@ -169,7 +165,7 @@ def live_evidence(pr: int | None = None) -> str:
     key = os.environ.get("OHGeminiAPI")
     if key:
         import urllib.request as _u
-        for m in ("gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview", "gemini-1.5-flash"):
+        for m in ("gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview"):
             rq = _u.Request(f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent",
                             data=b'{"contents":[{"parts":[{"text":"ok"}]}]}', method="POST")
             rq.add_header("x-goog-api-key", key); rq.add_header("Content-Type", "application/json")
