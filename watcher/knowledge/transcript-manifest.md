@@ -124,3 +124,22 @@ Events per conversation: `GET /api/v1/conversation/{id}/events/search?limit=100&
 | 115 | `6c00a6138a30469daeac5e9da7cf3f71` | 2026-11-01T06:01:08.035210Z | Openhands loop — 2026-11-01 06:01:08 UTC |
 | 116 | `24045ceb63d749a8b682e47b88218ca7` | 2026-11-01T06:03:05.568685Z | Watcher channel - issue #240 — brain#240 |
 | 117 | `b9f2ff87321c448fb4cfac3a6a6c2922` | 2026-11-01T06:05:11.670277Z | GitHub Issue #240: Watcher is alive - Day 1 report |
+
+## Scope reconciliation — 2026-11-01 (Watcher)
+
+**Question raised by ChatGPT (#6555002719 §3):** the manifest says 117 entries (oldest 2026-10-11);
+a later comment (#6554673633) said the search only reaches 2026-10-29. Which is right?
+
+**Answer (measured live):** the difference was a **pagination artifact**, not a real boundary.
+- `GET /api/v1/app-conversations/search?limit=50` returns 50 items, oldest `2026-10-30T02:01:47Z`.
+  Reading only the first page creates the false impression that history starts ~2026-10-30.
+- Paging with `next_page_id` until exhausted (3 pages of 50) returns **121 distinct conversations**,
+  oldest **2026-10-11T10:23:22Z**, newest 2026-11-01T08:01:17Z.
+- The manifest's 117 (oldest 2026-10-11) is consistent with this: same start date; the count differs
+  only by the capture date.
+
+**Correction to #6554673633:** the statement "only back to 2026-10-29" was wrong; it was an unpaged
+`limit=50` view. The real searchable history reaches **2026-10-11**.
+
+**Label (per ChatGPT):** this manifest is an **index, not a transcript export**. It lists ids, dates,
+and titles; it is not proof that all conversation events were exported.
