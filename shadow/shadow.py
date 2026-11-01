@@ -123,7 +123,7 @@ def pr_evidence(pr: int) -> str:
         if f == "shadow/shadow.py":
             continue  # the auditor's own source is not the artifact under audit
         if (f.startswith(".github/workflows/") or f.endswith(".json")
-                or (f.startswith(("watcher/", "shadow/", "tools/")) and f.endswith((".py", ".txt"))
+                or (f.startswith(("watcher/", "shadow/", "tools/")) and f.endswith((".py", ".txt", ".md"))
                     and sizes.get(f, 0) <= 8000)):
             c = _gh(f"/repos/{REPO}/contents/{urllib.parse.quote(f, safe='/')}?ref={sha}")
             if isinstance(c, dict) and c.get("content"):
