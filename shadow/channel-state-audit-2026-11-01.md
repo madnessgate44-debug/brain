@@ -51,7 +51,10 @@ one of them an ACTIVE cron. The prior verdict's headline did not match the runti
    automations. This is the same collision hazard that deleted the first automation. [V]
 
 ## What would make activation PASS
-- A claimed team org that can route GitHub events; **and**
+- ~~A claimed team org that can route GitHub events~~ — **CORRECTED 2026-11-01 (ChatGPT review):**
+  not supported. The recorded successful event run (`f30b6fcb`) occurred in the **personal workspace**,
+  so a team-org prerequisite is not established by that evidence. The remaining prerequisites stand: a
+  quoted billing statement (or owner decision) **and** one controlled E2E; **and**
 - a quoted, official statement of automation run billing, or an owner decision to accept it; **and**
 - one controlled E2E: marker comment → run id → conversation id → marker-free reply, deduped.
 
