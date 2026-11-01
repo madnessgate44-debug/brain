@@ -64,3 +64,11 @@ def test_redact_leaves_plain_doc_text_alone():
 def test_text_of_flattens_blocks():
     assert ex.text_of([{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]) == "ab"
     assert ex.text_of("plain") == "plain"
+
+
+def test_render_is_deterministic():
+    # The manifest hashes the rendered section, so identical input must render identically;
+    # otherwise the scheduled export opens a noise PR on every run.
+    c = {"id": "x", "title": "T", "created_at": "2026-11-01T00:00:00Z", "sandbox_status": "PAUSED"}
+    evs = [_user_event("hello"), _user_event("world")]
+    assert ex.render_conversation(c, evs) == ex.render_conversation(c, evs)

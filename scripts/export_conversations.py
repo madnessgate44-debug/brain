@@ -231,13 +231,16 @@ def main() -> int:
                 f.write(sha256_bytes(gz) + "\n")
         n_owner = 0 if automation else sum(1 for e in events if owner_text(e))
         n_agent = sum(1 for e in events if is_agent_message(e))
+        section = render_conversation(c, events)
+        # Hash the rendered section, not the raw event dump: the dump carries volatile
+        # fields (updated_at, sandbox ids) the log never shows, so hashing it would open a
+        # noise PR on every scheduled run. This hash changes iff the committed log changes.
         manifest.append({"id": cid, "title": c.get("title"), "events": len(events), "pages": pages,
                          "owner_messages": n_owner, "agent_messages": n_agent,
                          "automation": automation,
                          "sandbox_status": c.get("sandbox_status"),
-                         "raw_sha256": sha256_bytes(gzip.compress(
-                             redact(json.dumps({"conversation": c, "events": events}, ensure_ascii=False)).encode()))})
-        sections.append(render_conversation(c, events))
+                         "log_sha256": sha256_bytes(section.encode())})
+        sections.append(section)
         print(f"  {cid[:12]} events={len(events)} owner={n_owner} agent={n_agent}"
               f"{' [automation]' if automation else ''}")
 
