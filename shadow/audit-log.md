@@ -369,3 +369,13 @@ FINDINGS:
 - Claim 3: PR is docs-only and exposes no secret — CONFIRMED — PR #256 lists only `shadow/audit-log.md`, `shadow/registry.md`, and `watcher/connectors.md` in its changed files.
 WEAKEST POINT: Claiming execution success for local scripts and APIs without providing the actual file contents or execution output in the evidence block.
 FIX: Attach the actual execution logs and script outputs for faster-whisper and `vtx.py` to the evidence before submitting the claim.
+
+
+## Shadow audit — 2026-11-01T16:05:39Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: PARTIAL
+FINDINGS:
+- Facebook reel transcribes via ASR — CONFIRMED — Artifacts `watcher/knowledge/video/how-to-share-with-just-friends.md` and `.txt` are present in the files list and contain valid transcription and explanation data.
+- docs-only, no secret — CONFIRMED — File list contains only markdown docs, text files, python audit files, and registry updates; no secret values or credentials are exposed in the diff or files.
+WEAKEST POINT: The connector status update in `watcher/connectors.md` relies on local sandbox execution without an automated CI workflow step verifying the `faster-whisper` transcription on every PR.
+FIX: Add a lightweight CI workflow step or test to validate the ASR transcription pipeline so connector state transitions remain reproducible.
