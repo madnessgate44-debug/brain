@@ -72,3 +72,32 @@ def test_render_is_deterministic():
     c = {"id": "x", "title": "T", "created_at": "2026-11-01T00:00:00Z", "sandbox_status": "PAUSED"}
     evs = [_user_event("hello"), _user_event("world")]
     assert ex.render_conversation(c, evs) == ex.render_conversation(c, evs)
+
+
+def test_main_export_is_deterministic(tmp_path, monkeypatch):
+    """Two full export runs over the same conversations produce byte-identical files.
+
+    This is the property the scheduled workflow depends on: if it did not hold, every run
+    would open a noise PR. The API is stubbed with a fixed conversation that carries
+    volatile fields the renderer ignores (updated_at, sandbox id).
+    """
+    import json
+
+    convo = {"id": "abc123", "title": "Watcher", "created_at": "2026-11-01T03:22:19Z",
+             "updated_at": "2026-11-01T18:00:00Z", "sandbox_status": "PAUSED",
+             "sandbox_id": "volatile-xyz"}
+    events = [_user_event("delete everything in thisrepo"), _user_event("carry on")]
+    monkeypatch.setattr(ex, "list_conversations", lambda: [convo])
+    monkeypatch.setattr(ex, "pull_events", lambda cid: (events, 1))
+
+    def run(out, raw):
+        monkeypatch.setattr("sys.argv", ["export_conversations.py", "--date", "2026-11-01",
+                                         "--out", str(out), "--raw-dir", str(raw)])
+        assert ex.main() == 0
+        return (out / "2026-11-01.md").read_bytes(), (out / "2026-11-01.manifest.json").read_bytes()
+
+    md1, man1 = run(tmp_path / "a", tmp_path / "ra")
+    md2, man2 = run(tmp_path / "b", tmp_path / "rb")
+    assert md1 == md2
+    assert man1 == man2
+    assert json.loads(man1)["conversations"][0]["log_sha256"] == json.loads(man2)["conversations"][0]["log_sha256"]
