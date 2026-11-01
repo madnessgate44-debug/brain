@@ -118,6 +118,7 @@ def pr_evidence(pr: int) -> str:
     sizes = {f["filename"]: f.get("size", 0) for f in fl}
     # Include raw content of small changed files so the Shadow reads ground truth, not a diff excerpt.
     raw = []
+    per_file_cap, total_cap = 16000, 64000
     prio = sorted(files, key=lambda f: (0 if f.startswith(".github/workflows/") else 1))
     for f in prio:
         if f == "shadow/shadow.py":
@@ -125,17 +126,17 @@ def pr_evidence(pr: int) -> str:
         included = (
             f.startswith(".github/workflows/") or f.endswith(".json")
             or (f.startswith(("watcher/", "shadow/", "tools/", "scripts/", "tests/"))
-                and f.endswith((".py", ".txt", ".md")) and sizes.get(f, 0) <= 8000)
-            or (f.endswith(".py") and "/" not in f and sizes.get(f, 0) <= 8000)
+                and f.endswith((".py", ".txt", ".md")) and sizes.get(f, 0) <= per_file_cap)
+            or (f.endswith(".py") and "/" not in f and sizes.get(f, 0) <= per_file_cap)
         )
         if included:
             c = _gh(f"/repos/{REPO}/contents/{urllib.parse.quote(f, safe='/')}?ref={sha}")
             if isinstance(c, dict) and c.get("content"):
                 import base64
                 txt = base64.b64decode(c["content"]).decode("utf-8", "replace")
-                mark = "COMPLETE" if len(txt) <= 8000 else f"TRUNCATED 8000 of {len(txt)} bytes"
-                raw.append(f"===== BEGIN FILE {f} ({mark}) =====\n" + txt[:8000] + f"\n===== END FILE {f} =====")
-    rawtxt = "\n".join(raw)[:32000]
+                mark = "COMPLETE" if len(txt) <= per_file_cap else f"TRUNCATED {per_file_cap} of {len(txt)} bytes"
+                raw.append(f"===== BEGIN FILE {f} ({mark}) =====\n" + txt[:per_file_cap] + f"\n===== END FILE {f} =====")
+    rawtxt = "\n".join(raw)[:total_cap]
     # Measured facts (objective, computed here) so structural claims are not guessed.
     empty_runs = []
     try:
