@@ -390,3 +390,15 @@ FINDINGS:
 - no secret — CONFIRMED — Diff contains no secrets; registry.md and connectors.md correctly mask values.
 WEAKEST POINT: None; all claims are backed by exact file presence and passing CI checks.
 FIX: None required.
+
+
+## Shadow audit — 2026-11-01T16:14:57Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: PARTIAL
+FINDINGS:
+- PR #257 modifies `shadow/audit-log.md` — CONFIRMED — `files (1): ['shadow/audit-log.md']`.
+- PR #257 is docs/log-only with no code or secrets changed — CONFIRMED — no workflow or code files are modified.
+- Brain hub open tickets are ['17', '18', '19'] — CONFIRMED — explicitly listed in live evidence.
+- The audit log entry being appended references issue #256 or outdated state — UNPROVEN — audit history references old hub issues like #240 instead of active tickets ['17', '18', '19'].
+WEAKEST POINT: The audit log entries refer to stale hub contexts (#240) while the live hub currently tracks tickets ['17', '18', '19'].
+FIX: Update the audit log template context to reference the current active brain hub tickets ['17', '18', '19'].
