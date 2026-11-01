@@ -296,3 +296,44 @@ FINDINGS:
 - Workflow pushes directly to main without PR review or branch protection check — DISPROVEN — `.github/workflows/watcher-learning.yml` lines 61-69: `git commit -m "knowledge(video): transcribe ${{ steps.pick.outputs.url }}" \n git push`
 WEAKEST POINT: The learning workflow commits and pushes directly to `main`, bypassing code review and creating a race condition on scheduled runs.
 FIX: Change the workflow to push to a feature branch and open a pull request automatically instead of executing a direct `git push` on `main`.
+
+
+## Shadow audit — 2026-11-01T15:37:33Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: REJECTED
+FINDINGS:
+- Pushing learning loop output via a feature branch and `gh pr create` — CONFIRMED — The workflow now correctly avoids pushing directly to main and opens a PR (`git checkout -b "$branch"`, `git push origin "$branch"`, `gh pr create --base main`).
+- No secret values printed in the workflow — CONFIRMED — `GEMINI_API_KEY` and `GH_TOKEN` are safely passed via environment variables, and no echo statements expose secrets.
+- Workflow execution policy check passes — DISPROVEN — The PR checks explicitly show pending/failing validation: `checks: 2 total, failing=[], pending=['Check execution policy files']`.
+
+WEAKEST POINT: The required workflow check 'Check execution policy files' remains pending on PR #253.
+FIX: Wait for the 'Check execution policy files' CI check to successfully complete before merging.
+
+
+## Shadow audit — 2026-11-01T15:43:43Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: PARTIAL
+FINDINGS:
+- PR #255 adds `--skip-existing` and queue logic to eliminate duplicate transcript PRs — CONFIRMED — The workflow reads `queue.txt` and `transcribe.py` invokes `--skip-existing`.
+- Live model probe and open tickets state are valid — CONFIRMED — Models return HTTP 200/429 and tickets match hub state.
+WEAKEST POINT: The workflow hardcodes `--model base` for local ASR without leveraging the live-tested Gemini models or verifying API keys.
+FIX: Pass a validated model from the live probe to the transcription script instead of defaulting to a static local model string.
+
+
+## Shadow audit — 2026-11-01T15:45:52Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: REJECTED
+FINDINGS:
+- Queue is empty ("queue is an empty backlog"), meaning `watcher/knowledge/queue.txt` lacks unprobed URLs to process — UNPROVEN — The raw contents of `watcher/knowledge/queue.txt` are missing from the evidence, so the backlog state cannot be verified.
+WEAKEST POINT: The queue file contents (`watcher/knowledge/queue.txt`) are omitted from the evidence bundle despite being referenced as an empty backlog.
+FIX: Include the full contents of `watcher/knowledge/queue.txt` in the live evidence block before claiming the queue state.
+
+
+## Shadow audit — 2026-11-01T15:49:55Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: REJECTED
+FINDINGS:
+- The queue is empty (`watcher/knowledge/queue.txt` contains only comments) making scheduled automated runs a no-op — DISPROVEN — Exact line from evidence: `# One video/reel URL per line. The scheduled run transcribes the NEWEST line and`
+- Duplicate PR defect is resolved by `--skip-existing` — UNPROVEN — The script `watcher/knowledge/tools/transcribe.py` is not present in the live evidence file contents to verify its implementation of `--skip-existing`.
+WEAKEST POINT: Relying on an empty `queue.txt` file for the scheduled learning loop without a populated backlog or dynamic feeder.
+FIX: Populate `watcher/knowledge/queue.txt` with at least one valid video URL or implement dynamic queue discovery.

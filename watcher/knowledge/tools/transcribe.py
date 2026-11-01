@@ -158,6 +158,8 @@ def main() -> int:
     ap.add_argument("--model", default="tiny")
     ap.add_argument("--lang", default="auto")
     ap.add_argument("--no-ai", action="store_true")
+    ap.add_argument("--skip-existing", action="store_true",
+                    help="exit 0 without rewriting if the output transcript already exists")
     a = ap.parse_args()
 
     import imageio_ffmpeg
@@ -166,6 +168,12 @@ def main() -> int:
     log(f"[1/4] probing {a.url}")
     meta = probe(a.url)
     log(f"  {meta['title']}  ({meta['duration']}s, {meta['extractor']})")
+
+    slug = slugify(meta["title"])
+    out = Path(a.out)
+    if a.skip_existing and (out / f"{slug}.md").exists():
+        log(f"already have {out / (slug + '.md')} - nothing to do")
+        return 0
 
     with tempfile.TemporaryDirectory(prefix="transcribe-") as td:
         workdir = Path(td)
@@ -181,8 +189,6 @@ def main() -> int:
             body, lang = transcribe(decode_float32(media, ffmpeg), a.model, a.lang)
             log(f"  {len(body.splitlines())} segments, language={lang}")
 
-    slug = slugify(meta["title"])
-    out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{slug}.txt").write_text(body + "\n", encoding="utf-8")
 
