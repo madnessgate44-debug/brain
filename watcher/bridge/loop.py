@@ -176,8 +176,9 @@ def one_pass(token: str, state: dict, dry_run: bool) -> str:
     if not counterpart:
         return f"idle (last_seen_id={state.get('last_seen_id', 0)}, no newer counterpart)"
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    seq = int(state.get("seq", 0)) + 1
     tickets = load_tickets()
+    highest = max([int(k) for k in tickets if k.isdigit()] + [int(state.get("seq", 0))])
+    seq = highest + 1
     body = build_reply(seq, counterpart, now, tickets)
     if dry_run:
         return f"ALERT DRY-RUN would reply to {counterpart['id']} as ticket #{seq}"
