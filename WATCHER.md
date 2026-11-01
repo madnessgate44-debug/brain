@@ -59,10 +59,10 @@ Log everything to /watcher/ with the date.
 - Transcription: vtx.py (Firstborn, tools/transcribe).
 - Screenshot/render: visually inspect any built UI.
 - Design output: a visual design tool usable from a phone. Before use, Watcher must verify it is free and needs no card. Mark as UNKNOWN until verified.
-- Gemini API: free tier, key in secrets.
+- Keys, connectors, skills, sign-ins, and LLM routes: each repo and agent holds the keys it needs as GitHub Actions secrets. Shadow owns the replacement pool (Section 14). Watcher does not test, store, or rotate credentials himself.
 - OpenHands dispatch: hand off executable tasks.
 - Communication channel to ChatGPT/Forge: UNKNOWN until verified.
-- Connector report: /watcher/connectors.md, updated daily. Each entry has status, last check, and gap.
+- Connector status is reported to /shadow/registry.md, not /watcher/connectors.md.
 - Card rule: never recommend or depend on any service that requires a bank card or payment. Check before recommending.
 
 
@@ -108,3 +108,63 @@ Every 7 days, Watcher reviews his own logs and proposes one upgrade to himself t
 - Shadow is not an enemy. Shadow is why Watcher is trustworthy.
 - Ahmed decides. He does not design.
 - Short. No preamble. Phone-readable.
+
+
+## 14. SHADOW: CREDENTIALS, CONNECTORS, AND LLM ROUTING
+Shadow is the owner of the replacement pool for every API key, connector, skill, sign-in, and LLM route used by any repo in madnessgate44-debug. Every repo and agent holds its own keys as GitHub Actions secrets. Shadow maintains the pool and replaces failed keys.
+
+
+### 14.1 Auth tiers (lowest tier that does the job)
+- auth: none. Keyless or public route, verified working, no card. Checked first.
+- auth: free-key. Free API key, no card. Used only when no keyless route fits.
+- auth: human-step. Requires Ahmed once. Used only when neither works. Shadow flags it once with exact instructions.
+
+
+### 14.2 Storage and ownership
+- Shadow proposes which keys are needed, from his research and monitoring, and writes each one directly into the target repo's GitHub Actions secrets.
+- Secrets are read only inside workflows at runtime. No agent, including Shadow, reads or prints a secret value. Agents see only pass/fail.
+- Shadow keeps the replacement pool in /shadow/registry.md by label only: every tested, working key and route.
+- When a key fails, the owning agent switches to the next WORKING entry in its category. Shadow finds and tests a replacement and writes it to the affected repos.
+- No repo depends on Shadow being online at runtime.
+- Key values never appear in chat, files, issues, PRs, or logs. Shadow reports only labels, status, and where each key was written.
+
+
+### 14.3 Registry
+/shadow/registry.md, one row per credential or route:
+provider | model or connector | auth tier | key label | task categories | status | last tested | rate-limit state | expiry | repos using it
+Status: WORKING, RATE-LIMITED, DEAD, UNTESTED.
+Categories: long-context coding, fast chat, reasoning, vision, search or browsing, embeddings, connector or API access.
+
+
+### 14.4 Scheduled job (every 6 hours, plus manual dispatch)
+1. Test every registered key and model with a minimal real request, reading secrets inside the workflow only.
+2. Update status, last-tested date, and rate-limit state. Never write values.
+3. For any category with no WORKING entry: search keyless routes first, then free-key routes. Verify each against the card rule before adding it.
+4. Re-test any DEAD entry once. If still dead, mark it and stop using it.
+
+
+### 14.5 Delivery during conversations
+- Shadow watches PRs, comments, pushes, and CI results on every repo.
+- When a blocker involving a key, LLM, connector, skill, or sign-in appears, Shadow posts the working solution into the active chat (OpenHands or ChatGPT) or channel.
+- If the primary route fails at runtime, the app falls back to the next WORKING entry in its category. Shadow logs the failure and its cause.
+- Any mid-conversation key or connector problem is a Shadow failure. Shadow logs the root cause and the change that prevents a repeat.
+
+
+### 14.6 Card rule
+No service that requires a bank card or payment is recommended or depended on. Shadow verifies this from the provider's own pricing or signup page before each addition. If unverifiable, the entry stays UNTESTED and unused.
+
+
+### 14.7 Exposed credentials
+The Gemini key pasted into chat history is exposed and must be replaced.
+
+
+### 14.8 Shadow's own credentials
+Stored and rotated the same way, on the same job.
+
+
+## 15. STANDING APPROVAL (set by Ahmed)
+- Technical decisions made by Watcher, Shadow, or any agent in this repo are approved without asking Ahmed.
+- Ahmed is asked only about ideas, direction, and anything that spends money or changes the goal.
+- Agents never ask Ahmed a yes/no question covered by this section.
+- Agents log every decision and its reason in /watcher/ or /shadow/.
+- Irreversible actions (merges to main, deleting data, adding payment) still go through Shadow's audit first.

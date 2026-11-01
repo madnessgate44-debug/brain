@@ -2,6 +2,7 @@
 
 Status report for Watcher (WATCHER.md v1.1 §6). Updated daily. Last check: 2026-11-01.
 Legend: OK = verified working this session | PARTIAL = reachable but not fully exercised | UNKNOWN = not verifiable from the sandbox | GAP = known missing.
+UNKNOWN rows: 6 (counted 2026-11-01; an earlier count of 9 counted word occurrences, not rows).
 
 | Connector | Status | Last check | Evidence | Gap |
 |---|---|---|---|---|
