@@ -1,8 +1,8 @@
 name: Shadow key sweep
 
-# DISABLED on creation. Enable with: gh workflow enable "Shadow key sweep"
-# Implements WATCHER.md §14.4. Runs every 6 hours and on manual dispatch.
-# Rule: this workflow never prints a secret value. Output is PASS/FAIL only.
+# Implements WATCHER.md §14.4: every 6 hours (plus manual dispatch) test every registered
+# key and model with a minimal real request, and record PASS/FAIL. Never prints a value.
+# Rule: this workflow never prints, echoes, or commits a secret value. Output is PASS/FAIL only.
 
 on:
   schedule:
@@ -20,21 +20,48 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Probe Gemini API route
+      - name: Sweep every registered Gemini key x model
         env:
-          GEMINI_KEY: ${{ secrets.OHGeminiAPI }}
+          K1: ${{ secrets.GEMINI_POOL_1 }}
+          K2: ${{ secrets.GEMINI_POOL_2 }}
+          K3: ${{ secrets.GEMINI_POOL_3 }}
+          K4: ${{ secrets.GEMINI_POOL_4 }}
+          K5: ${{ secrets.GEMINI_POOL_5 }}
+          K6: ${{ secrets.GEMINI_POOL_6 }}
+          K7: ${{ secrets.GEMINI_POOL_7 }}
+          KORG: ${{ secrets.OHGeminiAPI }}
         run: |
-          if [ -z "${GEMINI_KEY}" ]; then
-            echo "gemini: FAIL (secret not set)"
-            exit 0
-          fi
-          code=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}")
-          if [ "$code" = "200" ]; then
-            echo "gemini: PASS"
-          else
-            echo "gemini: FAIL (http ${code})"
-          fi
+          set +e
+          BASE="https://generativelanguage.googleapis.com/v1beta"
+          # Keep in sync with shadow/keypool.py MODELS.
+          MODELS="gemini-2.5-flash gemini-flash-lite-latest gemini-3-flash-preview gemini-3.1-flash-lite-preview"
+          echo "label|models_http|generate_http|result"
+          echo "-----|-----------|-------------|------"
+          for pair in "GEMINI_POOL_1:$K1" "GEMINI_POOL_2:$K2" "GEMINI_POOL_3:$K3" \
+                      "GEMINI_POOL_4:$K4" "GEMINI_POOL_5:$K5" "GEMINI_POOL_6:$K6" \
+                      "GEMINI_POOL_7:$K7" "OHGeminiAPI:$KORG"; do
+            label="${pair%%:*}"; key="${pair#*:}"
+            if [ -z "$key" ]; then
+              echo "${label}|-|-|NOT SET (secret absent)"
+              continue
+            fi
+            mcode=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "x-goog-api-key: ${key}" "${BASE}/models")
+            gcode="skip"
+            for m in $MODELS; do
+              c=$(curl -s -o /dev/null -w "%{http_code}" \
+                -H "x-goog-api-key: ${key}" -H "Content-Type: application/json" \
+                -d '{"contents":[{"parts":[{"text":"ok"}]}]}' \
+                "${BASE}/models/${m}:generateContent")
+              if [ "$c" = "200" ]; then gcode="$c"; break; fi
+              gcode="$c"
+            done
+            if [ "$mcode" = "200" ] && [ "$gcode" = "200" ]; then res="WORKING";
+            elif [ "$gcode" = "429" ]; then res="RATE-LIMITED";
+            else res="FAIL"; fi
+            echo "${label}|${mcode}|${gcode}|${res}"
+          done
+          echo "sweep complete; values never printed."
 
       - name: Probe GitHub API route
         env:
@@ -43,8 +70,4 @@ jobs:
           code=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${TOKEN}" \
             "https://api.github.com/user")
-          if [ "$code" = "200" ]; then
-            echo "github: PASS"
-          else
-            echo "github: FAIL (http ${code})"
-          fi
+          if [ "$code" = "200" ]; then echo "github: PASS"; else echo "github: FAIL (http ${code})"; fi
