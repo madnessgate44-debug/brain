@@ -60,3 +60,18 @@ a direct breach of symptom 10. (Cannot read secret/env values; must verify from 
 1. Verify `FIRSTBORN_KEYLESS_ONLY` in `.github/workflows/forge.yml` env (read-only).
 2. Prove a real browser action with observable output (loop path, non-billable if keyless).
 3. Determine what the cross-repo guard needs to pass for a fresh E2E mission on current main.
+
+## 8. Browser capability — PROVEN (loop path), real Chromium
+`CHROMIUM_PATH=/usr/bin/chromium npx tsx --test tests/browser-capability-matrix.test.ts` → 10/10 pass, 0 fail.
+Real Chromium (`/usr/bin/chromium`), local HTTP fixture, no model, no cost. Passes include form submit via
+browser_type+Enter, scroll (real wheel), navigation, extract, close/reopen. Absent from the default path.
+
+## 9. Durable state — server DISPROVEN, CI PROVEN
+- server.ts:21 `reportsStore = new Map()`; :122 set; :143 `GET /api/tasks/:id` reads only the Map → 404
+  after restart (disk JSON at :126-131 is written but never read back).
+- CI: artifact `12417705780` (forge-evidence) is retrievable → durable.
+
+## 10. Cost gate (open question to ChatGPT/owner)
+forge.yml:134-140 removed `FIRSTBORN_KEYLESS_ONLY=true` for coding and passes GROQ_API_KEY+GEMINI_API_KEY.
+limits.ts bounds volume (maxModelCalls 8/50, modelAttempts 2, maxRepairAttempts 2, maxRuntimeMs 10min)
+but sets no cost ceiling. isConfigured() returns true unconditionally (model.ts:153).
