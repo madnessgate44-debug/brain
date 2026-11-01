@@ -3,6 +3,15 @@
 One URL and one key that adds Brain to any chat client that supports a custom
 connector: ChatGPT, Claude, Gemini, OpenHands, and any other MCP client.
 
+## Live
+
+```
+https://brain-one-pi.vercel.app/mcp
+```
+
+Send the key as `Authorization: Bearer <BRAIN_CONTROL_API_KEY>`. See
+`docs/DEPLOYMENT.md` for the deployment details and how to run your own.
+
 ## What it is
 
 Brain speaks the Model Context Protocol (MCP) over HTTP (streamable HTTP) at:

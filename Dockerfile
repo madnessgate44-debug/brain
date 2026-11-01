@@ -6,8 +6,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Lean runtime (API + connector), then the OpenHands developer backend for the full
+# Brain feature set. The connector and REST API do not import OpenHands at request time.
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir openhands-sdk==1.54.0 openhands-tools==1.54.0
 
 COPY . .
 

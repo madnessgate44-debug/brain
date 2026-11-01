@@ -1,13 +1,13 @@
-# Runtime dependencies for the Brain API + MCP connector.
-# Mirrors pyproject [project].dependencies so hosts that read requirements.txt work.
+# Lean runtime dependencies for the Brain API + MCP connector.
+# Kept small so serverless hosts (Vercel, 500 MB uncompressed) stay well under limit.
+# The full Brain build, including the OpenHands developer backend, adds
+# openhands-sdk and openhands-tools; see the Dockerfile.
 fastapi==0.143.0
 uvicorn[standard]>=0.35.0
 sqlalchemy==2.0.36
 greenlet==3.1.1
 alembic==1.14.1
 pydantic>=2.13.5,<2.14
-openhands-sdk==1.54.0
-openhands-tools==1.54.0
 pydantic-settings>=2.15.0
 aiosqlite==0.20.0
 python-dotenv>=1.2.2
