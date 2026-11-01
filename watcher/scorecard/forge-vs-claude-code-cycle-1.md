@@ -26,7 +26,7 @@ negative), and one row gains a named root cause for a failing test.
 |---|---|---|---|---|
 | 1 | Repository exploration | CODE PRESENT; E2E UNVERIFIED | **CONFIRMED** | `src/agent/tools.ts:184` list_files, `:194` read_file, `:205` search, `:242` find_files |
 | 2 | Multi-file editing | CODE PRESENT; E2E UNVERIFIED | **CONFIRMED** | `src/agent/tools.ts:288` edit_file (exact-anchor), `:321` write_file (refuses overwrite) |
-| 3 | Terminal / command execution | PARTIAL | **CONFIRMED** | `src/services/test-runner.ts:15` `AUTHORIZED_COMMANDS` = 11 fixed entries; `:49` rejects anything else with exit 126. No shell/eval. |
+| 3 | Terminal / command execution | PARTIAL | **CONFIRMED** | `src/services/test-runner.ts:15` `AUTHORIZED_COMMANDS` = 10 fixed entries; `:49` rejects anything else with exit 126. No shell/eval. |
 | 4 | Test/build/debug loop | PARTIAL | **CONFIRMED** | `src/agent/forge.ts:852` bounded 3-attempt repair loop; `test-runner.ts:68` per-command SIGKILL + exit 124 timeout |
 | 5 | Browser interaction | CODE PRESENT; E2E UNVERIFIED | **CONFIRMED** | `src/services/browser.ts:56` BrowserService, `:68` `chromium.launch`, `:221` screenshot; `src/agent/tools.ts:374` buildBrowserTools |
 | 6 | GitHub / PR / CI | CODE PRESENT; E2E UNVERIFIED | **CONFIRMED** | `.github/workflows/forge.yml:4` `issues:[labeled]`, `:40` owner-only gate, `:43-45` `contents:write`/`pull-requests:write`; `src/agent/policy.ts:119` allowOpenPr |
