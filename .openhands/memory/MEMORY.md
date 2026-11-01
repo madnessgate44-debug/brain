@@ -20,6 +20,15 @@
 - **Traps:** `git push` with the stale embedded remote token prompts for a password and hangs —
   push with a fresh token via a python subprocess. Shadow's evidence reader now reads
   `scripts/`, `tests/`, root `*.py` too (it went UNPROVEN on code it never read).
+- **Workflow E2E:** `watcher-session-log.yml` runs unattended (dispatch via
+  `POST .../actions/workflows/<file>/dispatches`). Its first real run exposed a noise-PR bug:
+  the manifest hashed the raw dump (volatile) → PR #264 hashes the rendered section
+  (`log_sha256`) instead; proven deterministic. Migration PR #265, then the run is a no-op.
+- **Auto-opened branches get NO CI** (pushes by the bot `GITHUB_TOKEN` don't trigger other
+  workflows) — expected, not a failure; still Shadow-audit + merge them.
+- **Test trap:** `export_conversations.main()` returns 1 when module `KEY` is empty; CI has no
+  `OPENHANDS_API_KEY`, so stub `ex.KEY` in any exporter test. Shadow evidence caps are now
+  16KB/file, 64KB total.
 
 ## Mission 17 (2026-11-01) — Facebook Reels + the learning loop PUBLISHED to main
 - Owner correction: "why is something in a sandbox — it should be published on main and working."

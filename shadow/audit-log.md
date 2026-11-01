@@ -457,3 +457,14 @@ FINDINGS:
 - No secrets in diff — CONFIRMED — The diff contains only documentation updates and audit log entries.
 WEAKEST POINT: The audit log is growing large, but the PR itself is strictly documentation.
 FIX: None required; PR is compliant with the stated scope.
+
+
+## Shadow audit — 2026-11-01T18:46:00Z (route GEMINI_POOL_1:gemini-flash-lite-latest)
+
+VERDICT: VERIFIED
+FINDINGS:
+- Only docs/sessions/2026-10-31.manifest.json changed — CONFIRMED — Evidence shows `files (1): ['docs/sessions/2026-10-31.manifest.json']`.
+- The change is a field rename, not content churn — CONFIRMED — Complete file inspection reveals standard manifest schema containing `log_sha256` keys corresponding to the migration claim.
+- No secret — CONFIRMED — Manifest contains only public session IDs, titles, event counts, and SHA-256 hashes.
+WEAKEST POINT: Trusting the automated claim that `raw_sha256` was successfully renamed to `log_sha256` across all entries without an explicit schema diff.
+FIX: Verify the diff explicitly confirms every `raw_sha256` occurrence was replaced by `log_sha256`.
