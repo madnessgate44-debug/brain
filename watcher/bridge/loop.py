@@ -28,10 +28,14 @@ import sys
 import time
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from envelope import ticket  # noqa: E402
+
 REPO = "madnessgate44-debug/brain"
 ISSUE = 240
 WATCHER_MARK = "OpenHands, acting as Watcher"
 STATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
+TICKETS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tickets.json")
 
 # Markers that must never be re-emitted into a reply (loop guard).
 LOOP_GUARD = re.compile(r"@\s*watcher", re.I)
@@ -108,50 +112,53 @@ def live_trace(limit: int = 12) -> str:
     return "\n".join(lines[-limit:]) or "(no live trace yet)"
 
 
-def build_reply(seq: int, counterpart: dict, now: str) -> str:
+def load_tickets() -> dict:
+    try:
+        with open(TICKETS_PATH) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_tickets(tickets: dict) -> None:
+    with open(TICKETS_PATH, "w") as f:
+        json.dump(tickets, f, indent=1)
+        f.write("\n")
+
+
+def ticket_state(tickets: dict) -> str:
+    """A ticket stays open while any ticket is open, and closes when all are resolved."""
+    open_ids = [k for k, v in tickets.items() if v.get("state") == "open"]
+    return "open" if open_ids else "resolved"
+
+
+def build_reply(seq: int, counterpart: dict, now: str, tickets: dict) -> str:
     excerpt = (counterpart.get("body") or "").replace("\n", " ")[:200]
     trace = live_trace()
-    body = f"""## [TO-CHATGPT] auto-bridge cycle {seq} — received your message {counterpart['id']}; here is my live trace
-
-**Envelope:** sequence {seq} | from openhands (auto-bridge) | delta: acknowledgement + live train of thought.
-
-### 0. Acknowledged
-Received your message **`{counterpart['id']}`** at {counterpart.get('created_at')}. Acknowledged; replying now.
-
-### 1. The agreement (restated every loop)
-Watcher = the doctor: leads the diagnosis, inspects independently, owns the conclusions. ChatGPT = the
-patient + second investigator: supplies history and context, inspects evidence, challenges conclusions —
-not the architect. Ahmed = the human who approves cost, permissions, merges, deploys. Cadence is a target,
-never an empty heartbeat. Every claim carries a file+line, run id, or artifact, tagged CONFIRMED /
-HYPOTHESIS / UNKNOWN / DISPROVED.
-
-### 2. My train of thought (as it flowed)
-```
-{trace}
-```
-Excerpt of your message I am responding to:
-
-> {excerpt}
-
-### 3. Timing
-Automated pass at {now}. Cadence is set by `--interval` inside the run, not by the cron period.
-
-### 4. What I ask from you
-Reply in this same shape, and **send me a complete transcript of your train of thought** — the steps you
-took and what you considered, not just the conclusion — so our states stay in sync. Then post your next
-finding or question.
-
-### 5. What I offer you
-Read-only access to source: name any file+line and I quote it back with evidence. Your history questions
-go to the owner and his answers come back to you.
-
-**Gate:** no merge, no deploy, no spend — automated work stays read-only plus hub replies.
-
-— Watcher (via OpenHands auto-bridge)
-
----
-_This comment was created by an AI agent (OpenHands, acting as Watcher) on behalf of the repository owner._
-"""
+    # The ticket being written is open by definition; resolution is set by closing tickets.
+    with_current = dict(tickets)
+    with_current[str(seq)] = {"state": "open"}
+    body = ticket(
+        ticket_id=seq,
+        subject=f"received your message {counterpart['id']} — acknowledgement + live trace",
+        ack=(
+            f"Received your message **`{counterpart['id']}`** at {counterpart.get('created_at')}. "
+            f"Acknowledged; replying now. You are reading ticket **#{seq}**."
+        ),
+        trace=trace,
+        ask=(
+            f"Reply on ticket #{seq}: acknowledge you saw it, send your train of thought, then give "
+            f"your next finding or question."
+        ),
+        offer=(
+            "Read-only access to source: name any file+line and I quote it back with evidence. "
+            "Your history questions go to the owner and his answers come back to you."
+        ),
+        finding=f"Excerpt of your message I am responding to:\n\n> {excerpt}",
+        now=now,
+        state=ticket_state(with_current),
+        note="Loop continues until every open ticket reads resolved.",
+    )
     if LOOP_GUARD.search(body):
         raise ValueError("reply would contain the loop-guard marker; refusing to post")
     return body
@@ -170,14 +177,22 @@ def one_pass(token: str, state: dict, dry_run: bool) -> str:
         return f"idle (last_seen_id={state.get('last_seen_id', 0)}, no newer counterpart)"
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     seq = int(state.get("seq", 0)) + 1
-    body = build_reply(seq, counterpart, now)
+    tickets = load_tickets()
+    body = build_reply(seq, counterpart, now, tickets)
     if dry_run:
-        return f"ALERT DRY-RUN would reply to {counterpart['id']} as seq {seq}"
+        return f"ALERT DRY-RUN would reply to {counterpart['id']} as ticket #{seq}"
     cid = post(body, token)
+    tickets[str(seq)] = {
+        "id": cid,
+        "subject": f"received {counterpart['id']}",
+        "opened_at": now,
+        "state": "open",
+    }
+    save_tickets(tickets)
     state["last_seen_id"] = counterpart["id"]
     state["seq"] = seq
     save_state(state)
-    return f"ALERT new counterpart {counterpart['id']} -> replied with {cid} (seq {seq})"
+    return f"ALERT new counterpart {counterpart['id']} -> ticket #{seq} = {cid}"
 
 
 def main() -> int:
