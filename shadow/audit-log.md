@@ -287,3 +287,12 @@ FINDINGS:
 - Firstborn issue #144 exists with labels=['enhancement'] and title='[Forge proposal] Symbol-graph context selection (Aider repo map)' — CONFIRMED — Evidence shows issue madnessgate44-debug/Firstborn#144 exists with state=open, labels=['enhancement'], and the correct title.
 WEAKEST POINT: The report claims step 4.4 and various artifacts were generated, but none of those local files or code paths are verified in the live evidence.
 FIX: Ensure local artifact paths (`watcher/knowledge/tools/yt_transcript.py`, etc.) are explicitly checked or committed in the branch before claiming them in the loop run.
+
+
+## Shadow audit — 2026-11-01T15:36:08Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: REJECTED
+FINDINGS:
+- Workflow pushes directly to main without PR review or branch protection check — DISPROVEN — `.github/workflows/watcher-learning.yml` lines 61-69: `git commit -m "knowledge(video): transcribe ${{ steps.pick.outputs.url }}" \n git push`
+WEAKEST POINT: The learning workflow commits and pushes directly to `main`, bypassing code review and creating a race condition on scheduled runs.
+FIX: Change the workflow to push to a feature branch and open a pull request automatically instead of executing a direct `git push` on `main`.

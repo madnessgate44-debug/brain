@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
   issues: write
 
 jobs:
@@ -55,15 +56,24 @@ jobs:
           python3 watcher/knowledge/tools/transcribe.py "${{ steps.pick.outputs.url }}" \
             --out watcher/knowledge/video --model base
 
-      - name: Commit the knowledge
+      - name: Publish as a pull request (never push main)
         if: steps.pick.outputs.url != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          URL: ${{ steps.pick.outputs.url }}
         run: |
           git config user.name "watcher-bot"
           git config user.email "watcher-bot@users.noreply.github.com"
           git add watcher/knowledge/video
           if git diff --cached --quiet; then
             echo "nothing new to commit"
-          else
-            git commit -m "knowledge(video): transcribe ${{ steps.pick.outputs.url }}"
-            git push
+            exit 0
           fi
+          slug="$(printf '%s' "$URL" | tr -c 'a-z0-9' '-' | cut -c1-40)"
+          branch="knowledge/video-${slug}-$(date -u +%Y%m%d%H%M)"
+          git checkout -b "$branch"
+          git commit -m "knowledge(video): transcribe ${URL}"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "knowledge(video): transcribe ${URL}" \
+            --body "Automated transcript from the Watcher learning loop (WATCHER.md §4.4). Source: ${URL}. CI + Shadow audit gate the merge."
