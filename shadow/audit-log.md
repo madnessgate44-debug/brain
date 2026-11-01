@@ -308,3 +308,13 @@ FINDINGS:
 
 WEAKEST POINT: The required workflow check 'Check execution policy files' remains pending on PR #253.
 FIX: Wait for the 'Check execution policy files' CI check to successfully complete before merging.
+
+
+## Shadow audit — 2026-11-01T15:43:43Z (route OHGeminiAPI:gemini-flash-lite-latest)
+
+VERDICT: PARTIAL
+FINDINGS:
+- PR #255 adds `--skip-existing` and queue logic to eliminate duplicate transcript PRs — CONFIRMED — The workflow reads `queue.txt` and `transcribe.py` invokes `--skip-existing`.
+- Live model probe and open tickets state are valid — CONFIRMED — Models return HTTP 200/429 and tickets match hub state.
+WEAKEST POINT: The workflow hardcodes `--model base` for local ASR without leveraging the live-tested Gemini models or verifying API keys.
+FIX: Pass a validated model from the live probe to the transcription script instead of defaulting to a static local model string.
