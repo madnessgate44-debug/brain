@@ -228,6 +228,8 @@ async def test_specialist_prompt_uses_real_newlines_in_role_contract():
     assert "\\nScope applicability rule:" not in prompt
     assert "software company.\nYour responsibility:" in prompt
     assert "\\nYour responsibility:" not in prompt
+    assert "\nROLE SKILL (ux_designer):" in prompt
+    assert "Design the user journey" in prompt
 
 
 @pytest.mark.asyncio

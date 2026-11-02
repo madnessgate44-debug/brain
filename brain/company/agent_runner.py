@@ -2,6 +2,7 @@
 
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 from brain.company.llm_provider import OpenAICompatibleProvider
@@ -11,6 +12,29 @@ from brain.company.workflow import validate_stage_entry
 
 class AgentOutputError(ValueError):
     """Raised when a specialist returns malformed structured output."""
+
+
+_SKILLS_DIR = Path(__file__).with_name("skills")
+_SKILL_CACHE: dict[str, str] = {}
+
+
+def load_role_skill(role_key: str) -> str:
+    """Load a role's skill file (brain/company/skills/<role>.md); cached; empty if absent.
+
+    Skills add reusable method guidance to a role's prompt. A missing file is not an
+    error: the role still runs on its built-in contract.
+    """
+    if role_key in _SKILL_CACHE:
+        return _SKILL_CACHE[role_key]
+    path = _SKILLS_DIR / f"{role_key}.md"
+    text = path.read_text(encoding="utf-8").strip() if path.is_file() else ""
+    _SKILL_CACHE[role_key] = text
+    return text
+
+
+def _skill_block(role_key: str) -> str:
+    skill = load_role_skill(role_key)
+    return f"\n\nROLE SKILL ({role_key}):\n{skill}" if skill else ""
 
 
 _DECISION_VALUES = {
@@ -350,6 +374,7 @@ class SpecialistAgentRunner:
             + ", ".join(role.deliverables)
             + ". findings, blockers, evidence_needed must be arrays."
             + role_contract
+            + _skill_block(role_key)
         )
         prompt_evidence = _prepare_prompt_evidence(role_key, user_request, evidence)
         if role_key == "developer":

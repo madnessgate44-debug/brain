@@ -45,6 +45,9 @@ brain = "brain.cli:main"
 where = ["."]
 include = ["brain*"]
 
+[tool.setuptools.package-data]
+"brain.company" = ["skills/*.md"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
