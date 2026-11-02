@@ -73,8 +73,25 @@ Order R2 -> R3 -> R4 -> R5 -> R6 -> R7. Each is the smallest complete change for
 | Slice | State | Evidence |
 |---|---|---|
 | R1 spec | COMPLETED | `docs/GOAL_CLAUDE_CODE_PARITY.md` |
-| R2 shell tool | COMPLETED | `_developer_tools()` adds `terminal`; 2 new tests; suite 296 passed / 1 skipped |
-| R3 skills loader | COMPLETED | `brain/company/skills/*.md` (9 roles) + `load_role_skill`; 4 new tests; suite 300 passed / 1 skipped |
+| R2 shell tool | VERIFIED | tool list asserted by test **and** a real command ran through the SDK terminal: `echo HELLO_AUDIT_123 && pwd` -> `HELLO_AUDIT_123` / `/tmp`, exit 0 |
+| R3 skills loader | PARTIAL -> VERIFIED | 8 prompt-based roles verified by test; the **developer** role was a defect (skill loaded but discarded on the SDK path) — fixed in `e6eaf07`; suite 301 passed / 1 skipped |
+
+### Audit corrections (2026-11-02)
+
+An audit found my first R2/R3 report overstated its evidence. Two corrections:
+
+1. **R2/R3 were marked COMPLETED on structural evidence only** (the tool appears in a list; a file
+   exists). That violates the OS rule *build ≠ behavior*. R2 is now proven by a real run; R3 is
+   proven per role.
+2. **Real defect:** the developer role returns through `run_openhands_developer` *before* the
+   system prompt is used (`agent_runner.py:401`), so `developer.md` was loaded but never applied.
+   Fixed: `_task_prompt` now prepends the skill. Regression test added.
+
+Honest current count of Claude-Code-class primitives present: **1 of 7** as first-class features
+(agentic loop, in the developer role only, via the SDK). Sandbox/approval gates are strong and
+arguably ahead of Claude Code. Shell exists only inside the developer agent's loop, not as a Brain
+capability. Missing: SDK-format skills, hooks, session resume, parallel agents, MCP, repo-navigation
+tools.
 
 R2 note: the shell is added to the developer agent's tool list and runs inside the isolated
 temporary workspace. Brain's GitHub Actions check runner stays the authoritative test evidence;
