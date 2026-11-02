@@ -74,10 +74,11 @@ Order R2 -> R3 -> R4 -> R5 -> R6 -> R7. Each is the smallest complete change for
 |---|---|---|
 | R1 spec | COMPLETED | `docs/GOAL_CLAUDE_CODE_PARITY.md` |
 | R2 shell tool | COMPLETED | `_developer_tools()` adds `terminal`; 2 new tests; suite 296 passed / 1 skipped |
+| R3 skills loader | COMPLETED | `brain/company/skills/*.md` (9 roles) + `load_role_skill`; 4 new tests; suite 300 passed / 1 skipped |
 
 R2 note: the shell is added to the developer agent's tool list and runs inside the isolated
 temporary workspace. Brain's GitHub Actions check runner stays the authoritative test evidence;
 a local run is advisory. This is the Claude-Code-style "agent runs its own checks" behaviour,
 without letting the agent self-certify.
 
-Next slice: **R3 — a skills loader for the role prompts.**
+Next slice: **R4 — wire a lifecycle hook to the event bus.**
