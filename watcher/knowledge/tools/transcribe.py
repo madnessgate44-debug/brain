@@ -29,6 +29,20 @@ from pathlib import Path
 GEMINI_FALLBACKS = ("gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={k}"
 
+# yt-dlp failures caused by the source being unreachable from this runner
+# (bot-check, region lock, removed/private video) are environmental, not defects.
+UNFETCHABLE_HINTS = (
+    "sign in to confirm", "not a bot", "cookies", "unavailable",
+    "private video", "members-only", "age-restricted", "has been removed",
+)
+
+
+def _unfetchable(message: str) -> bool:
+    """True when yt-dlp failed because the source cannot be fetched here."""
+    lowered = message.lower()
+    return any(hint in lowered for hint in UNFETCHABLE_HINTS)
+
+
 EXPLAIN_PROMPT = """Explain this video to someone who has not watched it, using the
 timestamped transcript. Cover, in order: 1) What it is (one sentence). 2) Summary
 (a paragraph). 3) Key points (bullets, reusing the exact [mm:ss] stamps). 4) Walkthrough.
@@ -59,14 +73,21 @@ def probe(url: str) -> dict:
            "--print", "%(title)s\t%(id)s\t%(duration)s\t%(extractor)s", url]
     out = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if out.returncode != 0:
-        raise SystemExit(f"probe failed: {out.stderr.strip()[:300]}")
+        # Do not abort on a probe failure: the caption/audio attempt reports the
+        # real outcome and main() decides whether to skip or raise.
+        return {"title": url, "id": "", "duration": "", "extractor": "",
+                "url": url, "probe_error": out.stderr.strip()[:300]}
     title, vid, dur, ex = (out.stdout.strip().split("\t") + ["", "", "", ""])[:4]
     return {"title": title or vid, "id": vid, "duration": dur, "extractor": ex, "url": url}
 
 
-def youtube_captions(url: str, lang: str, workdir: Path) -> str | None:
-    """Return timestamped transcript from captions, or None if none exist."""
-    subprocess.run(
+def youtube_captions(url: str, lang: str, workdir: Path) -> tuple[str | None, str]:
+    """Return (timestamped transcript, error) from captions.
+
+    Transcript is None when no captions were written; error is the yt-dlp stderr
+    tail so the caller can distinguish "no captions" from "source unreachable".
+    """
+    proc = subprocess.run(
         [sys.executable, "-m", "yt_dlp", "--no-warnings", "--skip-download",
          "--write-auto-sub", "--write-sub", "--sub-langs", lang, "--sub-format", "vtt",
          "-o", str(workdir / "%(id)s.%(ext)s"), url],
@@ -74,7 +95,7 @@ def youtube_captions(url: str, lang: str, workdir: Path) -> str | None:
     )
     vtts = list(workdir.glob("*.vtt"))
     if not vtts:
-        return None
+        return None, proc.stderr.strip()[:300]
     lines, last = [], None
     for ln in vtts[0].read_text(encoding="utf-8", errors="replace").splitlines():
         if "-->" in ln:
@@ -89,7 +110,7 @@ def youtube_captions(url: str, lang: str, workdir: Path) -> str | None:
         ts = lines[-1][1] if lines and lines[-1][0] == "TS" else ""
         lines.append(("TX", ts, txt))
     body = "\n".join(f"[{t}] {x}" for k, t, x in (i for i in lines if i[0] == "TX"))
-    return body or None
+    return (body or None), ""
 
 
 def _stamp(raw: str) -> str:
@@ -109,7 +130,7 @@ def fetch_audio(url: str, workdir: Path) -> Path:
         capture_output=True, text=True, timeout=600,
     )
     if out.returncode != 0:
-        raise SystemExit(f"audio download failed: {out.stderr.strip()[:300]}")
+        raise SystemExit(out.stderr.strip()[:300])
     media = [p for p in workdir.iterdir() if p.stem == "media"]
     if not media:
         raise SystemExit("no media downloaded")
@@ -178,13 +199,21 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="transcribe-") as td:
         workdir = Path(td)
         log("[2/4] captions first")
-        body = youtube_captions(a.url, "en" if a.lang == "auto" else a.lang, workdir)
+        body, caption_err = youtube_captions(a.url, "en" if a.lang == "auto" else a.lang, workdir)
         lang = a.lang
         if body:
             log("  captions found (no ASR needed)")
         else:
             log("  no captions - downloading audio for local ASR")
-            media = fetch_audio(a.url, workdir)
+            try:
+                media = fetch_audio(a.url, workdir)
+            except SystemExit as exc:
+                detail = str(exc)
+                if _unfetchable(detail) or _unfetchable(meta.get("probe_error", "")) or _unfetchable(caption_err):
+                    log(f"  source not fetchable from this runner: {detail[:200]}")
+                    log("  skipping (queue it for a runner with authenticated cookies)")
+                    return 0
+                raise
             log(f"[3/4] transcribing locally ({a.model}, cpu/int8)")
             body, lang = transcribe(decode_float32(media, ffmpeg), a.model, a.lang)
             log(f"  {len(body.splitlines())} segments, language={lang}")
