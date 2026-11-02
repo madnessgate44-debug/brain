@@ -9,8 +9,15 @@ from brain.company.openhands_developer import (
     _safe_request_paths,
     _sdk_llm_kwargs,
     _sdk_model_name,
+    _task_prompt,
     _uses_native_gemini,
 )
+
+
+def test_developer_task_prompt_includes_the_role_skill():
+    prompt = _task_prompt("Do the work", {"repository_snapshot": {"source_contents": {}}})
+    assert "ROLE SKILL (developer):" in prompt
+    assert "Implementation Engineer" in prompt
 
 
 @pytest.mark.parametrize("path", ["../outside.py", "/tmp/outside.py", "src/../../outside.py", "brain\\unsafe.py"])

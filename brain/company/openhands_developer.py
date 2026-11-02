@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from brain.company.agent_runner import AgentOutputError
+from brain.company.agent_runner import AgentOutputError, load_role_skill
 
 
 _PATH_PATTERN = re.compile(
@@ -132,8 +132,10 @@ def _task_prompt(user_request: str, evidence: dict[str, Any]) -> str:
     file_plan = evidence.get("file_plan", [])
     acceptance = evidence.get("acceptance_criteria", [])
     architecture = evidence.get("architecture", "")
+    skill = load_role_skill("developer")
     return (
-        "Implement the assigned change in the provided repository workspace. "
+        (f"ROLE SKILL (developer):\n{skill}\n\n" if skill else "")
+        + "Implement the assigned change in the provided repository workspace. "
         "Use the provided file tools to inspect and edit files, and the terminal tool to run "
         "the repository's own check commands locally. Report exactly what you ran and its output. "
         "Brain re-runs the repository checks authoritatively after your patch is collected, so do "
