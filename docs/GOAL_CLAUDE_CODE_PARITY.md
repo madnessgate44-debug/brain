@@ -52,8 +52,8 @@ roles on that one runtime** instead of bespoke single-shot Gemini prompts.
 
 | # | Requirement | Acceptance criterion | Evidence expected |
 |---|---|---|---|
-| R1 | **This spec** exists and is accurate | file committed; every [V] row re-checkable | this file |
-| R2 | Shell tool on the developer path | a company mission can run a real command locally and record output | test + run log |
+| R1 | **This spec** exists and is accurate | file committed; every [V] row re-checkable | this file — DONE |
+| R2 | Shell tool on the developer path | the developer agent's tool list includes a local shell, scoped to the isolated workspace | `tests/test_openhands_developer.py` — DONE |
 | R3 | Skills loader for role prompts | roles load from `SKILL.md`-style files | test + a sample skill |
 | R4 | Hooks wired to the event bus | a PreToolUse hook fires and is logged | test + log |
 | R5 | Session persistence / resume | a mission resumes across process restart | test + restart log |
@@ -68,7 +68,16 @@ Order R2 -> R3 -> R4 -> R5 -> R6 -> R7. Each is the smallest complete change for
 - No merge without owner. No secret in any file.
 - Every claim tagged [V]/[C]/[I]/[A]/[U]/[B]; every check in the Verification Ledger.
 
-## 5. Current slice
+## 5. Progress
 
-This PR delivers **R1** (the spec) and stands up the branch `goal/claude-code-parity`. R2 begins
-next. Nothing else is claimed.
+| Slice | State | Evidence |
+|---|---|---|
+| R1 spec | COMPLETED | `docs/GOAL_CLAUDE_CODE_PARITY.md` |
+| R2 shell tool | COMPLETED | `_developer_tools()` adds `terminal`; 2 new tests; suite 296 passed / 1 skipped |
+
+R2 note: the shell is added to the developer agent's tool list and runs inside the isolated
+temporary workspace. Brain's GitHub Actions check runner stays the authoritative test evidence;
+a local run is advisory. This is the Claude-Code-style "agent runs its own checks" behaviour,
+without letting the agent self-certify.
+
+Next slice: **R3 — a skills loader for the role prompts.**

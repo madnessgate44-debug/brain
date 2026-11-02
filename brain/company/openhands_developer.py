@@ -2,8 +2,9 @@
 
 The upstream SDK is used as a tool-using coding agent. Brain retains ownership of
 requirements, role order, GitHub writes, test execution, independent review, and release
-gates. This adapter deliberately exposes file editing only; repository commands and tests
-are executed later by Brain's existing GitHub Actions verification path.
+gates. The adapter exposes file editing plus a local shell scoped to the isolated temporary
+workspace, so the developer can run the repository's own checks while it works. Brain's
+GitHub Actions path remains the authoritative test evidence; a local run is advisory.
 """
 
 from __future__ import annotations
@@ -101,6 +102,30 @@ def _sdk_llm_kwargs(model: str, api_key: str, base_url: str | None) -> dict[str,
     }
 
 
+def _developer_tools(base_url: str | None) -> list[Any]:
+    """File-editing tools plus a local shell, scoped to the isolated temporary workspace.
+
+    The shell lets the developer run the repository's own checks while it works. It runs
+    inside the temporary workspace only; Brain re-runs the checks authoritatively.
+    """
+    from openhands.sdk import Tool
+
+    if _uses_native_gemini(base_url):
+        # Gemini-native file tools avoid routing native tool calls through the
+        # OpenAI-compatible file_editor schema (matches the upstream example).
+        from openhands.tools.gemini import GEMINI_FILE_TOOLS
+
+        tools = list(GEMINI_FILE_TOOLS)
+    else:
+        from openhands.tools.file_editor import FileEditorTool
+
+        tools = [Tool(name=FileEditorTool.name)]
+    from openhands.tools.terminal import TerminalTool
+
+    tools.append(Tool(name=TerminalTool.name))
+    return tools
+
+
 def _task_prompt(user_request: str, evidence: dict[str, Any]) -> str:
     snapshot = evidence.get("repository_snapshot", {})
     source_contents = snapshot.get("source_contents", {}) if isinstance(snapshot, dict) else {}
@@ -109,8 +134,10 @@ def _task_prompt(user_request: str, evidence: dict[str, Any]) -> str:
     architecture = evidence.get("architecture", "")
     return (
         "Implement the assigned change in the provided repository workspace. "
-        "Use the provided file tools to inspect and edit files. Do not claim tests were run; "
-        "Brain will run the real repository checks after your patch is collected.\n\n"
+        "Use the provided file tools to inspect and edit files, and the terminal tool to run "
+        "the repository's own check commands locally. Report exactly what you ran and its output. "
+        "Brain re-runs the repository checks authoritatively after your patch is collected, so do "
+        "not claim Brain's checks passed.\n\n"
         f"USER REQUEST:\n{user_request}\n\n"
         f"ACCEPTANCE CRITERIA:\n{acceptance!r}\n\n"
         f"ARCHITECTURE DECISIONS:\n{architecture}\n\n"
@@ -120,6 +147,8 @@ def _task_prompt(user_request: str, evidence: dict[str, Any]) -> str:
         "regression tests when appropriate, do not edit files outside the planned paths unless "
         "a necessary existing file is present in the workspace, do not add dependencies unless "
         "required by the architecture, and do not perform network access or external side effects. "
+        "You may run the repository's own test, lint, and build commands locally; never run "
+        "commands that reach the network. "
         "Make the actual file edits now. A verbal description without changed files is a failure."
     )
 
@@ -131,7 +160,7 @@ def _run_sdk_sync(
 ) -> dict[str, Any]:
     """Run the SDK in a temporary workspace and return only validated changed file contents."""
     try:
-        from openhands.sdk import LLM, Agent, Conversation, Tool
+        from openhands.sdk import LLM, Agent, Conversation
     except ImportError as exc:
         raise AgentOutputError(
             "OpenHands developer backend is not installed; install Brain's declared dependencies."
@@ -177,17 +206,7 @@ def _run_sdk_sync(
             target.write_text(text, encoding="utf-8")
 
         llm = LLM(**_sdk_llm_kwargs(model, api_key, base_url))
-        if _uses_native_gemini(base_url):
-            # Match OpenHands' upstream Gemini example: Gemini-native file tools avoid
-            # routing native tool calls through the OpenAI-compatible file_editor schema.
-            from openhands.tools.gemini import GEMINI_FILE_TOOLS
-
-            agent_tools = list(GEMINI_FILE_TOOLS)
-        else:
-            from openhands.tools.file_editor import FileEditorTool
-
-            agent_tools = [Tool(name=FileEditorTool.name)]
-        agent = Agent(llm=llm, tools=agent_tools)
+        agent = Agent(llm=llm, tools=_developer_tools(base_url))
         conversation = Conversation(agent=agent, workspace=str(root))
         conversation.send_message(_task_prompt(user_request, evidence))
         conversation.run()
@@ -240,8 +259,8 @@ def _run_sdk_sync(
             },
             "implementation_notes": (
                 f"OpenHands SDK produced {len(changed)} changed file(s) in an isolated temporary "
-                "workspace using file-editing tools only. Tests were not run by this agent; Brain's "
-                "GitHub Actions check runner must provide that evidence."
+                "workspace. The developer agent may have run local commands there; those runs are "
+                "advisory. Brain's GitHub Actions check runner provides the authoritative evidence."
             ),
         },
         "findings": [],
