@@ -56,7 +56,7 @@ roles on that one runtime** instead of bespoke single-shot Gemini prompts.
 | R2 | Shell tool on the developer path | the developer agent's tool list includes a local shell, scoped to the isolated workspace | `tests/test_openhands_developer.py` — DONE |
 | R3 | Skills loader for role prompts | roles load from `SKILL.md`-style files | test + a sample skill |
 | R4 | Hooks wired to the event bus | a PreToolUse hook fires and is logged | test + log — DONE |
-| R5 | Session persistence / resume | a mission resumes across process restart | test + restart log |
+| R5 | Session persistence / resume | a mission resumes across process restart | test + restart log — DONE |
 | R6 | Shadow gets tools + a real loop | Shadow can read a diff itself, not just a prompt | test + run log — DONE |
 | R7 | Parallel role execution | independent gates run concurrently | timing test — DONE |
 
@@ -78,6 +78,7 @@ Order R2 -> R3 -> R4 -> R5 -> R6 -> R7. Each is the smallest complete change for
 | R4 lifecycle hook | VERIFIED | `brain/company/hooks.py` builds a `HookConfig` with a PreToolUse command hook; attached to the developer `Conversation`. `tests/test_hooks.py` drives `HookManager.run_pre_tool_use` on the real SDK event bus: the hook runs, logs `{"tool": "terminal"}`, and returns `allow`. Suite 303 passed / 1 skipped |
 | R6 Shadow tool loop | VERIFIED | `shadow/shadow.py` gains 5 read-only tools (`read_file`, `list_dir`, `search`, `read_workflow`, `read_log`); `audit()` runs a bounded loop (max 4 steps): the model may reply `TOOL: name {json}`, the result is fed back, until it emits `VERDICT:`. Files are read at the PR head sha, not the default branch. `tests/test_shadow_tools.py` (5 tests) proves the loop calls a tool, feeds the result back, stops at max steps, and logs the tools used. Live run: `read_file shadow/report.py` at PR #272 head returned the file (`_needs_fix` present). Suite 309 passed / 1 skipped |
 | R7 parallel gates | VERIFIED | QA, security, and customer review are independent reads of the same frozen evidence, so `engine.py` runs them with `asyncio.gather`. The gates are still evaluated in documented order, so a failure blocks exactly as before. `tests/test_company_engine.py::test_independent_review_gates_run_concurrently` gives each gate a 0.15s sleep and asserts the run finishes under 0.35s (sequential would be >=0.45s). Suite 310 passed / 1 skipped |
+| R5 session resume | VERIFIED | `brain/company/session.py` wraps the SDK's create-or-resume: `open_conversation(session_id, workspace, agent_factory)` persists base state + event log under a stable dir (`$BRAIN_SESSION_DIR` or `.brain/sessions`) and reopens with `agent=None` to restore history. `tests/test_session_resume.py` proves a second open (simulated restart) returns the same conversation id and its prior events, and that the agent factory is not called on the resume path. Live probe: SDK logged "Resumed conversation ... from persistent storage" with the prior events intact. Suite 312 passed / 1 skipped |
 
 ### Audit corrections (2026-11-02)
 
