@@ -23,6 +23,11 @@ from pathlib import Path
 
 AGENTS = ("watcher", "shadow", "session")
 
+# W1 gate: the share of recent commits that change only docs (report-only). It must fall, so this
+# is a ratchet: CI fails if the ratio rises above this. Lower it as the ratio improves; never
+# raise it. Set just above the level at the time the gate was added (2026-11-03: 37%).
+MAX_REPORT_ONLY_PCT = 40.0
+
 
 def _run(args: list[str], cwd: Path) -> str:
     try:
@@ -91,10 +96,15 @@ def build(repo: Path, commits: int) -> dict:
             "has_scheduled_loop": bool(sched),
             "expected_scheduled": expected,
         })
+    pct = (100.0 * report_only / total) if total else 0.0
+    over = pct > MAX_REPORT_ONLY_PCT
     return {
         "agents": agents,
         "report_only": report_only,
         "commits_with_files": total,
+        "report_only_pct": pct,
+        "max_report_only_pct": MAX_REPORT_ONLY_PCT,
+        "report_only_over_limit": over,
         "missing_expected": [a["agent"] for a in agents if a["expected_scheduled"] and not a["has_scheduled_loop"]],
         "open_gaps": [a["agent"] for a in agents if not a["has_scheduled_loop"]],
     }
@@ -107,8 +117,14 @@ def render(report: dict) -> str:
         loop = "scheduled loop" if a["has_scheduled_loop"] else "NO scheduled loop"
         lines.append(f"{mark} **{a['agent']}** — {loop} ({len(a['workflows'])} workflow(s))")
     total = report["commits_with_files"]
-    pct = (100 * report["report_only"] / total) if total else 0.0
-    lines += ["", f"Report-only commits: {report['report_only']}/{total} ({pct:.0f}%) — W1"]
+    pct = report.get("report_only_pct", (100 * report["report_only"] / total) if total else 0.0)
+    limit = report.get("max_report_only_pct", MAX_REPORT_ONLY_PCT)
+    lines += ["", f"Report-only commits: {report['report_only']}/{total} ({pct:.0f}%) — W1 (limit {limit:.0f}%)"]
+    if report.get("report_only_over_limit"):
+        lines.append(
+            f"FAIL — report-only {pct:.0f}% is above the {limit:.0f}% ratchet. "
+            "Ship code, tests, or workflows, not only docs."
+        )
     if report["missing_expected"]:
         lines.append(f"REGRESSION — agents expected to be scheduled but are not: {', '.join(report['missing_expected'])}")
     if report["open_gaps"]:
@@ -127,9 +143,10 @@ def main() -> int:
         print(json.dumps(report, indent=2))
     else:
         print(render(report), end="")
-    # Fail only on a regression (an agent that should be scheduled but is not). The session
-    # agent's missing loop is a known, reported gap, not a hard failure.
-    return 1 if report["missing_expected"] else 0
+    # Fail on a regression (an agent that should be scheduled but is not), and on the W1 ratchet
+    # (the report-only ratio must not rise). The ratchet is what makes W1 bite instead of print.
+    failed = bool(report["missing_expected"]) or bool(report.get("report_only_over_limit"))
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

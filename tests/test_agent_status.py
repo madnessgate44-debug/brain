@@ -75,3 +75,41 @@ def test_render_names_the_open_gap(status, tmp_path):
     text = status.render(status.build(_repo(tmp_path), commits=0))
     assert "session" in text
     assert "W4" in text
+
+
+def _git_repo(tmp_path: Path, docs_only: int, code: int) -> Path:
+    import subprocess
+
+    repo = _repo(tmp_path)
+    def git(*a):
+        subprocess.run(["git", *a], cwd=repo, capture_output=True, text=True, check=True,
+                       env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                            "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin"})
+    git("init", "-q")
+    for i in range(code):
+        (repo / f"c{i}.py").write_text("x=1\n", encoding="utf-8")
+        git("add", "-A"); git("commit", "-qm", f"code {i}")
+    for i in range(docs_only):
+        (repo / f"d{i}.md").write_text("x\n", encoding="utf-8")
+        git("add", "-A"); git("commit", "-qm", f"doc {i}")
+    return repo
+
+
+def test_report_only_ratio_and_gate(status, tmp_path):
+    repo = _git_repo(tmp_path, docs_only=8, code=2)  # 8/10 = 80%
+    report = status.build(repo, commits=60)
+    assert report["report_only"] == 8 and report["commits_with_files"] == 10
+    assert report["report_only_pct"] == 80.0
+    assert report["report_only_over_limit"] is True  # 80% > 40% ratchet
+
+
+def test_gate_passes_below_the_ratchet(status, tmp_path):
+    repo = _git_repo(tmp_path, docs_only=1, code=9)  # 10%
+    report = status.build(repo, commits=60)
+    assert report["report_only_over_limit"] is False
+
+
+def test_render_shows_the_fail_line(status, tmp_path):
+    repo = _git_repo(tmp_path, docs_only=8, code=2)
+    text = status.render(status.build(repo, commits=60))
+    assert "FAIL" in text and "ratchet" in text
