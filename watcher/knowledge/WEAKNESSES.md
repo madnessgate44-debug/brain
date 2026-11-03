@@ -14,9 +14,10 @@ closed. A weakness stays until its check passes.
 |---|---|---|---|
 | **Watcher** | `watcher/knowledge/tools/*`, daily learning loop | **Yes** — `watcher-daily.yml`, `watcher-learning.yml`, `watcher-session-log.yml` | workflow inventory |
 | **Shadow** | `shadow/shadow.py`, audits each PR + key sweep | **Yes** — `shadow-audit.yml`, `shadow-keys.yml`, `shadow-report.yml` | workflow inventory |
-| **Session agent (me)** | the OpenHands session itself; commits authored `openhands` | **No** — nothing schedules it; it runs only when the owner opens a session | 29 commits, no workflow names it |
+| **Session agent (me)** | the OpenHands session; commits authored `openhands` | **Yes** — `session-agent-loop.yml` (added 2026-11-03) starts a Cloud conversation on a schedule | 29 commits; `scripts/start_session_loop.py` |
 
-The asymmetry is the point: two agents have a loop, the third does not. See W4.
+All three now have a scheduled loop. The session agent's was added 2026-11-03 (`session-agent-loop.yml` +
+`scripts/start_session_loop.py`); before that, two agents had a loop and the third did not. See W4.
 
 ## W1 — We report instead of build
 - **Evidence:** of the last 29 file-changing commits, **10 are `.md`-only** (report-only).
@@ -45,11 +46,16 @@ The asymmetry is the point: two agents have a loop, the third does not. See W4.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
-  4.2-4.4 were **MISSING**. **And the session agent has no loop at all** — no workflow runs it;
-  the owner must open a session by hand.
-- **Belongs to:** Shadow, Watcher (now scheduled), and **the session agent (still unscheduled)**.
+  4.2-4.4 were **MISSING**. The session agent had no loop at all — no workflow ran it; the owner
+  had to open a session by hand.
+- **Belongs to:** Shadow, Watcher, and the session agent.
 - **Closure:** every capability has a scheduled workflow that runs it unattended.
-- **Check:** `scripts/agent_status.py` — it names any agent with zero scheduled workflows.
+- **Check:** `scripts/agent_status.py` — it names any agent with zero scheduled workflows, and
+  fails if an agent that should be scheduled loses its loop.
+- **Status: CLOSED for all three (2026-11-03).** Watcher (`watcher-learning.yml`), Shadow
+  (`shadow-audit.yml`), and the session agent (`session-agent-loop.yml`) all have a cron loop.
+  `scripts/agent_status.py` reports `[x]` for all three and exits 0. Re-opens if any loses its
+  schedule.
 
 ## W5 — We self-diagnose accurately, then do not close
 - **Evidence:** Shadow's `RESPONSIBILITIES_AND_GAPS.md` names G1-G7 precisely; they are still
@@ -74,7 +80,9 @@ the thing that is checked.
 
 ## What is already checked
 - `purpose_audit.py` reports **depth** (loop coverage, patch contract, temp-dir, live proof, and
-  unscheduled tools), so W2/W3/W4 are measured, not asserted.
+  unscheduled tools), so W2/W3 are measured, not asserted.
 - `scripts/agent_status.py` reports the three agents, their loops, and the report-only ratio, so
-  W1/W4 for the session agent are visible.
+  W1/W4 are measured. W4 is closed (all three scheduled) and the check now fails on regression.
+- `session-agent-loop.yml` + `scripts/start_session_loop.py` give the session agent a loop, so
+  its improvement no longer depends on the owner opening a session.
 - This ledger makes W1-W6 checkable instead of forgotten.

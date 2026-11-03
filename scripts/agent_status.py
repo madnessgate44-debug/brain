@@ -32,16 +32,22 @@ def _run(args: list[str], cwd: Path) -> str:
 
 
 def classify_workflows(repo: Path) -> dict[str, list[str]]:
-    """Map each agent to the workflows that belong to it (by filename or by content)."""
+    """Map each agent to the workflows that belong to it (by filename or by content).
+
+    Precedence matters: a workflow that starts the session loop also touches watcher paths, so
+    the session agent's explicit marker is checked first and the workflow is not double-counted.
+    """
     wf_dir = repo / ".github" / "workflows"
     owned: dict[str, list[str]] = {a: [] for a in AGENTS}
     for path in sorted(wf_dir.glob("*.yml")):
         text = path.read_text(encoding="utf-8", errors="replace")
         name = path.name.lower()
-        if "watcher" in name or "watcher/" in text:
-            owned["watcher"].append(path.name)
-        if "shadow" in name or "shadow/" in text or "shadow.py" in text:
+        if "session-agent" in name or "start_session_loop" in text:
+            owned["session"].append(path.name)
+        elif "shadow" in name or "shadow/" in text or "shadow.py" in text:
             owned["shadow"].append(path.name)
+        elif "watcher" in name or "watcher/" in text:
+            owned["watcher"].append(path.name)
     return owned
 
 
@@ -77,8 +83,9 @@ def build(repo: Path, commits: int) -> dict:
     agents = []
     for a in AGENTS:
         sched = [w for w in owned[a] if w in scheduled]
-        # The session agent has no scheduler wired yet — that is an open gap (W4), not a pass.
-        expected = a != "session"
+        # Every agent is expected to have a scheduled loop now that the session loop exists;
+        # a missing one is a regression, not a known gap.
+        expected = True
         agents.append({
             "agent": a, "workflows": owned[a], "scheduled": sched,
             "has_scheduled_loop": bool(sched),

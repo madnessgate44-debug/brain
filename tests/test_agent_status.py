@@ -31,18 +31,37 @@ def test_classifies_workflows_by_name(status, tmp_path):
     assert owned["session"] == []
 
 
+def test_session_workflow_is_assigned_to_session_not_watcher(status, tmp_path):
+    repo = _repo(tmp_path)
+    # A session workflow that also touches watcher paths must land on the session agent only.
+    (repo / ".github" / "workflows" / "session-agent-loop.yml").write_text(
+        "on:\n  schedule:\n    - cron: '0 5 * * *'\njobs:\n  x:\n    steps:\n"
+        "      - run: python3 scripts/start_session_loop.py\n"
+        "      - run: python3 watcher/knowledge/tools/purpose_audit.py\n",
+        encoding="utf-8",
+    )
+    owned = status.classify_workflows(repo)
+    assert "session-agent-loop.yml" in owned["session"]
+    assert "session-agent-loop.yml" not in owned["watcher"]
+
+
 def test_scheduled_detects_cron_only(status, tmp_path):
     scheduled = status.scheduled_workflows(_repo(tmp_path))
     assert "watcher-daily.yml" in scheduled
     assert "shadow-audit.yml" not in scheduled
 
 
-def test_session_is_reported_as_an_open_gap_not_a_pass(status, tmp_path):
-    report = status.build(_repo(tmp_path), commits=0)
+def test_session_loop_passes_when_its_workflow_is_scheduled(status, tmp_path):
+    repo = _repo(tmp_path)
+    (repo / ".github" / "workflows" / "session-agent-loop.yml").write_text(
+        "on:\n  schedule:\n    - cron: '0 5 * * *'\njobs:\n  x:\n    steps:\n"
+        "      - run: python3 scripts/start_session_loop.py\n",
+        encoding="utf-8",
+    )
+    report = status.build(repo, commits=0)
     by = {a["agent"]: a for a in report["agents"]}
-    assert by["session"]["has_scheduled_loop"] is False
-    assert "session" in report["open_gaps"]
-    assert "session" not in report["missing_expected"]  # known gap, not a regression
+    assert by["session"]["has_scheduled_loop"] is True
+    assert "session" not in report["open_gaps"]
 
 
 def test_missing_expected_flags_a_scheduled_agent_that_lost_its_loop(status, tmp_path):
