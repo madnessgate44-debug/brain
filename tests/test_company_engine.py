@@ -1,5 +1,8 @@
 """Tests for the company workflow orchestration and real-evidence gates."""
 
+import asyncio
+import time
+
 import pytest
 
 from brain.company.agent_runner import _prepare_prompt_evidence
@@ -342,3 +345,26 @@ async def test_release_gate_and_manager_receive_actual_specialist_decisions():
     assert runner.release_input["review_decision"] == gate_evidence["review_decision"]
     assert runner.release_input["test_results"]["run_url"].endswith("/123")
     assert result["release_gate"]["passed"] is True
+
+
+class SlowReviewRunner(FakeAgentRunner):
+    """Each independent review gate takes 0.15s of wall time."""
+
+    async def run(self, role_key, user_request, evidence):
+        if role_key in ("qa_engineer", "security_auditor", "customer_advocate"):
+            await asyncio.sleep(0.15)
+        return await super().run(role_key, user_request, evidence)
+
+
+@pytest.mark.asyncio
+async def test_independent_review_gates_run_concurrently():
+    """R7: the three gates overlap, so total wall time is near one gate, not three."""
+    engine = CompanyWorkflowEngine(SlowReviewRunner(), FakeTools())
+
+    started = time.perf_counter()
+    result = await engine.run("Build a small feature", "owner/repository")
+    elapsed = time.perf_counter() - started
+
+    assert result["status"] == "READY_FOR_HUMAN_APPROVAL"
+    # Sequential would be >= 0.45s; concurrent is ~0.15s. 0.35s is a safe, non-flaky margin.
+    assert elapsed < 0.35, f"review gates did not overlap (took {elapsed:.2f}s)"

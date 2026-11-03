@@ -4,6 +4,7 @@ The engine coordinates specialist model calls, but repository edits and test exe
 must be performed by injected tools. It never treats model claims as execution evidence.
 """
 
+import asyncio
 import re
 from typing import Any, Protocol
 
@@ -368,15 +369,25 @@ class CompanyWorkflowEngine:
         if test_evidence.get("status") != "PASS":
             raise CompanyWorkflowBlocked("Repository checks failed; release is blocked.")
         evidence["test_results"] = test_evidence
-        qa_output = await self.agent_runner.run("qa_engineer", user_request, evidence)
-        outputs["qa_engineer"] = qa_output
-        timeline.append({"role": "qa_engineer", "status": qa_output["status"]})
+        # QA, security, and customer review are independent reads of the same frozen
+        # evidence, so they run concurrently. The gates below still evaluate in the
+        # documented order, so a failure blocks the workflow exactly as before (R7).
+        qa_output, security_output, customer_output = await asyncio.gather(
+            self.agent_runner.run("qa_engineer", user_request, evidence),
+            self.agent_runner.run("security_auditor", user_request, evidence),
+            self.agent_runner.run("customer_advocate", user_request, evidence),
+        )
+        for role_key, output in (
+            ("qa_engineer", qa_output),
+            ("security_auditor", security_output),
+            ("customer_advocate", customer_output),
+        ):
+            outputs[role_key] = output
+            timeline.append({"role": role_key, "status": output["status"]})
+
         if qa_output["status"] != "PASS":
             raise CompanyWorkflowBlocked("QA analysis found unresolved issues.")
 
-        security_output = await self.agent_runner.run("security_auditor", user_request, evidence)
-        outputs["security_auditor"] = security_output
-        timeline.append({"role": "security_auditor", "status": security_output["status"]})
         if security_output["status"] != "PASS" or str(
             security_output.get("deliverables", {}).get("security_decision", "")
         ).upper() not in {"PASS", "APPROVED"}:
@@ -386,9 +397,6 @@ class CompanyWorkflowEngine:
                 + ")."
             )
 
-        customer_output = await self.agent_runner.run("customer_advocate", user_request, evidence)
-        outputs["customer_advocate"] = customer_output
-        timeline.append({"role": "customer_advocate", "status": customer_output["status"]})
         if customer_output["status"] != "PASS" or str(
             customer_output.get("deliverables", {}).get("customer_review", "")
         ).upper() not in {"PASS", "APPROVED"}:
