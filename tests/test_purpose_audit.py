@@ -68,3 +68,44 @@ def test_render_marks_each_status(pa, tmp_path):
     assert "[x] **Implemented claim**" in text
     assert "[~] **Test-only claim**" in text
     assert "[ ] **Missing claim**" in text
+
+
+def _company_tree(tmp_path: Path, *, loop_roles: int = 1, total: int = 3, deletions: bool = True):
+    company = tmp_path / "brain" / "company"
+    company.mkdir(parents=True)
+    (company / "roles.py").write_text("SpecialistRole(\n" * total, encoding="utf-8")
+    branches = "".join(
+        f'    if role_key == "role{n}":\n        run_openhands_developer()\n'
+        for n in "abcdefghij"[:loop_roles]
+    )
+    (company / "agent_runner.py").write_text(branches + "    await self.provider.complete(s, u)\n", encoding="utf-8")
+    dev = "TemporaryDirectory()\n_MAX_FILES = 30\n_MAX_FILE_BYTES = 200000\n"
+    if deletions:
+        dev += 'raise AgentOutputError("does not support deletions")\n'
+    (company / "openhands_developer.py").write_text(dev, encoding="utf-8")
+
+
+def test_depth_flags_partial_loop_coverage(pa, tmp_path):
+    _company_tree(tmp_path, loop_roles=1, total=9)
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "loop covers" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert "1 of 9" in f["finding"]
+
+
+def test_depth_flags_patch_contract(pa, tmp_path):
+    _company_tree(tmp_path)
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "Patch contract" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("deletions forbidden" in e for e in f["evidence"])
+
+
+def test_depth_flags_missing_live_evidence(pa, tmp_path):
+    _company_tree(tmp_path)
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "MISSING"
+
+
+def test_depth_passes_when_every_role_loops(pa, tmp_path):
+    _company_tree(tmp_path, loop_roles=3, total=3)
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "loop covers" in d["finding"])
+    assert f["status"] == "OK"

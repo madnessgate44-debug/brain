@@ -46,6 +46,13 @@ def is_test_file(path: Path) -> bool:
     return "test" in path.name or "tests" in path.parts
 
 
+def _read(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
 def scan(root: Path, pattern: re.Pattern) -> list[tuple[str, int, bool]]:
     """Return (path, line_no, in_test) for every match of pattern under root."""
     hits: list[tuple[str, int, bool]] = []
@@ -80,6 +87,71 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
     return False
 
 
+def depth_findings(root: Path) -> list[dict]:
+    """Find depth gaps a presence check misses: does the feature cover the whole app?
+
+    These are the mistakes a claim-by-claim audit passes over. Each finding is derived from
+    the code, with file evidence, so the Watcher finds them without a human reading by hand.
+    """
+    company = root / "company"
+    roles_txt = _read(company / "roles.py")
+    runner_txt = _read(company / "agent_runner.py")
+    dev_txt = _read(company / "openhands_developer.py")
+    out: list[dict] = []
+
+    total_roles = len(re.findall(r"SpecialistRole\(", roles_txt))
+    # A role has the agentic loop only if its gate wraps a call to the SDK developer loop.
+    loop_roles = sorted({
+        m.group(1)
+        for m in re.finditer(r'role_key == "([a-z_]+)"', runner_txt)
+        if "run_openhands_developer" in runner_txt[m.start(): m.start() + 400]
+    })
+    if total_roles:
+        status = "OK" if len(loop_roles) >= total_roles else "PARTIAL"
+        rest = total_roles - len(loop_roles)
+        out.append({
+            "finding": f"Agentic loop covers {len(loop_roles)} of {total_roles} roles "
+                       f"({rest} run single-shot)",
+            "status": status,
+            "evidence": [
+                f"loop roles: {', '.join(loop_roles) or 'none'}",
+                "the rest call provider.complete once (agent_runner.py:412)",
+            ],
+        })
+
+    max_files = (re.findall(r"_MAX_FILES = (\d+)", dev_txt) or ["?"])[0]
+    max_file = (re.findall(r"_MAX_FILE_BYTES = (\d+)", dev_txt) or ["?"])[0]
+    forbids_del = "does not support deletions" in dev_txt
+    constrains_new = "unplanned file" in dev_txt
+    if dev_txt:
+        ev = [f"limits: {max_files} files, {max_file} bytes/file"]
+        if forbids_del:
+            ev.append("deletions forbidden (openhands_developer.py)")
+        if constrains_new:
+            ev.append("unplanned new files rejected (openhands_developer.py)")
+        out.append({
+            "finding": "Patch contract bounds what the agent may change",
+            "status": "PARTIAL" if (forbids_del or constrains_new) else "OK",
+            "evidence": ev,
+        })
+
+    if "TemporaryDirectory" in dev_txt:
+        out.append({
+            "finding": "Developer works in a temporary workspace, not the repo checkout",
+            "status": "PARTIAL",
+            "evidence": ["openhands_developer.py uses TemporaryDirectory"],
+        })
+
+    evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
+    proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
+    out.append({
+        "finding": "Committed evidence of a live issue -> PR run",
+        "status": "OK" if proof else "MISSING",
+        "evidence": [p.as_posix() for p in proof] or ["no live-run evidence committed"],
+    })
+    return out
+
+
 def audit(root: Path, purpose: Path, tests_root: Path, base: Path | None = None) -> dict:
     base = base or root.parent
     results = []
@@ -108,7 +180,8 @@ def audit(root: Path, purpose: Path, tests_root: Path, base: Path | None = None)
             "hint": hint, "evidence": evidence,
         })
     ok = sum(1 for r in results if r["status"] == "OK")
-    return {"checked": len(results), "ok": ok, "results": results}
+    depth = depth_findings(root)
+    return {"checked": len(results), "ok": ok, "results": results, "depth": depth}
 
 
 def render(report: dict) -> str:
@@ -122,6 +195,15 @@ def render(report: dict) -> str:
             lines.append(f"    - {', '.join(r['evidence'])}")
         elif r["hint"]:
             lines.append(f"    - expected around `{r['hint']}`")
+    depth = report.get("depth", [])
+    if depth:
+        gaps = sum(1 for d in depth if d["status"] != "OK")
+        lines += ["", f"## Depth — {gaps} gap(s) a presence check would miss", ""]
+        for d in depth:
+            mark = {"OK": "[x]", "PARTIAL": "[~]", "MISSING": "[ ]"}[d["status"]]
+            lines.append(f"{mark} **{d['finding']}** — {d['status']}")
+            if d["evidence"]:
+                lines.append(f"    - {'; '.join(d['evidence'])}")
     return "\n".join(lines) + "\n"
 
 

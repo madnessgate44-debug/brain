@@ -199,6 +199,11 @@ failure keeps returning** and **teaches** what he learns.
   `watcher/knowledge/tools/purpose_audit.py`. It reads `watcher/knowledge/purpose.md` (what the
   app claims it does), scans the code, and reports per claim: OK (in production), UNTESTED
   (only tests touch it), or MISSING (the app claims what it does not have) — with file:line.
+- **A presence check is not enough.** "The feature exists" hides the real defects. The same
+  tool also reports **depth gaps**: how many of N roles the agentic loop actually covers, what
+  the patch contract forbids (deletions, unplanned files), whether the agent edits a real repo
+  or a temp dir, and whether a live end-to-end run is committed as evidence. Report depth, not
+  presence. A claim that passes while the depth gap stands is a false pass.
 - **Reverse-engineer, do not just summarise.** The tool is `watcher/knowledge/tools/reverse.py`.
   It dissects a public repo and extracts a concrete change for Forge/brain (WATCHER.md §7).
 - For each recurring problem he produces: the symptom, the root cause, the evidence, and the
