@@ -33,6 +33,27 @@ def main() -> int:
         )
     if "Skill check (mandatory)" not in os_text:
         problems.append(f"{OS.name}: no mandatory skill-check clause (W7 open)")
+    if "scripts/skills.py" not in os_text:
+        problems.append(
+            f"{OS.name}: the OS does not require the skill router (scripts/skills.py) (W7 open)"
+        )
+
+    # The router must actually find skills and rank them, or the check is hollow.
+    router = REPO / "scripts" / "skills.py"
+    if not router.is_file():
+        problems.append("scripts/skills.py is missing (no skill router)")
+    else:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("_skills_router", router)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        found = mod.all_skills()
+        if len(found) < 10:
+            problems.append(f"skill router found only {len(found)} skills (expected the library)")
+        hits = mod.suggest("review this PR for correctness and security")
+        if not hits:
+            problems.append("skill router matched no skill for a PR review (routing is broken)")
 
     role_keys: list[str] = []
     if ROLES.is_file():

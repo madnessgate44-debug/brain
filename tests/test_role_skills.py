@@ -23,4 +23,6 @@ def test_skill_block_wraps_skill_with_role_header():
 
 def test_missing_skill_is_not_an_error():
     assert load_role_skill("no_such_role") == ""
-    assert _skill_block("no_such_role") == ""
+    block = _skill_block("no_such_role")
+    assert "ROLE SKILL (no_such_role):" not in block
+    assert "SKILL ROUTER" in block  # the router instruction is always present

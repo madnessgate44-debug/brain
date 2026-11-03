@@ -34,7 +34,13 @@ def load_role_skill(role_key: str) -> str:
 
 def _skill_block(role_key: str) -> str:
     skill = load_role_skill(role_key)
-    return f"\n\nROLE SKILL ({role_key}):\n{skill}" if skill else ""
+    block = f"\n\nROLE SKILL ({role_key}):\n{skill}" if skill else ""
+    block += (
+        "\n\nSKILL ROUTER: before doing the work, run "
+        "`python3 scripts/skills.py suggest \"<the task in one line>\"` and follow the skills it "
+        "names. A skill is chosen by its trigger, not by habit. If none matches, say so."
+    )
+    return block
 
 
 _DECISION_VALUES = {
