@@ -132,3 +132,29 @@ def test_depth_stays_partial_without_the_general_loop(pa, tmp_path):
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "loop covers" in d["finding"])
     assert f["status"] == "PARTIAL"
     assert "1 of 9" in f["finding"]
+
+
+def test_depth_flags_a_role_with_no_skill(pa, tmp_path):
+    """Finding a missing skill is the Watcher's job (W7)."""
+    _company_tree(tmp_path, total=3)
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "skill file" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert "0 of 3" in f["finding"]
+    assert any("rolea" in e for e in f["evidence"])
+
+
+def test_depth_passes_when_every_role_has_a_skill(pa, tmp_path):
+    _company_tree(tmp_path, total=3)
+    skills = tmp_path / "brain" / "company" / "skills"
+    skills.mkdir()
+    for n in "abc":
+        (skills / f"role{n}.md").write_text("# skill", encoding="utf-8")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "skill file" in d["finding"])
+    assert f["status"] == "OK"
+    assert "3 of 3" in f["finding"]
+
+
+def test_depth_flags_missing_skill_router(pa, tmp_path):
+    _company_tree(tmp_path)
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "skill router" in d["finding"])
+    assert f["status"] == "MISSING"

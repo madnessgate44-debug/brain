@@ -156,6 +156,26 @@ def depth_findings(root: Path) -> list[dict]:
         "evidence": [p.as_posix() for p in proof] or ["no live-run evidence committed"],
     })
 
+    # W7: a role with no skill file runs on its bare contract. A missing skill is the Watcher's
+    # job to find, so it is a depth finding here, not a separate script.
+    skills_dir = company / "skills"
+    missing_skills = [k for k in role_keys if not (skills_dir / f"{k}.md").is_file()]
+    if role_keys:
+        out.append({
+            "finding": f"{len(role_keys) - len(missing_skills)} of {len(role_keys)} roles have a skill file",
+            "status": "OK" if not missing_skills else "PARTIAL",
+            "evidence": [
+                f"missing: {', '.join(missing_skills) or 'none'}",
+                "a role with no skill runs on its bare contract (brain/company/skills/)",
+            ],
+        })
+    router = root.parent / "scripts" / "skills.py"
+    out.append({
+        "finding": "A skill router exists so work finds its skill instead of guessing",
+        "status": "OK" if router.is_file() else "MISSING",
+        "evidence": ["scripts/skills.py" if router.is_file() else "scripts/skills.py is absent"],
+    })
+
     # W4: a capability that no workflow schedules does not run.
     tools_dir = root.parent / "watcher" / "knowledge" / "tools"
     workflows = root.parent / ".github" / "workflows"
