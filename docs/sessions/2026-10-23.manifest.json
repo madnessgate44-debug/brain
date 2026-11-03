@@ -1,0 +1,17 @@
+{
+ "date": "2026-10-23",
+ "count": 1,
+ "conversations": [
+  {
+   "id": "62057a7b1214489ead604dd29baf7b49",
+   "title": "GitHub Issue #131: Implement zero-user-action, source-faithful conversation synchronization",
+   "events": 555,
+   "pages": 6,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "bfa35bf5d4c682fad2d55515ad8ef9fa352c81d267b02e4bfc27963881cae802"
+  }
+ ]
+}

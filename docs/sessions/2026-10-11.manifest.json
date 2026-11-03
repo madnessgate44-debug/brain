@@ -1,0 +1,105 @@
+{
+ "date": "2026-10-11",
+ "count": 9,
+ "conversations": [
+  {
+   "id": "0b53fb8a302848898effb4b87f8d5774",
+   "title": "\u2705 Brain repo read-only audit & blockers",
+   "events": 226,
+   "pages": 3,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "d8118ac412be36bede6145a309c9063d86623e6ea76ad6be5df99a87b92229fe"
+  },
+  {
+   "id": "59eb12e8f97547449519fcd6bdb7ed20",
+   "title": "\ud83d\udd12\ufe0f Read-only audit of Brain repository",
+   "events": 187,
+   "pages": 2,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "9c6271f56af54799adc71685a6ffddaec852b6621f087127a000602e65a66c72"
+  },
+  {
+   "id": "5612bd51a7564219b069dc1ebe4dd0f4",
+   "title": "\ud83d\udd12\ufe0f Read-only audit of Brain repo",
+   "events": 135,
+   "pages": 2,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "950643234c353bd02438d2d76b4b4b405e4ec3baea8c249d8a87df8d8b819077"
+  },
+  {
+   "id": "ff7b917f8f0b466ba557f01945a79fbe",
+   "title": "\ud83d\udd12\ufe0f Read-only audit of Brain repository",
+   "events": 165,
+   "pages": 2,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "46c32f30605b6ac3110d8f3637bf08f7f41bf3f2806b1a51aeba8c5170e12d1f"
+  },
+  {
+   "id": "3df8d9826c5542b8aa9efce877ad3f1b",
+   "title": "\ud83d\udd12\ufe0f Read-only audit of Brain repository",
+   "events": 148,
+   "pages": 2,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "652d340a8bcd819997780527e1f2bb7e0aa2a6be4bfa9cd0257e7768b2edb387"
+  },
+  {
+   "id": "aa7dd27bd6bf4996820a79c5ce14db6e",
+   "title": "\ud83d\udd12\ufe0f Read-only audit of Brain repository",
+   "events": 141,
+   "pages": 2,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "56a39052f2159d0679e061d6b8dcca8d93b6a9baa6849c39c7a9b714fe82c776"
+  },
+  {
+   "id": "807d545c379e4eb38e02a695587328f1",
+   "title": "\ud83d\udd12\ufe0f Read-only audit of Brain repo",
+   "events": 128,
+   "pages": 2,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "cff90e2ca742352db473b72196d44b55eefd5d2444150e9cb32f22582be89907"
+  },
+  {
+   "id": "319cdf69ecbb45b8a1c267edba0cdf7c",
+   "title": "\ud83d\udd12\ufe0f Read-only Brain repository audit",
+   "events": 135,
+   "pages": 2,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "5d33096a9712a7697f1b5ed65172ed7b1a5222b13de2c7ceb743d915b85b129b"
+  },
+  {
+   "id": "f992c925e6444e3181d2796ecacc1591",
+   "title": "\ud83d\udd12\ufe0f Brain repo read-only audit",
+   "events": 150,
+   "pages": 2,
+   "owner_messages": 1,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "585a67519e3f20febcaf56e6b7b013f75126592f9b0fa2945a6b55d2215c4bf3"
+  }
+ ]
+}

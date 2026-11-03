@@ -1,0 +1,105 @@
+{
+ "date": "2026-10-28",
+ "count": 9,
+ "conversations": [
+  {
+   "id": "8772c04c2225467d83d0d0df52fea265",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-28 00:00:39 UTC",
+   "events": 2141,
+   "pages": 22,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "88af6bc0517c283fa2b6b243024baac8f7a27777b5d9d30f21aa181ee5e11473"
+  },
+  {
+   "id": "32a6e1a74c7a4a4faea32f96c8107ec6",
+   "title": "Guard verify: push --no-verify --dry-run origin HEAD",
+   "events": 24,
+   "pages": 1,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "ef35ef468a492e203ee62756467bb62d1b4ee4acbae2300d5da5b3b4d635d30b"
+  },
+  {
+   "id": "0529513bdd3f4e7da5e1d42fe04846c3",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-28 02:01:07 UTC",
+   "events": 2210,
+   "pages": 23,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "1451d0ebf5e5559c65973fc6f464f88bf0848e7c3a8b945a393433995ae175f6"
+  },
+  {
+   "id": "1c7a26e02dbe40b88aeb9334560a6594",
+   "title": "GitHub Issue #9: OpenHands: forensic product audit, strict TypeScript gate, and learner-flow verification",
+   "events": 551,
+   "pages": 6,
+   "owner_messages": 0,
+   "agent_messages": 3,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "908c659800f84a07e9f8cc4ab26a2fca653cb24f3d7903eb2b0879bf93c0cadb"
+  },
+  {
+   "id": "1c57309ac2ea4e428f990fe84eb2533c",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-28 04:01:28 UTC",
+   "events": 581,
+   "pages": 6,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "bff2e3abf53db70efad790c9c2d0a3c4c91f1d0afaf0b590245eb842b5144637"
+  },
+  {
+   "id": "39cf3305a06f47608be88366f9110f19",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-28 06:01:12 UTC",
+   "events": 2643,
+   "pages": 27,
+   "owner_messages": 2,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "9d8574da5d5cfcfd76d504b27528d29b481e51935db7d2105bd42e92ecf29948"
+  },
+  {
+   "id": "1b3e56abc2a2482ca56e96330793b290",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-28 08:01:47 UTC",
+   "events": 570,
+   "pages": 6,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "afee9d886f43fd694e028b0f0b6931f3905d483b2846a6fbb111311a4e9f4eb0"
+  },
+  {
+   "id": "7fed1da600744f5baf62d1d598a9d72f",
+   "title": "\ud83d\udcdd GPT/Gemini Teaching Agents for Ms Noodles",
+   "events": 4297,
+   "pages": 43,
+   "owner_messages": 27,
+   "agent_messages": 15,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "1c343d83382254eb7a57a946fcd0f842e763cf0267bab2aa851a01ab95e00e11"
+  },
+  {
+   "id": "55ac06a23e4740f788f58e95aa289195",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-28 10:01:58 UTC",
+   "events": 380,
+   "pages": 4,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "c96945808961ce8032780702e0a210a271f0c7a3a56857c8bf692776ddf5a98b"
+  }
+ ]
+}

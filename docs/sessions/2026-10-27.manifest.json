@@ -1,0 +1,149 @@
+{
+ "date": "2026-10-27",
+ "count": 13,
+ "conversations": [
+  {
+   "id": "f85cc1ada6594201903bde0214f77f9d",
+   "title": "\ud83d\udc84 Compare app UI to expected design",
+   "events": 711,
+   "pages": 8,
+   "owner_messages": 3,
+   "agent_messages": 2,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "580018f428af3d0d4e4be067cfc6379fe84e96e40072de6afa4329991a1034a0"
+  },
+  {
+   "id": "344eca38f76e4eda9fd13bee57ef888f",
+   "title": "\ud83d\udcdd Add owner skills and naming fixes",
+   "events": 2958,
+   "pages": 30,
+   "owner_messages": 13,
+   "agent_messages": 4,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "aad16b5b56f38b41e969223a814a7c71980afbd84b241ba6f6abd09446613442"
+  },
+  {
+   "id": "c419fdd4f80b42bca7c02ef337936581",
+   "title": "VERIFY guard loads (no-verify dry-run)",
+   "events": 24,
+   "pages": 1,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "bde5dfb06a2ab69301fdc875c3545d07150412fd6b8d5c1fa7ff46a6f17a409b"
+  },
+  {
+   "id": "1f25cee4bff8490fa4d09fdd26ffd94b",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-27 09:24:11 UTC",
+   "events": 258,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "ea93566bbf45d7205e2cb7197daf3189ec4a4a7d553a8c7400792bd7fae8e1b4"
+  },
+  {
+   "id": "338f9e40cb594511a18711a18594eb63",
+   "title": "VERIFY: live-loader guard deny check",
+   "events": 87,
+   "pages": 1,
+   "owner_messages": 1,
+   "agent_messages": 4,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "a941358eabd9871fb6c9c4edb509c457b90daa4f3c3edd7b9d4a43dc72d01085"
+  },
+  {
+   "id": "0e65deb5e18e4e2f9f8410608d60df1a",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-27 10:01:17 UTC",
+   "events": 503,
+   "pages": 6,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "02e02926dc6fe46c882af87ed80480f2a5f2d0cc4f5ac89cab1497c83c4f666d"
+  },
+  {
+   "id": "d7565e2c92f74551bccf00e0f32f7cd9",
+   "title": "VERIFY2: guard deny + gate .openhands fix",
+   "events": 24,
+   "pages": 1,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "18d10b13a5f7832ea7c6b1b621e079c04b8b09345a68af092d73b73ccdc511d0"
+  },
+  {
+   "id": "70947e635c5e4ede9257beb82dcd1871",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-27 12:01:58 UTC",
+   "events": 425,
+   "pages": 5,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "383e91ceacec1e742cc2354a7b87b2199294d4e722c595aeed2e70ad60303a58"
+  },
+  {
+   "id": "68f249c418ce4fc98f7bc89f7e03dcb2",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-27 14:00:49 UTC",
+   "events": 593,
+   "pages": 6,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "4b290290de9b42cb86a755732b88f97aee71241b8d95f16451225cb2adb24719"
+  },
+  {
+   "id": "d9174f4f040d4ae3be05731c1d9237d3",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-27 16:01:03 UTC",
+   "events": 437,
+   "pages": 5,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "89217af2639a56239809b247966a4cd24c2256a1463a671e370c5b3db1f30b58"
+  },
+  {
+   "id": "3ebdd1dbe1e04bb09ac445642560b5fe",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-27 18:01:08 UTC",
+   "events": 401,
+   "pages": 5,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "26972741b18ffb208ad4ca88bfd330775eb367d79beddfc4bffabb5346722f1d"
+  },
+  {
+   "id": "7919f9932c4749638456a8b8e110fac6",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-27 20:01:28 UTC",
+   "events": 362,
+   "pages": 4,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "37242c58a27d2ddd4bd9ea9dfdb3dcfdb850ae1387e42d752836c6ff088b1451"
+  },
+  {
+   "id": "28a778bd5fb5404eab9d3e084f08b750",
+   "title": "Miss Noor - nine-hour autonomous work window \u2014 2026-10-27 22:01:35 UTC",
+   "events": 310,
+   "pages": 4,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "3b6dbd9f002cd42420988223a8a8b266cc664ee50b47edcbd959dc779b291dcb"
+  }
+ ]
+}
