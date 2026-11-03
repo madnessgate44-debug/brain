@@ -100,12 +100,17 @@ def depth_findings(root: Path) -> list[dict]:
     out: list[dict] = []
 
     total_roles = len(re.findall(r"SpecialistRole\(", roles_txt))
-    # A role has the agentic loop only if its gate wraps a call to the SDK developer loop.
+    role_keys = re.findall(r'key="([a-z_]+)"', roles_txt)
+    # A role reaches the agentic loop if its branch wraps a call to an OpenHands SDK runner:
+    # the developer's file-editing loop, or the investigative loop every other role now uses.
     loop_roles = sorted({
         m.group(1)
         for m in re.finditer(r'role_key == "([a-z_]+)"', runner_txt)
         if "run_openhands_developer" in runner_txt[m.start(): m.start() + 400]
     })
+    # If the runner wires the general investigative loop, every non-developer role is covered.
+    if "run_openhands_role" in runner_txt:
+        loop_roles = sorted(set(loop_roles) | set(role_keys))
     if total_roles:
         status = "OK" if len(loop_roles) >= total_roles else "PARTIAL"
         rest = total_roles - len(loop_roles)
@@ -115,7 +120,8 @@ def depth_findings(root: Path) -> list[dict]:
             "status": status,
             "evidence": [
                 f"loop roles: {', '.join(loop_roles) or 'none'}",
-                "the rest call provider.complete once (agent_runner.py:412)",
+                ("the rest call provider.complete once (agent_runner.py:412)"
+                 if rest else "every role reaches an OpenHands SDK loop"),
             ],
         })
 

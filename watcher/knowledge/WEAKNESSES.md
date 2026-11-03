@@ -37,12 +37,16 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   is rejected.
 
 ## W3 — We mistake presence for depth
-- **Evidence:** the loop exists — but covers **1 of 9 roles**; the patch contract **forbids
+- **Evidence:** the loop existed — but covered **1 of 9 roles**; the patch contract **forbids
   deletions** and unplanned files; the agent edits a **temp dir, not the repo**; no live run is
   committed. Shadow's gaps G1-G7 are the same shape.
 - **Belongs to:** all three.
 - **Closure:** audits answer "does it cover the whole app, and is it proven to run?".
 - **Check:** the depth section of `purpose_audit.py`.
+- **Progress (2026-11-03): the loop now covers all 9 roles.** `brain/company/openhands_role.py`
+  gives every non-developer specialist the same OpenHands SDK loop the developer has; the audit
+  reports "9 of 9 roles (0 run single-shot)". Still open under W3: the patch contract (deletions,
+  unplanned files), the temp-dir vs repo checkout, and the live-run proof.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps

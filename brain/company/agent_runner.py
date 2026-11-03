@@ -409,6 +409,47 @@ class SpecialistAgentRunner:
             result["role_title"] = role.title
             return result
 
+        if role_key != "developer" and isinstance(self.provider, OpenAICompatibleProvider):
+            # Every other specialist gets the same agentic loop the developer has: a real
+            # OpenHands conversation with file/terminal tools, so it investigates the code
+            # instead of answering from pasted evidence (agent_runner.py:412 was single-shot).
+            # Its answer is validated by the same contract as the single-shot path below.
+            from brain.company.openhands_role import run_openhands_role
+
+            investigated = await run_openhands_role(
+                role.key, role.title, system_prompt, user_prompt, prompt_evidence, self.provider
+            )
+            try:
+                result = _validate_specialist_output(investigated, role)
+            except AgentOutputError:
+                # One bounded repair, mirroring the single-shot path: ask for the JSON only.
+                repair_user_prompt = json.dumps(
+                    {
+                        "role": role.key,
+                        "required_deliverables": list(role.deliverables),
+                        "required_top_level_keys": [
+                            "status", "deliverables", "findings", "blockers", "evidence_needed"
+                        ],
+                        "invalid_response_excerpt": investigated[:12000],
+                        "original_request": user_prompt,
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                )
+                repaired = await run_openhands_role(
+                    role.key,
+                    role.title,
+                    system_prompt
+                    + "\nReturn one corrected JSON object only; no markdown fences or prose.",
+                    repair_user_prompt,
+                    prompt_evidence,
+                    self.provider,
+                )
+                result = _validate_specialist_output(repaired, role)
+            result["role"] = role.key
+            result["role_title"] = role.title
+            return result
+
         raw = await self.provider.complete(system_prompt, user_prompt)
         try:
             result = _validate_specialist_output(raw, role)

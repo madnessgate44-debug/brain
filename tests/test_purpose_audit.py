@@ -70,14 +70,21 @@ def test_render_marks_each_status(pa, tmp_path):
     assert "[ ] **Missing claim**" in text
 
 
-def _company_tree(tmp_path: Path, *, loop_roles: int = 1, total: int = 3, deletions: bool = True):
+def _company_tree(tmp_path: Path, *, loop_roles: int = 1, total: int = 3, deletions: bool = True,
+                  general_loop: bool = False):
     company = tmp_path / "brain" / "company"
     company.mkdir(parents=True)
-    (company / "roles.py").write_text("SpecialistRole(\n" * total, encoding="utf-8")
+    roles = "".join(
+        f'    SpecialistRole(\n        key="role{n}",\n    ),\n'
+        for n in "abcdefghij"[:total]
+    )
+    (company / "roles.py").write_text(roles, encoding="utf-8")
     branches = "".join(
         f'    if role_key == "role{n}":\n        run_openhands_developer()\n'
         for n in "abcdefghij"[:loop_roles]
     )
+    if general_loop:
+        branches += '    if role_key != "developer":\n        run_openhands_role()\n'
     (company / "agent_runner.py").write_text(branches + "    await self.provider.complete(s, u)\n", encoding="utf-8")
     dev = "TemporaryDirectory()\n_MAX_FILES = 30\n_MAX_FILE_BYTES = 200000\n"
     if deletions:
@@ -109,3 +116,19 @@ def test_depth_passes_when_every_role_loops(pa, tmp_path):
     _company_tree(tmp_path, loop_roles=3, total=3)
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "loop covers" in d["finding"])
     assert f["status"] == "OK"
+
+
+def test_depth_counts_all_roles_when_general_loop_is_wired(pa, tmp_path):
+    # Only the developer has an explicit branch, but the general loop covers the rest.
+    _company_tree(tmp_path, loop_roles=1, total=9, general_loop=True)
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "loop covers" in d["finding"])
+    assert f["status"] == "OK"
+    assert "9 of 9" in f["finding"]
+    assert "0 run single-shot" in f["finding"]
+
+
+def test_depth_stays_partial_without_the_general_loop(pa, tmp_path):
+    _company_tree(tmp_path, loop_roles=1, total=9, general_loop=False)
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "loop covers" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert "1 of 9" in f["finding"]

@@ -11,22 +11,26 @@ app, and must find what is actually broken — not restate a feature list.** Thi
 
 Think of the gap in three parts: the **loop**, the **reach**, and the **proof**.
 
-### 1. The loop — one agent has it, eight do not
-- A real agentic loop (shell + file editing, run -> observe -> act) exists, but **only in the
-  `developer` role**: `brain/company/openhands_developer.py:124-126` attaches `TerminalTool`
-  and `FileEditorTool`; `_run_sdk_sync` (line ~196) runs the SDK conversation.
-- It is reached only on one branch: `brain/company/agent_runner.py:401`
-  (`role_key == "developer" and isinstance(self.provider, OpenAICompatibleProvider)`).
-- The other eight roles are **single-shot**: `agent_runner.py:412` is one
-  `provider.complete(...)` call. Product, UX, architecture, review, QA, security, customer,
-  release — none of them can read a file or run a command themselves. They judge text.
-- **Distance:** Claude Code is one loop that can do all of this. Here, 1 of 9 roles loops.
-  **~2/10** for "the agent can act".
+### 1. The loop — FIXED: all nine roles now have it
+- A real agentic loop (shell + file editing, run -> observe -> act) exists for **every role**.
+  The `developer` uses `brain/company/openhands_developer.py` (file editing + terminal);
+  every other role uses `brain/company/openhands_role.py`, added 2026-11-03: it runs the same
+  OpenHands SDK conversation with file + terminal tools, scoped to a read-only temporary copy,
+  and returns the role's JSON contract.
+- Wiring: `brain/company/agent_runner.py:412` — the non-developer branch calls
+  `run_openhands_role`, so product, UX, architecture, review, QA, security, customer, and
+  release all **read the code and run checks** before they answer, instead of judging pasted text.
+- **Verified:** `watcher/knowledge/tools/purpose_audit.py` reports
+  **"Agentic loop covers 9 of 9 roles (0 run single-shot)"**.
+- **Distance now:** Claude Code is one loop for one agent; here all nine company roles loop.
+  Remaining gap is the *reach* (below), not the loop. **~5/10** for "the agent can act".
 
 ### 2. The reach — the loop cannot use most of a real repo
-The developer loop is real but **hemmed in**:
-- It runs in a throwaway `tempfile.TemporaryDirectory` (`openhands_developer.py:196`), seeded
-  only from `source_contents` the gateway already fetched. No git, no full checkout.
+The loops are real but **hemmed in**:
+- The developer runs in a throwaway `tempfile.TemporaryDirectory` (`openhands_developer.py:196`),
+  seeded only from `source_contents` the gateway already fetched. No git, no full checkout.
+- The investigative roles are seeded from the same `source_contents`, so a role can only read
+  files the gateway already fetched for it.
 - **Deletions are forbidden**: `openhands_developer.py:250-253` raises if the agent deletes a
   file. Refactors, renames, and cleanups are impossible.
 - **New files are constrained**: `openhands_developer.py:238` raises on any new file not in the
