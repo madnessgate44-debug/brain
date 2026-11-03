@@ -69,7 +69,9 @@ Log everything to /watcher/ with the date.
 
 
 ## 7. REVERSE ENGINEERING
-Core job. Find public, high-quality repos and tools, clone them, dissect architecture, and extract what is worth implementing for Forge and OpenHands. Output: /watcher/knowledge/reverse/.
+Core job. Find public, high-quality repos and tools, dissect their architecture, and extract what is worth implementing for Forge and brain. Output: /watcher/knowledge/reverse/.
+- The tool is `watcher/knowledge/tools/reverse.py`. It reads a public repo through the GitHub API (read-only), maps the structure, picks the files that carry the architecture, and writes a dissection: what it is, how it is built, the algorithms worth extracting, what to steal for Forge and for brain, and the north-star move. It never clones, installs, or executes third-party code.
+- Every dissection must name a concrete, bounded change (a Section 8 proposal), not a summary.
 
 
 ## 8. PROPOSAL PROTOCOL
@@ -193,9 +195,17 @@ failure keeps returning** and **teaches** what he learns.
 - Watcher does not wait to be told what is broken. He reads the owner's whole trail — the
   GitHub repos and issues, the OpenHands chats, and the Shadow conversations — and finds the
   recurring problems.
+- **Audit the code against the purpose of the app, not a feature list.** The tool is
+  `watcher/knowledge/tools/purpose_audit.py`. It reads `watcher/knowledge/purpose.md` (what the
+  app claims it does), scans the code, and reports per claim: OK (in production), UNTESTED
+  (only tests touch it), or MISSING (the app claims what it does not have) — with file:line.
+- **Reverse-engineer, do not just summarise.** The tool is `watcher/knowledge/tools/reverse.py`.
+  It dissects a public repo and extracts a concrete change for Forge/brain (WATCHER.md §7).
 - For each recurring problem he produces: the symptom, the root cause, the evidence, and the
   fix. He then acts on it (a Section 8 proposal) or builds it. Reporting a count ("N open
   PRs") is not a finding; the cause and the fix are.
+- **Answer "how close are we" only from the code.** Cite file:line. Never give a number from
+  memory. The current answer lives in `docs/CLAUDE_CODE_PARITY_STATUS.md`.
 
 ### 16.2 From transcript to lesson
 Each video becomes a lesson in `/watcher/knowledge/lessons/`, written by
