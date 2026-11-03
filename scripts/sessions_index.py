@@ -73,7 +73,6 @@ def main() -> int:
         "- [External audit: why OpenHands keeps failing, and what to change in Settings]"
         "(../AUDIT_OPENHANDS_SETTINGS_2026-11-03.md) — reads these conversations as an outside",
         "  reviewer; maps each failure class to a real Settings option.",
-        "",
     ]
 
     (d / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
