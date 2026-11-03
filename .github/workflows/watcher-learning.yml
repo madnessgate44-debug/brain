@@ -126,6 +126,13 @@ jobs:
           # history is report-only. Writes the status into the day's audit output.
           python3 scripts/agent_status.py --commits 60 2>&1 | tee -a /tmp/purpose.log
 
+      - name: Learning report (every open issue, with how I intend to fix it)
+        run: |
+          # Generated on its own every run: the open issues from the depth audit, the agent
+          # status, and the weakness ledger, each with an action plan and the check that
+          # closes it. This is the report the owner asks for; it is never written by hand.
+          python3 watcher/knowledge/tools/learning_report.py --out watcher/reports 2>&1 | tee -a /tmp/purpose.log
+
       - name: Reverse-engineer a public repo (WATCHER.md §7)
         if: github.event.inputs.reverse != ''
         env:
@@ -148,6 +155,7 @@ jobs:
             mv /tmp/queue.new watcher/knowledge/queue.txt
           fi
           git add watcher/knowledge
+          git add watcher/reports
           if git diff --cached --quiet; then
             echo "nothing new to commit"
             exit 0
