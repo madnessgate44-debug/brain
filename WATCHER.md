@@ -212,10 +212,12 @@ failure keeps returning** and **teaches** what he learns.
 - **Answer "how close are we" only from the code.** Cite file:line. Never give a number from
   memory. The current answer lives in `docs/CLAUDE_CODE_PARITY_STATUS.md`.
 - **Know your own recurring weaknesses.** They are written down in
-  `watcher/knowledge/WEAKNESSES.md`, shared with Shadow. Read it before starting work; it is the
-  list of mistakes we keep repeating (report instead of build; answer from memory; presence not
-  depth; capability built but not scheduled; self-diagnose then do not close). Do not add a new
-  weakness to it without removing one by its check.
+  `watcher/knowledge/WEAKNESSES.md`, shared by all three agents — Shadow, Watcher, and the
+  session agent. Read it before starting work; it is the list of mistakes we keep repeating
+  (report instead of build; answer from memory; presence not depth; capability built but not
+  scheduled; self-diagnose then do not close; claim broader than wired). Do not add a new
+  weakness without removing one by its check. The mechanical check is `scripts/agent_status.py`
+  (which agents have a scheduled loop, and the report-only ratio).
 
 ### 16.2 From transcript to lesson
 Each video becomes a lesson in `/watcher/knowledge/lessons/`, written by

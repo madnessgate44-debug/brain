@@ -120,6 +120,12 @@ jobs:
           # flags claims that are only reachable from tests. Runs every time.
           python3 watcher/knowledge/tools/purpose_audit.py --out watcher/knowledge/audits 2>&1 | tee /tmp/purpose.log
 
+      - name: Agent status (W1 report-only ratio, W4 unscheduled agents)
+        run: |
+          # Names which of the three agents has a scheduled loop and how much of the recent
+          # history is report-only. Writes the status into the day's audit output.
+          python3 scripts/agent_status.py --commits 60 2>&1 | tee -a /tmp/purpose.log
+
       - name: Reverse-engineer a public repo (WATCHER.md §7)
         if: github.event.inputs.reverse != ''
         env:
