@@ -90,6 +90,10 @@ _FALLBACK = {
 }
 
 
+def _friction():
+    return _load("watcher_friction", REPO / "watcher" / "knowledge" / "tools" / "friction.py")
+
+
 def _remedy(issue: str) -> dict[str, str]:
     for key, plan in REMEDIES.items():
         if key in issue:
@@ -198,6 +202,23 @@ def collect(root: Path = _BRAIN) -> dict:
             "owner": weakness["owner"],
             "first_step": "Do the first step recorded in the ledger item.",
             "check": weakness["check"],
+        })
+
+    # The owner's own signal: frustration, a repeated topic, churn. This is the external
+    # ground truth the Watcher must read himself (WATCHER.md §16.5), not wait to be told.
+    for f in _friction().collect():
+        if f["status"] == "OK":
+            continue
+        items.append({
+            "issue": f["finding"],
+            "status": f["status"],
+            "evidence": "; ".join(f.get("evidence", [])[:2]),
+            "impact": "The owner is repeating himself: the same friction is still here.",
+            "fix": "Treat the owner's repetition as the diagnosis: fix the cause of the "
+                   "repeated message, not the message.",
+            "owner": "watcher",
+            "first_step": "Read the cited owner message and the artifact it refers to.",
+            "check": "the same topic stops appearing in the owner transcript.",
         })
 
     return {
