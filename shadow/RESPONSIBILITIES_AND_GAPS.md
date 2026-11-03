@@ -3,6 +3,11 @@
 What Shadow is *supposed* to be (WATCHER.md) versus what is actually implemented and running,
 verified 2026-11-02.
 
+> Shared weaknesses with Watcher are tracked in `watcher/knowledge/WEAKNESSES.md`. Read it
+> before auditing: Shadow's own habit (report instead of build; self-diagnose then not close)
+> is recorded there as W1 and W5. Closing a gap here means adding a check that fails until it
+> is closed — not only writing the paragraph below.
+
 ## 1. The contract (WATCHER.md)
 
 | § | Responsibility | Detail |

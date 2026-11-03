@@ -149,6 +149,19 @@ def depth_findings(root: Path) -> list[dict]:
         "status": "OK" if proof else "MISSING",
         "evidence": [p.as_posix() for p in proof] or ["no live-run evidence committed"],
     })
+
+    # W4: a capability that no workflow schedules does not run.
+    tools_dir = root.parent / "watcher" / "knowledge" / "tools"
+    workflows = root.parent / ".github" / "workflows"
+    wf_text = "".join(_read(p) for p in sorted(workflows.glob("*.yml")))
+    tools = [p.name for p in sorted(tools_dir.glob("*.py"))] if tools_dir.is_dir() else []
+    unscheduled = [t for t in tools if t not in wf_text]
+    if tools:
+        out.append({
+            "finding": f"{len(tools) - len(unscheduled)} of {len(tools)} Watcher tools are scheduled",
+            "status": "OK" if not unscheduled else "PARTIAL",
+            "evidence": [f"unscheduled: {', '.join(unscheduled) or 'none'}"],
+        })
     return out
 
 

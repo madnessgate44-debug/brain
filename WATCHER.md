@@ -211,6 +211,11 @@ failure keeps returning** and **teaches** what he learns.
   PRs") is not a finding; the cause and the fix are.
 - **Answer "how close are we" only from the code.** Cite file:line. Never give a number from
   memory. The current answer lives in `docs/CLAUDE_CODE_PARITY_STATUS.md`.
+- **Know your own recurring weaknesses.** They are written down in
+  `watcher/knowledge/WEAKNESSES.md`, shared with Shadow. Read it before starting work; it is the
+  list of mistakes we keep repeating (report instead of build; answer from memory; presence not
+  depth; capability built but not scheduled; self-diagnose then do not close). Do not add a new
+  weakness to it without removing one by its check.
 
 ### 16.2 From transcript to lesson
 Each video becomes a lesson in `/watcher/knowledge/lessons/`, written by
