@@ -6,210 +6,210 @@
    "id": "3fe2b5556e3e4043b46533281b2ead88",
    "title": "Openhands loop \u2014 2026-11-01 00:05:30 UTC",
    "events": 86,
-   "pages": null,
+   "pages": 1,
    "owner_messages": 0,
    "agent_messages": 1,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "20f0ed9655c827144e1b53915469db255641747785e4550c6b07b74772f2fc6b"
+   "log_sha256": "2c40bd4ac5a721c646d1e80f804b3015cdcd773c3dda834b15523057057368f2"
   },
   {
    "id": "5d180899344d4212b1dc54f76579e983",
    "title": "Openhands loop \u2014 2026-11-01 02:01:53 UTC",
    "events": 85,
-   "pages": null,
+   "pages": 1,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "d60b702f45e1dc176247e02f4922975c3af12e1fd3990dfab6f26f9c3022c929"
+   "log_sha256": "dd0774ce71caa1cbb76d89af37da994f4e01dd06d97019841878a54a0ecc7b4d"
   },
   {
    "id": "f416280d59824f27b6397835ae85bcc6",
    "title": "Watcher",
-   "events": 7898,
-   "pages": null,
-   "owner_messages": 103,
-   "agent_messages": 39,
+   "events": 8517,
+   "pages": 86,
+   "owner_messages": 106,
+   "agent_messages": 41,
    "automation": false,
-   "sandbox_status": "RUNNING",
-   "raw_sha256": "7aff760011e2a3d011edc61502f9fcae5a0036195606b131dbddb3d01b006bf6"
+   "sandbox_status": "PAUSED",
+   "log_sha256": "b68e7eea01ec495a0b1ab3117acb91aca41ca5c95450c8726c98590cf8da142c"
   },
   {
    "id": "46950b2dcd5f4e628c38ec115b423ca9",
    "title": "Openhands loop \u2014 2026-11-01 04:02:16 UTC",
    "events": 87,
-   "pages": null,
+   "pages": 1,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "db5560d5e49ca5689866017406f21b3e2c61e064601cec627242558151a22928"
+   "log_sha256": "e6f7bea330acc38fb63bdd1d9db2e123219b80fb9d34fa53891146b65f4103bd"
   },
   {
    "id": "4ced86b81b634bea879eb113db337519",
    "title": "GitHub Issue #240: Watcher is alive - Day 1 report",
    "events": 887,
-   "pages": null,
+   "pages": 9,
    "owner_messages": 0,
    "agent_messages": 2,
    "automation": true,
    "sandbox_status": "PAUSED",
-   "raw_sha256": "64610b91347e1487a705697251734e7ed9cc62d1b9437e0b86eaa7baf97a054a"
+   "log_sha256": "26f432cb89db5adfb95a487b82ab7559796cb0bb787ea480223589c35f6eb40e"
   },
   {
    "id": "5c6949a1b5a34048b74f26945d3bbcaf",
    "title": "GitHub Issue #240: Watcher is alive - Day 1 report",
    "events": 695,
-   "pages": null,
+   "pages": 7,
    "owner_messages": 0,
    "agent_messages": 1,
    "automation": true,
    "sandbox_status": "PAUSED",
-   "raw_sha256": "237e1a51c161fb9ca26d48b5737bfcc8c91fed7d8f9a6be4237b8dd67e396907"
+   "log_sha256": "2c87f9b31736be1b99d8bb077cb4cf0a3c6a0cebd778e5c23558d87765a643c0"
   },
   {
    "id": "1af9bdce3d754cb3b001125862668503",
    "title": "Watcher channel - issue #240 (DISABLED DRAFT) \u2014 2026-11-01 05:50:17 UTC",
    "events": 245,
-   "pages": null,
+   "pages": 3,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "PAUSED",
-   "raw_sha256": "e63b7c921c6d8e0c599789c02da948d7316be2314fa3c75c2f1703b96703bfc9"
+   "log_sha256": "2938e3d3be79abca532d2cbb3c11e633e7aef9b17e37e4f3c609c705257ba13a"
   },
   {
    "id": "fb17e9e3b3c64c45876468b9a6bbe505",
    "title": "GitHub Issue #240: Watcher is alive - Day 1 report",
    "events": 1007,
-   "pages": null,
+   "pages": 11,
    "owner_messages": 0,
    "agent_messages": 3,
    "automation": true,
    "sandbox_status": "PAUSED",
-   "raw_sha256": "58d075660be66d3e9dea1b6c93ae5eac2a156af0b157603d86f7cc3370989f3f"
+   "log_sha256": "80feae0bc5de803def4f24e7ba9d0259c4ffda1a305c85fefd24b5434ed407c3"
   },
   {
    "id": "9d96144246db4603b0b2cf6957c40d53",
    "title": "Watcher channel - issue #240 (DISABLED DRAFT) \u2014 brain#240",
    "events": 191,
-   "pages": null,
+   "pages": 2,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "PAUSED",
-   "raw_sha256": "e13d551d8c5cbc6cadf5156dcc438127c06b84636ad237cc9259db38a3b3150e"
+   "log_sha256": "20c3b296fd72010dfb3037d8c8eec332f8b16ab6dcb5ee4d5c41763e08d77506"
   },
   {
    "id": "c3a91d7b839d446f92fed7971be1fa36",
    "title": "Watcher channel - issue #240 (DISABLED DRAFT) \u2014 brain#240",
    "events": 143,
-   "pages": null,
+   "pages": 2,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "e2667d2bc4261f3b98769cebb12eec3ebf544bd9e6c3af1b82b06803fbb72fea"
+   "log_sha256": "53429b2540eca124d87774332d1c8b4668afd04baac981bce734d7ec5f5023da"
   },
   {
    "id": "6c00a6138a30469daeac5e9da7cf3f71",
    "title": "Openhands loop \u2014 2026-11-01 06:01:08 UTC",
    "events": 77,
-   "pages": null,
+   "pages": 1,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "c2bb8450d16fb2bb2ea5897726e0c0f553e6073edf72f11419973c3444221bfe"
+   "log_sha256": "8ae67eae374633f173d6a15f26b6db30c88994c40820a2f18de9a792e27a3de2"
   },
   {
    "id": "24045ceb63d749a8b682e47b88218ca7",
    "title": "Watcher channel - issue #240 \u2014 brain#240",
    "events": 159,
-   "pages": null,
+   "pages": 2,
    "owner_messages": 0,
    "agent_messages": 1,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "4e20ee2a4f8dce80e54639ab022cb95ece58e97dc52b6f8bc39734e7371449d0"
+   "log_sha256": "312e57f625e32e30d6ddcf1dab0ac5367bacc5cf8c1489c1ae53f11fe90d1132"
   },
   {
    "id": "b9f2ff87321c448fb4cfac3a6a6c2922",
    "title": "GitHub Issue #240: Watcher is alive - Day 1 report",
    "events": 591,
-   "pages": null,
+   "pages": 6,
    "owner_messages": 0,
    "agent_messages": 2,
    "automation": true,
    "sandbox_status": "PAUSED",
-   "raw_sha256": "0bc240f19a53f92c5b8af87bc4a13c19a48c213563e8f9c95df976444f00c8e4"
+   "log_sha256": "7eaf2b94f2b28d919c03258a031f178b655e06b645f0af1d3e7e78b4c308f375"
   },
   {
    "id": "746900dc07874398880b2cd4a1b751af",
    "title": "GitHub Issue #240: Watcher is alive - Day 1 report",
-   "events": 688,
-   "pages": null,
+   "events": 689,
+   "pages": 7,
    "owner_messages": 0,
    "agent_messages": 4,
    "automation": true,
    "sandbox_status": "PAUSED",
-   "raw_sha256": "db2c8cb60602fb1897b3cf7ee6d2807facdc2fccf7383adafc342d5938be402d"
+   "log_sha256": "7b54e407ee32d55897f3b7fae86ac85e46efb92f93fe6abd3b0f0332224bc352"
   },
   {
    "id": "301a857737b74e23bb50f6d39bf29002",
    "title": "Watcher engagement heartbeat - issue #240 \u2014 2026-11-01 06:08:08 UTC",
    "events": 60,
-   "pages": null,
+   "pages": 1,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "05625d195e556f7f22ff6c5d1e652ceab0be2de86bc95efd1b3acfda7c46c7c2"
+   "log_sha256": "f4b4db008c743bf90d13d713bc3697b2bdea9fc33bf5fc3df56f3df09bc7d58e"
   },
   {
    "id": "3e23658866cb42538c6c3b6b9d20ff2a",
    "title": "Watcher engagement heartbeat - issue #240 \u2014 2026-11-01 06:21:34 UTC",
    "events": 80,
-   "pages": null,
+   "pages": 1,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "c820b73733977af465a1f5268c2abd752517692a8e51636358058d4c80abc9c1"
+   "log_sha256": "56c23e81c5d7dda33213a6c74a65cb7ed78c4c6ec751eab8a808ec3863eeaa4a"
   },
   {
    "id": "528578676bc8420cac3fedf5ba486ef0",
    "title": "Openhands loop \u2014 2026-11-01 08:01:17 UTC",
    "events": 93,
-   "pages": null,
+   "pages": 1,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "e90587024cb721456d68086e83e7240101e141b9edd8bf26c16e5bbde99e34af"
+   "log_sha256": "def4414ea150776e3f3bfb36e625c9a317f01940e113f8d5bfd4e4812efa5482"
   },
   {
    "id": "bf594e0b0f8b42bf86028a3214d7b766",
    "title": "Openhands loop \u2014 2026-11-01 10:01:10 UTC",
    "events": 85,
-   "pages": null,
+   "pages": 1,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "c93f353943af895fba2eef666a6e2c0d4e9c1412307a42feb8f17115a6be38f7"
+   "log_sha256": "0d973801253e76a9d3997676a9fab6320c5f4b54f4113c04c07c514455d42d56"
   },
   {
    "id": "428a28184a8a4bad8868010ccec00625",
    "title": "Openhands loop \u2014 2026-11-01 12:02:01 UTC",
    "events": 70,
-   "pages": null,
+   "pages": 1,
    "owner_messages": 0,
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "MISSING",
-   "raw_sha256": "a7f6263864330ce1bf9e9f9ae808ee2e78fca517b006613593d701fa5c2656c9"
+   "log_sha256": "563b4dbd4a1b4e022f45d2c2f259f41f7ee32cb0160f878cd038047f00798479"
   }
  ]
 }

@@ -22,7 +22,7 @@
    "agent_messages": 0,
    "automation": true,
    "sandbox_status": "PAUSED",
-   "log_sha256": "c7240b0cf372388945792966763711c1cd933d43f8cc979915a6ec6e873b267f"
+   "log_sha256": "d4aa8c3a14a7a419dcbce84538b4f1e2012edff0e117004afbe01952a84f2a92"
   },
   {
    "id": "44b6acd29ca4479689a12f7a1e9ef2b2",
@@ -33,7 +33,7 @@
    "agent_messages": 5,
    "automation": false,
    "sandbox_status": "PAUSED",
-   "log_sha256": "82a08a23c090456201f2eb3f883f331f0236fb20f13f79aa43aff463dcc093fe"
+   "log_sha256": "c49bc44216e6703421c33936754dd07f5b906ff3604b777ea97dae43b7ee8e04"
   }
  ]
 }

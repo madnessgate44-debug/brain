@@ -148,6 +148,11 @@ def sha256_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
 
+def quote_block(text: str) -> str:
+    """Markdown blockquote each line, using a bare '>' for blank lines (no trailing space)."""
+    return "\n".join("> " + ln if ln else ">" for ln in text.split("\n"))
+
+
 def render_conversation(c: dict, events: list[dict]) -> str:
     automation = is_automation_conversation(c)
     lines = [f"### {c.get('title', '(untitled)')}",
@@ -160,15 +165,17 @@ def render_conversation(c: dict, events: list[dict]) -> str:
             if not body:
                 continue
             if automation or looks_like_template(body):
-                lines.append(f"\n**[{ts}] automation prompt (not the owner):**\n\n> " +
-                             body[:400].replace("\n", "\n> ") + (" …" if len(body) > 400 else ""))
+                lines.append(f"\n**[{ts}] automation prompt (not the owner):**\n\n" +
+                             quote_block(body[:400]) + (" …" if len(body) > 400 else ""))
             else:
-                lines.append(f"\n**[{ts}] OWNER (verbatim):**\n\n> " + body.replace("\n", "\n> "))
+                lines.append(f"\n**[{ts}] OWNER (verbatim):**\n\n" + quote_block(body))
         elif is_agent_message(e):
             body = text_of(e["llm_message"].get("content")).strip()
             if body:
                 lines.append(f"\n**[{ts}] Watcher/agent:**\n\n" + body)
-    return "\n".join(lines) + "\n"
+    # Trailing spaces are invisible in a transcript and git diff --check rejects them, so
+    # strip every line. Deterministic, so the manifest hash still matches the committed log.
+    return "\n".join(ln.rstrip() for ln in "\n".join(lines).split("\n")) + "\n"
 
 
 def owner_text(e: dict) -> str | None:
@@ -215,14 +222,15 @@ def main() -> int:
         automation = is_automation_conversation(c)
         if a.from_raw:
             d = json.loads(gzip.open(os.path.join(a.raw_dir, f"{cid}.events.json.gz")).read())
-            events, pages = d["events"], None
+            events, pages = d["events"], d.get("pages")
         else:
             try:
                 events, pages = pull_events(cid)
             except Exception as ex:  # noqa: BLE001
                 print(f"  FAILED {cid}: {ex}", file=sys.stderr)
                 return 1
-            raw = redact(json.dumps({"conversation": c, "events": events}, ensure_ascii=False)).encode()
+            raw = redact(json.dumps({"conversation": c, "events": events, "pages": pages},
+                                    ensure_ascii=False)).encode()
             gz = gzip.compress(raw)
             rp = os.path.join(a.raw_dir, f"{cid}.events.json.gz")
             with open(rp, "wb") as f:
