@@ -119,6 +119,30 @@ def open_weaknesses(ledger: Path) -> list[dict[str, str]]:
     return [item for item in items if item["status"] != "CLOSED"]
 
 
+def watched_sources(lessons_dir: Path, video_dir: Path) -> list[dict[str, str]]:
+    """Every video the Watcher watched: its URL, transcript, what he learned, what he'll do."""
+    if not lessons_dir.is_dir():
+        return []
+    watched: list[dict[str, str]] = []
+    for lesson in sorted(lessons_dir.glob("*.lesson.md")):
+        text = lesson.read_text(encoding="utf-8", errors="replace")
+
+        def section(name: str) -> str:
+            m = re.search(rf"^## {name}\n(.*?)(?=^## |\Z)", text, re.S | re.M)
+            return " ".join(m.group(1).split())[:400] if m else ""
+
+        url = (re.search(r"\*\*Source:\*\*\s*(\S+)", text) or [None, "(url not recorded)"])[1]
+        transcript = video_dir / (lesson.name.replace(".lesson.md", ".txt"))
+        watched.append({
+            "url": url,
+            "lesson": lesson.name,
+            "transcript": transcript.name if transcript.is_file() else "",
+            "learned": section("What this teaches") or "(no summary written)",
+            "action": section("Proposed action") or section("The fix") or "(no action written)",
+        })
+    return watched
+
+
 def collect(root: Path = _BRAIN) -> dict:
     """Gather every open item from the record, with an action plan for each."""
     audit = _audit()
@@ -176,21 +200,46 @@ def collect(root: Path = _BRAIN) -> dict:
             "check": weakness["check"],
         })
 
-    return {"items": items, "agents": report["agents"]}
+    return {
+        "items": items,
+        "agents": report["agents"],
+        "watched": watched_sources(
+            REPO / "watcher" / "knowledge" / "lessons",
+            REPO / "watcher" / "knowledge" / "video",
+        ),
+    }
 
 
 def render(data: dict, day: str) -> str:
     items = data["items"]
+    watched = data.get("watched", [])
     lines = [
         f"# Watcher learning report — {day}",
         "",
         "Generated automatically by `watcher/knowledge/tools/learning_report.py` in the scheduled",
-        "learning loop. It lists every open issue found in the record and how the Watcher intends",
-        "to fix it. Nothing here is written by hand.",
+        "learning loop. It shows what the Watcher watched, what he learned, and how he intends to",
+        "fix each open issue. Nothing here is written by hand.",
         "",
-        f"Open issues: **{len(items)}**.",
+        "## Videos the Watcher watched",
         "",
     ]
+    if not watched:
+        lines += [
+            "**None yet.** No lesson has been produced, so there is nothing to show. This is a",
+            "gap, not a pass: the learning loop has not run.",
+            "",
+        ]
+    for w in watched:
+        lines += [
+            f"### {w['url']}",
+            f"- **Transcript:** `watcher/knowledge/video/{w['transcript']}`"
+            if w["transcript"] else "- **Transcript:** (missing)",
+            f"- **Lesson:** `watcher/knowledge/lessons/{w['lesson']}`",
+            f"- **What he learned:** {w['learned']}",
+            f"- **What he will do about it:** {w['action']}",
+            "",
+        ]
+    lines += [f"## Open issues — {len(items)}", ""]
     if not items:
         lines.append("No open issues. Every depth check passed.")
         return "\n".join(lines) + "\n"

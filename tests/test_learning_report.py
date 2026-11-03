@@ -59,6 +59,30 @@ def test_report_is_wired_into_the_scheduled_learning_loop(lr):
     assert "schedule:" in wf
 
 
+def test_report_shows_videos_watched_with_lesson_and_action(lr):
+    data = lr.collect()
+    assert data["watched"], "the report must show what the Watcher watched"
+    for w in data["watched"]:
+        assert w["url"].startswith("http")
+        assert w["transcript"].endswith(".txt")
+        assert w["learned"] and w["learned"] != "(no summary written)"
+        assert w["action"] and w["action"] != "(no action written)"
+
+
+def test_render_lists_watched_videos_section(lr):
+    text = lr.render(lr.collect(), "2026-11-03")
+    assert "## Videos the Watcher watched" in text
+    assert "What he learned" in text
+    assert "What he will do about it" in text
+
+
+def test_render_says_none_when_no_lessons_exist(lr, tmp_path, monkeypatch):
+    monkeypatch.setattr(lr, "watched_sources", lambda *a, **k: [])
+    text = lr.render({"items": [], "watched": []}, "2026-11-03")
+    assert "**None yet.**" in text
+    assert "gap, not a pass" in text
+
+
 def test_open_weaknesses_skips_closed(lr):
     import tempfile
 
