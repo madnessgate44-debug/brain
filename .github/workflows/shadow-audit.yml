@@ -47,9 +47,20 @@ jobs:
           set +e
           python3 shadow/shadow.py --pr "$PR_NUMBER" \
             --subject "PR #${PR_NUMBER}: ${PR_TITLE}" > /tmp/verdict.txt 2>&1
-          cat /tmp/verdict.txt
           verdict="$(grep -m1 '^VERDICT:' /tmp/verdict.txt | sed 's/^VERDICT:[[:space:]]*//')"
+          if [ -z "$verdict" ]; then
+            # No model route configured (secrets absent) or every route failed.
+            verdict="BLOCKED"
+            {
+              echo "VERDICT: BLOCKED"
+              echo "FINDINGS:"
+              echo "- Shadow could not run — CONFIRMED — no Gemini route is configured in Actions."
+              echo "WEAKEST POINT: the pool secrets (OHGeminiAPI, GEMINI_POOL_1..7) are absent, so the auditor has no model."
+              echo "FIX: add the pool secrets to this repository (WATCHER.md §14.2) so Shadow can audit."
+            } > /tmp/verdict.txt
+          fi
           echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          cat /tmp/verdict.txt
 
       - name: Comment the verdict on the pull request
         env:

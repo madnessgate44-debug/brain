@@ -66,7 +66,12 @@ def sweep() -> int:
             continue
         if _has_shadow_verdict(n):
             continue
-        verdict = audit(f"PR #{n}: {pr['title']}", pr=n)
+        try:
+            verdict = audit(f"PR #{n}: {pr['title']}", pr=n)
+        except Exception as exc:  # noqa: BLE001 - no model route must not crash the sweep
+            verdict = (f"VERDICT: BLOCKED\nFINDINGS:\n- Shadow could not run — CONFIRMED — "
+                       f"{type(exc).__name__}.\nWEAKEST POINT: no model route is configured.\n"
+                       f"FIX: add the pool secrets (WATCHER.md §14.2).")
         _gh(f"/repos/{REPO}/issues/{n}/comments", "POST",
             {"body": f"## Shadow audit (hourly sweep)\n\n{verdict}\n\n_AI agent audit._"})
         done += 1
@@ -90,10 +95,14 @@ def _verdict_line(bodies: list[str]) -> str:
 
 
 def _needs_fix(bodies: list[str]) -> bool:
-    """True when a PR has a Shadow verdict that is not Verified and no fix handed back yet."""
+    """True only when a PR has a REJECTED/PARTIAL verdict and no fix handed back yet.
+
+    BLOCKED (no model route) and empty verdicts are not handed a fix.
+    """
     if any("Shadow fix proposal" in b for b in bodies):
         return False
-    return "VERIFIED" not in _verdict_line(bodies)
+    verdict = _verdict_line(bodies)
+    return "REJECTED" in verdict or "PARTIAL" in verdict
 
 
 def fix() -> int:
