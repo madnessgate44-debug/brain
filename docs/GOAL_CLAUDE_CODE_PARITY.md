@@ -55,7 +55,7 @@ roles on that one runtime** instead of bespoke single-shot Gemini prompts.
 | R1 | **This spec** exists and is accurate | file committed; every [V] row re-checkable | this file — DONE |
 | R2 | Shell tool on the developer path | the developer agent's tool list includes a local shell, scoped to the isolated workspace | `tests/test_openhands_developer.py` — DONE |
 | R3 | Skills loader for role prompts | roles load from `SKILL.md`-style files | test + a sample skill |
-| R4 | Hooks wired to the event bus | a PreToolUse hook fires and is logged | test + log |
+| R4 | Hooks wired to the event bus | a PreToolUse hook fires and is logged | test + log — DONE |
 | R5 | Session persistence / resume | a mission resumes across process restart | test + restart log |
 | R6 | Shadow gets tools + a real loop | Shadow can read a diff itself, not just a prompt | test + run log |
 | R7 | Parallel role execution | independent gates run concurrently | timing test |
@@ -75,6 +75,7 @@ Order R2 -> R3 -> R4 -> R5 -> R6 -> R7. Each is the smallest complete change for
 | R1 spec | COMPLETED | `docs/GOAL_CLAUDE_CODE_PARITY.md` |
 | R2 shell tool | VERIFIED | tool list asserted by test **and** a real command ran through the SDK terminal: `echo HELLO_AUDIT_123 && pwd` -> `HELLO_AUDIT_123` / `/tmp`, exit 0 |
 | R3 skills loader | PARTIAL -> VERIFIED | 8 prompt-based roles verified by test; the **developer** role was a defect (skill loaded but discarded on the SDK path) — fixed in `e6eaf07`; suite 301 passed / 1 skipped |
+| R4 lifecycle hook | VERIFIED | `brain/company/hooks.py` builds a `HookConfig` with a PreToolUse command hook; attached to the developer `Conversation`. `tests/test_hooks.py` drives `HookManager.run_pre_tool_use` on the real SDK event bus: the hook runs, logs `{"tool": "terminal"}`, and returns `allow`. Suite 303 passed / 1 skipped |
 
 ### Audit corrections (2026-11-02)
 

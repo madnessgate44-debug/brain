@@ -17,6 +17,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from brain.company.agent_runner import AgentOutputError, load_role_skill
+from brain.company.hooks import build_hook_config
 
 
 _PATH_PATTERN = re.compile(
@@ -209,7 +210,11 @@ def _run_sdk_sync(
 
         llm = LLM(**_sdk_llm_kwargs(model, api_key, base_url))
         agent = Agent(llm=llm, tools=_developer_tools(base_url))
-        conversation = Conversation(agent=agent, workspace=str(root))
+        hook_dir = Path(tempfile.mkdtemp(prefix="brain-hooks-"))
+        hook_config, hook_log = build_hook_config(hook_dir, root)
+        conversation = Conversation(
+            agent=agent, workspace=str(root), hook_config=hook_config
+        )
         conversation.send_message(_task_prompt(user_request, evidence))
         conversation.run()
 
