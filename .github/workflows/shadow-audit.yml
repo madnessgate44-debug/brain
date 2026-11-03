@@ -15,8 +15,6 @@ permissions:
 
 jobs:
   audit:
-    # Drafts are not merge candidates, so they are not audited.
-    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
