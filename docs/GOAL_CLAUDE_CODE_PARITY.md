@@ -57,7 +57,7 @@ roles on that one runtime** instead of bespoke single-shot Gemini prompts.
 | R3 | Skills loader for role prompts | roles load from `SKILL.md`-style files | test + a sample skill |
 | R4 | Hooks wired to the event bus | a PreToolUse hook fires and is logged | test + log — DONE |
 | R5 | Session persistence / resume | a mission resumes across process restart | test + restart log |
-| R6 | Shadow gets tools + a real loop | Shadow can read a diff itself, not just a prompt | test + run log |
+| R6 | Shadow gets tools + a real loop | Shadow can read a diff itself, not just a prompt | test + run log — DONE |
 | R7 | Parallel role execution | independent gates run concurrently | timing test |
 
 Order R2 -> R3 -> R4 -> R5 -> R6 -> R7. Each is the smallest complete change for that row.
@@ -76,6 +76,7 @@ Order R2 -> R3 -> R4 -> R5 -> R6 -> R7. Each is the smallest complete change for
 | R2 shell tool | VERIFIED | tool list asserted by test **and** a real command ran through the SDK terminal: `echo HELLO_AUDIT_123 && pwd` -> `HELLO_AUDIT_123` / `/tmp`, exit 0 |
 | R3 skills loader | PARTIAL -> VERIFIED | 8 prompt-based roles verified by test; the **developer** role was a defect (skill loaded but discarded on the SDK path) — fixed in `e6eaf07`; suite 301 passed / 1 skipped |
 | R4 lifecycle hook | VERIFIED | `brain/company/hooks.py` builds a `HookConfig` with a PreToolUse command hook; attached to the developer `Conversation`. `tests/test_hooks.py` drives `HookManager.run_pre_tool_use` on the real SDK event bus: the hook runs, logs `{"tool": "terminal"}`, and returns `allow`. Suite 303 passed / 1 skipped |
+| R6 Shadow tool loop | VERIFIED | `shadow/shadow.py` gains 5 read-only tools (`read_file`, `list_dir`, `search`, `read_workflow`, `read_log`); `audit()` runs a bounded loop (max 4 steps): the model may reply `TOOL: name {json}`, the result is fed back, until it emits `VERDICT:`. Files are read at the PR head sha, not the default branch. `tests/test_shadow_tools.py` (5 tests) proves the loop calls a tool, feeds the result back, stops at max steps, and logs the tools used. Live run: `read_file shadow/report.py` at PR #272 head returned the file (`_needs_fix` present). Suite 309 passed / 1 skipped |
 
 ### Audit corrections (2026-11-02)
 

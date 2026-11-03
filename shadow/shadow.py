@@ -16,6 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -54,6 +55,120 @@ FINDINGS:
 - <claim> — <CONFIRMED|UNPROVEN|DISPROVEN> — <reason>
 WEAKEST POINT: <one line>
 FIX: <one line>"""
+
+
+_MAX_STEPS = 4
+# Files are read at the ref under audit (a PR head sha), not always the default branch.
+_AUDIT_REF = "HEAD"
+
+
+def _tool_read_file(path: str, ref: str) -> str:
+    """Read a repo file at a ref via the GitHub API, so Shadow reads ground truth."""
+    c = _gh(f"/repos/{REPO}/contents/{urllib.parse.quote(path, safe='/')}?ref={ref}")
+    if not isinstance(c, dict) or not c.get("content"):
+        return f"could not read {path} at {ref}"
+    import base64
+    txt = base64.b64decode(c["content"]).decode("utf-8", "replace")
+    cap = 12000
+    mark = "COMPLETE" if len(txt) <= cap else f"TRUNCATED to {cap} of {len(txt)} bytes"
+    return f"{path} ({mark}):\n{txt[:cap]}"
+
+
+def _tool_list_dir(path: str, ref: str) -> str:
+    c = _gh(f"/repos/{REPO}/contents/{urllib.parse.quote(path, safe='/')}?ref={ref}")
+    if not isinstance(c, list):
+        return f"could not list {path} at {ref}"
+    return f"{path}: " + ", ".join(sorted(i.get("name", "?") for i in c))
+
+
+def _tool_search(pattern: str, ref: str) -> str:
+    """Search the repo's code for a pattern via the GitHub search API."""
+    q = urllib.parse.quote(f"repo:{REPO} {pattern}")
+    d = _gh(f"/search/code?q={q}&per_page=10")
+    items = d.get("items") if isinstance(d, dict) else None
+    if not items:
+        return f"no code matches for {pattern!r}"
+    return "\n".join(f"{i['path']}" for i in items)
+
+
+def _tool_read_workflow(name: str) -> str:
+    """Recent runs of one workflow — real history, so a claim about CI is checkable."""
+    rr = _gh(f"/repos/{REPO}/actions/workflows/{urllib.parse.quote(name, safe='')}/runs?per_page=8")
+    runs = (rr.get("workflow_runs") if isinstance(rr, dict) else None) or []
+    if not runs:
+        return f"no runs for workflow {name!r}"
+    return "\n".join(f"{r['created_at']} {r['head_branch'][:24]} -> {r['conclusion']}" for r in runs)
+
+
+def _tool_read_log(pr: int) -> str:
+    """The verdicts Shadow already posted on a PR — so he does not re-flag a fixed item."""
+    c = _gh(f"/repos/{REPO}/issues/{pr}/comments?per_page=100")
+    if not isinstance(c, list):
+        return f"could not read comments for PR #{pr}"
+    shadow = [x.get("body", "") for x in c if "Shadow" in (x.get("body") or "")]
+    return "\n---\n".join(shadow[-3:]) or f"no Shadow comments on PR #{pr}"
+
+
+TOOLS: dict[str, Any] = {
+    "read_file": (_tool_read_file, "read_file(path, ref) -> file contents at a git ref"),
+    "list_dir": (_tool_list_dir, "list_dir(path, ref) -> names in a repo directory"),
+    "search": (_tool_search, "search(pattern, ref) -> paths matching a code pattern"),
+    "read_workflow": (_tool_read_workflow, "read_workflow(name) -> recent runs of a workflow"),
+    "read_log": (_tool_read_log, "read_log(pr) -> Shadow's prior verdicts on a PR"),
+}
+
+
+def _tool_catalog() -> str:
+    return "\n".join(f"- {name}: {desc}" for name, (_, desc) in TOOLS.items())
+
+
+def _run_tool(name: str, args: dict[str, Any]) -> str:
+    fn = TOOLS.get(name, (None, ""))[0]
+    if fn is None:
+        return f"unknown tool {name!r}"
+    try:
+        if name in ("read_file", "list_dir", "search"):
+            return fn(str(args.get("path") or args.get("pattern") or "."),
+                      str(args.get("ref") or _AUDIT_REF or "HEAD"))
+        if name == "read_workflow":
+            return fn(str(args.get("name") or ""))
+        if name == "read_log":
+            return fn(int(args.get("pr") or 0))
+    except Exception as e:  # noqa: BLE001
+        return f"{name} failed: {type(e).__name__}: {e}"
+    return "no-op"
+
+
+_TOOL_PROTOCOL = """
+
+You may gather more evidence before judging. To call a tool, reply with ONLY:
+TOOL: <name> {"arg": "value"}
+Available tools:
+""" + _tool_catalog() + """
+
+When you have enough evidence, reply with the final verdict in the format above (starting
+VERDICT:). Do not mix a tool call and a verdict in the same reply."""
+
+
+def _parse_tool_call(text: str) -> tuple[str, dict[str, Any]] | None:
+    """Return (name, args) if the model asked for a tool, else None."""
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("TOOL:"):
+            continue
+        rest = line[len("TOOL:"):].strip()
+        name, _, js = rest.partition(" ")
+        try:
+            args = json.loads(js.strip() or "{}")
+        except json.JSONDecodeError:
+            args = {}
+        if name and isinstance(args, dict):
+            return name, args
+    return None
+
+
+def _is_verdict(text: str) -> bool:
+    return "VERDICT:" in text
 
 
 def generate(prompt: str, timeout: int = 90) -> tuple[str, str]:
@@ -215,13 +330,32 @@ def live_evidence(pr: int | None = None, issue: str | None = None) -> str:
 
 
 def audit(subject: str, context: str = "", pr: int | None = None, issue: str | None = None) -> str:
-    prompt = (f"{SYSTEM}\n\nLIVE EVIDENCE:\n{live_evidence(pr, issue)}\n\n"
-              f"CONTEXT:\n{context}\n\nSUBJECT TO AUDIT:\n{subject}\n")
-    model, verdict = generate(prompt)
+    global _AUDIT_REF
+    if pr is not None:
+        sha = (_gh(f"/repos/{REPO}/pulls/{pr}") or {}).get("head", {}).get("sha")
+        _AUDIT_REF = sha or _AUDIT_REF
+    base = (f"{SYSTEM}{_TOOL_PROTOCOL}\n\nLIVE EVIDENCE:\n{live_evidence(pr, issue)}\n\n"
+            f"CONTEXT:\n{context}\n\nSUBJECT TO AUDIT:\n{subject}\n")
+    prompt = base
+    model, reply = generate(prompt)
+    trace: list[str] = []
+    for _ in range(_MAX_STEPS):
+        if _is_verdict(reply):
+            break
+        call = _parse_tool_call(reply)
+        if call is None:
+            break  # no verdict and no tool call: take what we have
+        name, args = call
+        result = _run_tool(name, args)
+        trace.append(f"{name} {args} -> {len(result)} chars")
+        prompt += (f"\n\nASSISTANT:\n{reply}\n\nTOOL RESULT ({name}):\n{result}\n\n"
+                   f"Continue. Reply with the final verdict (VERDICT:) or one more TOOL call.")
+        model, reply = generate(prompt)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    tool_note = f" (tools: {'; '.join(trace)})" if trace else ""
     with open(LOG, "a") as f:
-        f.write(f"\n\n## Shadow audit — {ts} (route {model})\n\n{verdict}\n")
-    return verdict
+        f.write(f"\n\n## Shadow audit — {ts} (route {model}){tool_note}\n\n{reply}\n")
+    return reply
 
 
 def main() -> int:
