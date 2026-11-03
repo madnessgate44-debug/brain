@@ -177,13 +177,25 @@ Stored and rotated the same way, on the same job.
 Watcher is not only an auditor. Auditing returns pass/fail. Watcher also **analyses why a
 failure keeps returning** and **teaches** what he learns.
 
-### 16.1 Daily video quota
-- Every day Watcher watches a quota of videos/reels (YouTube or Facebook) related to his own
-  job or to another agent's job (developer, qa, security, release, design).
-- The quota is set in `watcher/knowledge/queue.txt` (one URL per line). The scheduled job
-  `watcher-learning.yml` drains the queue, oldest first. Ahmed may raise the per-run quota, or
-  hand Watcher a URL or a screenshot directly.
+### 16.1 Daily video quota — self-directed
+- The Watcher watches videos/reels all day, every day, related to his own job or to another
+  agent's job (developer, qa, security, release, design). **He finds this material himself**;
+  the owner does not supply it.
+- He derives what matters from `watcher/knowledge/focus.md`: the owner's line of work and the
+  open problems. `watcher/knowledge/tools/discover.py` turns those into YouTube searches and
+  queues the best results. The scheduled job `watcher-learning.yml` drains the queue.
+- **When the owner asks a question**, Watcher researches it (adds it to focus, discovers
+  sources, watches, and turns the result into a lesson and an action) instead of only reading
+  it. The question becomes knowledge he owns.
 - Each watched URL leaves the queue so the loop always advances. Nothing re-runs forever.
+
+### 16.5 Find the problems yourself
+- Watcher does not wait to be told what is broken. He reads the owner's whole trail — the
+  GitHub repos and issues, the OpenHands chats, and the Shadow conversations — and finds the
+  recurring problems.
+- For each recurring problem he produces: the symptom, the root cause, the evidence, and the
+  fix. He then acts on it (a Section 8 proposal) or builds it. Reporting a count ("N open
+  PRs") is not a finding; the cause and the fix are.
 
 ### 16.2 From transcript to lesson
 Each video becomes a lesson in `/watcher/knowledge/lessons/`, written by

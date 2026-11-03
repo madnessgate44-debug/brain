@@ -186,6 +186,7 @@ def main() -> int:
     out = Path(a.out)
     if a.skip_existing and (out / f"{slug}.md").exists():
         log(f"already have {out / (slug + '.md')} - nothing to do")
+        log(f"TRANSCRIPT: {out / (slug + '.txt')}")
         return 0
 
     with tempfile.TemporaryDirectory(prefix="transcribe-") as td:
@@ -221,6 +222,7 @@ def main() -> int:
     md += ["## Transcript", "", body, ""]
     (out / f"{slug}.md").write_text("\n".join(md), encoding="utf-8")
     log(f"done -> {out / (slug + '.md')}")
+    log(f"TRANSCRIPT: {out / (slug + '.txt')}")
     return 0
 
 

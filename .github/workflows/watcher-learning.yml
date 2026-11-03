@@ -31,6 +31,12 @@ permissions:
   pull-requests: write
   issues: write
 
+# One learning run at a time: a new run cancels an in-flight one, so the queue cannot be
+# drained twice concurrently.
+concurrency:
+  group: watcher-learning
+  cancel-in-progress: true
+
 jobs:
   learn:
     runs-on: ubuntu-latest
@@ -47,14 +53,23 @@ jobs:
           python -m pip install --quiet --upgrade pip
           python -m pip install --quiet yt-dlp faster-whisper imageio-ffmpeg numpy
 
+      - name: Discover what to watch (self-directed)
+        if: github.event.inputs.url == ''
+        run: |
+          # The Watcher finds his own material from the owner's line of work and the open
+          # problems (watcher/knowledge/focus.md). No video is ever supplied by the owner.
+          quota="${{ github.event.inputs.quota }}"; quota="${quota:-3}"
+          case "$quota" in ''|*[!0-9]*) quota=3 ;; esac
+          python3 watcher/knowledge/tools/discover.py --limit "$quota" --per-query 5 || true
+
       - name: Pick the URLs to watch
         id: pick
         env:
           INPUT_URL: ${{ github.event.inputs.url }}
           QUOTA: ${{ github.event.inputs.quota }}
         run: |
-          quota="${QUOTA:-1}"
-          case "$quota" in ''|*[!0-9]*) quota=1 ;; esac
+          quota="${QUOTA:-3}"
+          case "$quota" in ''|*[!0-9]*) quota=3 ;; esac
           if [ -n "$INPUT_URL" ]; then
             printf '%s\n' "$INPUT_URL" > /tmp/urls.txt
           elif [ -f watcher/knowledge/queue.txt ]; then
@@ -84,8 +99,8 @@ jobs:
               echo "${url}" >> /tmp/skipped.txt
               continue
             fi
-            newest="$(ls -t watcher/knowledge/video/*.txt 2>/dev/null | head -n 1)"
-            if [ -z "$newest" ]; then
+            newest="$(grep -oE 'TRANSCRIPT: .*' /tmp/transcribe.log | tail -n 1 | cut -d' ' -f2-)"
+            if [ -z "$newest" ] || [ ! -f "$newest" ]; then
               echo "no transcript produced for ${url}; skipping lesson"
               continue
             fi
