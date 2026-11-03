@@ -83,6 +83,44 @@ def _registry_summary() -> str:
     return f"{len(rows)} registered rows, {working} WORKING"
 
 
+def _verdict_line(bodies: list[str]) -> str:
+    """The most recent Shadow verdict line, e.g. 'VERDICT: VERIFIED'. Empty if none."""
+    verdict = next((b for b in reversed(bodies) if "Shadow audit" in b), "")
+    return next((l for l in verdict.splitlines() if l.startswith("VERDICT:")), "")
+
+
+def _needs_fix(bodies: list[str]) -> bool:
+    """True when a PR has a Shadow verdict that is not Verified and no fix handed back yet."""
+    if any("Shadow fix proposal" in b for b in bodies):
+        return False
+    return "VERIFIED" not in _verdict_line(bodies)
+
+
+def fix() -> int:
+    """Counter power, part (b): for each open PR whose Shadow verdict was not Verified,
+    post the fix Shadow already produced, handed back to the author. Idempotent."""
+    posted = 0
+    for pr in _open_prs():
+        n = pr["number"]
+        if pr.get("draft"):
+            continue
+        comments = _gh(f"/repos/{REPO}/issues/{n}/comments?per_page=100")
+        if not isinstance(comments, list):
+            continue
+        bodies = [c.get("body") or "" for c in comments]
+        if not _needs_fix(bodies):
+            continue
+        verdict_comment = next((b for b in reversed(bodies) if "Shadow audit" in b), "")
+        fix_line = next((l for l in verdict_comment.splitlines() if l.startswith("FIX:")), "FIX: (none recorded)")
+        body = (f"## Shadow fix proposal (WATCHER.md §1)\n\n"
+                f"The latest audit of this PR was not Verified. Handing the fix back:\n\n"
+                f"{fix_line}\n\n_AI agent (OpenHands) on behalf of the owner._")
+        _gh(f"/repos/{REPO}/issues/{n}/comments", "POST", {"body": body})
+        posted += 1
+    print(f"fix: handed back {posted} fix proposal(s)")
+    return posted
+
+
 def report() -> str:
     prs = _open_prs()
     lines = [f"## Shadow report — {os.environ.get('SHADOW_TS', '')}".rstrip()]
@@ -105,13 +143,16 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Shadow report / sweep jobs")
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--sweep", action="store_true")
+    ap.add_argument("--fix", action="store_true")
     a = ap.parse_args()
     if a.sweep:
         sweep()
+    elif a.fix:
+        fix()
     elif a.report:
         print(report())
     else:
-        ap.error("choose --report or --sweep")
+        ap.error("choose --report, --sweep, or --fix")
     return 0
 
 

@@ -62,4 +62,6 @@ jobs:
           GEMINI_POOL_5: ${{ secrets.GEMINI_POOL_5 }}
           GEMINI_POOL_6: ${{ secrets.GEMINI_POOL_6 }}
           GEMINI_POOL_7: ${{ secrets.GEMINI_POOL_7 }}
-        run: python3 shadow/report.py --sweep
+        run: |
+          python3 shadow/report.py --sweep
+          python3 shadow/report.py --fix
