@@ -36,13 +36,15 @@ The developer loop is real but **hemmed in**:
   works in a sandbox and can only *propose text*. **~3/10** for "the agent can change a repo".
 
 ### 3. The proof — the loop is not proven to run against a live model in CI
-- The developer loop only engages when the provider is a real `OpenAICompatibleProvider`;
-  **tests inject fakes** (`agent_runner.py:403` comment). So the suite proves the *wiring*, not
-  a live end-to-end coding run.
+- The loop **is** wired into the running service: `brain/runtime/mission_runtime.py:94` builds
+  `CompanyWorkflowEngine(SpecialistAgentRunner(OpenAICompatibleProvider()), tools)` for a
+  mission whose `metadata.workflow_type == "software_company"`. So it is reachable, not dead.
+- But it only engages with a real provider; **tests inject fakes** (`agent_runner.py:403`
+  comment). So the suite proves the *wiring*, not a live end-to-end coding run.
 - There is **no committed evidence of a real issue -> real PR** produced by this path. R2 was
   proven by a single shell command through the SDK (`echo HELLO_AUDIT_123`), not a code change.
 - **Distance:** Claude Code's whole value is that it demonstrably does the work. Here the loop
-  is built and unit-tested but **not proven to land a real change**. **~2/10** for "proven".
+  is built, wired, and unit-tested but **not proven to land a real change**. **~2/10**.
 
 ### Capability table (present / partial / absent), with evidence
 
