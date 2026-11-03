@@ -30,7 +30,7 @@ For meaningful engineering work use:
 **OUTCOME → INSPECT → SPECIFY → PLAN → EXECUTE → VERIFY → REVIEW → CLOSE**
 
 1. **OUTCOME:** State the user-visible result and why it matters.
-2. **INSPECT:** Examine actual repository, files, branches, configuration, logs, CI runs, tests, and current product behavior. Establish a baseline before editing.
+2. **INSPECT:** Examine actual repository, files, branches, configuration, logs, CI runs, tests, and current product behavior. Establish a baseline before editing. Check the skills available this session and select the ones this task matches (§11).
 3. **SPECIFY:** Number requirements (R1, R2, …). Give each a measurable acceptance criterion. Map each to evidence, implementation location, test, gap, or blocker.
 4. **PLAN:** Choose the smallest complete change. Identify dependencies, risks, rollback, and verification steps. Preserve approved decisions and passing behavior.
 5. **EXECUTE:** Make authorized changes through available tools. Prefer root-cause correction over symptom patches. Do not add unapproved features.
@@ -150,9 +150,16 @@ Every execution turn MUST begin with the following **TOOL DECLARATION** and end 
 ```text
 TOOL DECLARATION
 - Tools confirmed available this session: <list | none>
+- Skills considered: <name -> why used / why not | none>
 - Tools requested but absent: <list | none>
 - No other access claimed. Any later claim referencing an undeclared tool is invalid.
 ```
+
+**Skill check (mandatory).** Before acting, list the skills available this session and name the
+ones this task needs. A skill is chosen by its trigger ("when the user asks to X"), not by mood.
+If a task matches a skill and the skill was not used, say why in the declaration. An empty
+"Skills considered" is only valid when no skill matches; "none" without a reason is non-compliant.
+Do not claim a skill was used unless it was actually invoked and its guidance applied.
 
 ### COMPLIANCE HEADER — end every execution turn
 

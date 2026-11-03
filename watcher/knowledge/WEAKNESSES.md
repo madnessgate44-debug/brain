@@ -76,6 +76,19 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
 - **Closure:** describe only what a command proves; label the rest "planned".
 - **Check:** every capability statement must be reproducible by a named command.
 
+## W7 — We do not consult the skills we were given
+- **Evidence:** the platform provides **76 public skills** plus **3 plugin skill packs** (the OS
+  skill among them). The owner: *"I installed and worked with you on over 100 skills ... why are
+  they not used during each and every conversation ... why do you not check your skills before
+  you start any work?"* The repo's own OS (`ENGINEERING_EXECUTION_OS.md`) never mentioned skills;
+  the Watcher's tools never loaded a skill.
+- **Belongs to:** all three, and the session agent most of all (it has the skill list in its
+  prompt and still works from habit).
+- **Closure:** every execution turn names the skills it considered and the ones it used, chosen
+  by trigger, not by mood. The OS TOOL DECLARATION now requires a "Skills considered" line.
+- **Check:** `scripts/skill_check.py` — it fails if the OS does not mandate the skill check, or if
+  any of the nine company roles has no skill file. Run it before starting work.
+
 ## The single root cause
 All six are one habit, shared by all three agents: **we optimise for what is easy to prove** —
 a green check, a written report, a confident number — **and avoid the harder, open-ended work**
@@ -90,3 +103,5 @@ the thing that is checked.
 - `session-agent-loop.yml` + `scripts/start_session_loop.py` give the session agent a loop, so
   its improvement no longer depends on the owner opening a session.
 - This ledger makes W1-W6 checkable instead of forgotten.
+- `scripts/skill_check.py` makes W7 checkable: it fails when the OS stops requiring a skill check,
+  or when a role loses its skill file. Run it before starting work.
