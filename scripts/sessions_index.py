@@ -66,6 +66,16 @@ def main() -> int:
             title = (c.get("title") or "(untitled)").replace("|", "/")
             lines.append(f"- {x['day']} · `{c['id'][:12]}` · {title} · events {c.get('events')}")
 
+    lines += [
+        "",
+        "## Analyses of this archive",
+        "",
+        "- [External audit: why OpenHands keeps failing, and what to change in Settings]"
+        "(../AUDIT_OPENHANDS_SETTINGS_2026-11-03.md) — reads these conversations as an outside",
+        "  reviewer; maps each failure class to a real Settings option.",
+        "",
+    ]
+
     (d / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"wrote {d / 'README.md'} ({len(days)} days, {total_convs} conversations)")
     return 0

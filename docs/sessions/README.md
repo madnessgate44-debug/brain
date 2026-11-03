@@ -92,3 +92,9 @@ Raw gzip events live in `.openhands/export/raw/` (gitignored, complete).
 - 2026-11-01 · `f416280d5982` · Watcher · events 8517
 - 2026-11-02 · `399312f7d83f` · 🐛 Repo Health Check & Fix Missing Work · events 773
 - 2026-11-02 · `5badf80fe080` · ✨ How close are we to Claude Code? · events 4037
+
+## Analyses of this archive
+
+- [External audit: why OpenHands keeps failing, and what to change in Settings](../AUDIT_OPENHANDS_SETTINGS_2026-11-03.md) — reads these conversations as an outside
+  reviewer; maps each failure class to a real Settings option.
+
