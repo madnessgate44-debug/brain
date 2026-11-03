@@ -53,17 +53,47 @@ jobs:
           echo "target: ${url}"
 
       - name: Transcribe (captions, else local ASR)
+        id: transcribe
         if: steps.pick.outputs.url != ''
         env:
           GEMINI_API_KEY: ${{ secrets.OHGeminiAPI }}
         run: |
           # --model is the local Whisper ASR size (offline), not a Gemini route.
           model="${{ github.event.inputs.model }}"; model="${model:-base}"
+          set +e
           python3 watcher/knowledge/tools/transcribe.py "${{ steps.pick.outputs.url }}" \
-            --out watcher/knowledge/video --model "$model" --skip-existing
+            --out watcher/knowledge/video --model "$model" --skip-existing 2>&1 | tee /tmp/transcribe.log
+          code="${PIPESTATUS[0]}"
+          if grep -q "skip: source unavailable" /tmp/transcribe.log; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+          fi
+          exit "$code"
+
+      - name: Drop an unfetchable queue URL (advance the queue)
+        if: steps.transcribe.outputs.skipped == 'true' && github.event.inputs.url == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          URL: ${{ steps.pick.outputs.url }}
+        run: |
+          git config user.name "watcher-bot"
+          git config user.email "watcher-bot@users.noreply.github.com"
+          grep -vxF "$URL" watcher/knowledge/queue.txt > /tmp/queue.txt
+          mv /tmp/queue.txt watcher/knowledge/queue.txt
+          if git diff --quiet; then
+            echo "queue unchanged"
+            exit 0
+          fi
+          branch="knowledge/queue-skip-$(date -u +%Y%m%d%H%M)"
+          git checkout -b "$branch"
+          git add watcher/knowledge/queue.txt
+          git commit -m "knowledge(queue): drop unfetchable URL ${URL}"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "knowledge(queue): drop unfetchable URL" \
+            --body "The scheduled learning loop could not fetch ${URL} (source unavailable), so it is removed from the queue to keep the loop advancing (WATCHER.md §4.4)."
 
       - name: Publish as a pull request (never push main)
-        if: steps.pick.outputs.url != ''
+        if: steps.pick.outputs.url != '' && steps.transcribe.outputs.skipped != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           URL: ${{ steps.pick.outputs.url }}

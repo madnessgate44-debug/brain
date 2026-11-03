@@ -43,3 +43,16 @@ def test_stamp_vtt_mmss(tr):
 
 def test_stamp_fallback(tr):
     assert tr._stamp("garbage") == "00:00"
+
+
+def test_probe_raises_source_unavailable_not_systemexit(tr, monkeypatch):
+    """An unfetchable source must be skippable, not a hard exit that reddens the loop."""
+
+    class _Result:
+        returncode = 1
+        stdout = ""
+        stderr = "ERROR: [youtube] x: Sign in to confirm you're not a bot."
+
+    monkeypatch.setattr(tr.subprocess, "run", lambda *a, **k: _Result())
+    with pytest.raises(tr.SourceUnavailable):
+        tr.probe("https://youtube.com/watch?v=x")

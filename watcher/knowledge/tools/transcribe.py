@@ -54,12 +54,16 @@ def stamp(sec: float) -> str:
     return f"{t // 60:02d}:{t % 60:02d}"
 
 
+class SourceUnavailable(Exception):
+    """The source could not be fetched: private, removed, region-locked, or bot-walled."""
+
+
 def probe(url: str) -> dict:
     cmd = [sys.executable, "-m", "yt_dlp", "--no-warnings", "--skip-download",
            "--print", "%(title)s\t%(id)s\t%(duration)s\t%(extractor)s", url]
     out = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if out.returncode != 0:
-        raise SystemExit(f"probe failed: {out.stderr.strip()[:300]}")
+        raise SourceUnavailable(out.stderr.strip()[:300] or "yt-dlp could not read the source")
     title, vid, dur, ex = (out.stdout.strip().split("\t") + ["", "", "", ""])[:4]
     return {"title": title or vid, "id": vid, "duration": dur, "extractor": ex, "url": url}
 
@@ -166,7 +170,16 @@ def main() -> int:
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
 
     log(f"[1/4] probing {a.url}")
-    meta = probe(a.url)
+    try:
+        meta = probe(a.url)
+    except SourceUnavailable as exc:
+        # An unfetchable source (e.g. YouTube's "Sign in to confirm you're not a bot")
+        # is not a tool failure. Skip it, leave the queue untouched, and stay green so
+        # the scheduled loop keeps running instead of going red every day.
+        log(f"skip: source unavailable - {exc}")
+        if os.environ.get("GITHUB_ACTIONS"):
+            print(f"::warning::skipped {a.url}: {exc}")
+        return 0
     log(f"  {meta['title']}  ({meta['duration']}s, {meta['extractor']})")
 
     slug = slugify(meta["title"])
