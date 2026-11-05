@@ -1,6 +1,6 @@
 {
  "date": "2026-11-04",
- "count": 13,
+ "count": 14,
  "conversations": [
   {
    "id": "dbba37c0c64a479cad347ddbc2fad60f",
@@ -126,13 +126,13 @@
   {
    "id": "e325f5c9ac434ffa89cb1bbb1c9a6cb2",
    "title": "\ud83d\udd27 OpenHands Settings Fields Breakdown",
-   "events": 392,
-   "pages": 4,
-   "owner_messages": 10,
-   "agent_messages": 5,
+   "events": 991,
+   "pages": 10,
+   "owner_messages": 20,
+   "agent_messages": 10,
    "automation": false,
-   "sandbox_status": "RUNNING",
-   "log_sha256": "e9cd0d6a8bba0be56b095b617e58e35e8ac9cf0a840f4ed96477e378251a10a1"
+   "sandbox_status": "PAUSED",
+   "log_sha256": "2b512dfdb5813ce624e52c060debd24f7a0a2078d6d111306d303d52f053a9d1"
   },
   {
    "id": "37847d24f5834c5a963bbef5ce3bc7f3",
@@ -144,6 +144,17 @@
    "automation": true,
    "sandbox_status": "MISSING",
    "log_sha256": "358be268f46a8a999203015d082799a36cbe7ce8327bc47f5c1e22eed855f210"
+  },
+  {
+   "id": "b1f66c8fc0c9430491691128561c0370",
+   "title": "Openhands loop \u2014 2026-11-04 14:01:00 UTC",
+   "events": 98,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "57c00a72d858edb977f6184dbae88046b29cd36a48cb198be7d765506323e9d7"
   }
  ]
 }
