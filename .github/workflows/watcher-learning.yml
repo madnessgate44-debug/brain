@@ -1,0 +1,85 @@
+name: Watcher learning loop
+
+# Implements the learning half of WATCHER.md §4 that watcher-daily.yml does not:
+# §4.3 research, §4.4 transcribe, §7 reverse-engineer. Runs on main so the loop
+# does not depend on a live session. Manual dispatch takes a video URL; the
+# scheduled run picks the newest URL from watcher/knowledge/queue.txt.
+# Rule: never print a secret value.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Video/reel URL to transcribe (blank = newest in queue.txt)"
+        required: false
+      model:
+        description: "Local ASR model size (tiny|base|small)"
+        required: false
+        default: base
+  schedule:
+    - cron: "30 4 * * *"   # 06:30 Africa/Cairo (UTC+2), after the daily cycle
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  transcribe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install transcription deps
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet yt-dlp faster-whisper imageio-ffmpeg numpy
+
+      - name: Pick the URL
+        id: pick
+        env:
+          INPUT_URL: ${{ github.event.inputs.url }}
+        run: |
+          url="${INPUT_URL}"
+          if [ -z "$url" ] && [ -f watcher/knowledge/queue.txt ]; then
+            url="$(grep -v '^#' watcher/knowledge/queue.txt | grep -v '^[[:space:]]*$' | tail -n 1)"
+          fi
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "target: ${url}"
+
+      - name: Transcribe (captions, else local ASR)
+        if: steps.pick.outputs.url != ''
+        env:
+          GEMINI_API_KEY: ${{ secrets.OHGeminiAPI }}
+        run: |
+          # --model is the local Whisper ASR size (offline), not a Gemini route.
+          model="${{ github.event.inputs.model }}"; model="${model:-base}"
+          python3 watcher/knowledge/tools/transcribe.py "${{ steps.pick.outputs.url }}" \
+            --out watcher/knowledge/video --model "$model" --skip-existing
+
+      - name: Publish as a pull request (never push main)
+        if: steps.pick.outputs.url != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          URL: ${{ steps.pick.outputs.url }}
+        run: |
+          git config user.name "watcher-bot"
+          git config user.email "watcher-bot@users.noreply.github.com"
+          git add watcher/knowledge/video
+          if git diff --cached --quiet; then
+            echo "nothing new to commit"
+            exit 0
+          fi
+          slug="$(printf '%s' "$URL" | tr -c 'a-z0-9' '-' | cut -c1-40)"
+          branch="knowledge/video-${slug}-$(date -u +%Y%m%d%H%M)"
+          git checkout -b "$branch"
+          git commit -m "knowledge(video): transcribe ${URL}"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "knowledge(video): transcribe ${URL}" \
+            --body "Automated transcript from the Watcher learning loop (WATCHER.md §4.4). Source: ${URL}. CI + Shadow audit gate the merge."

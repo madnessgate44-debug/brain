@@ -17,7 +17,7 @@ jobs:
       github.event.issue.user.login == github.repository_owner &&
       github.event.sender.login == github.repository_owner &&
       contains(github.event.issue.body, '/brain browse')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: write

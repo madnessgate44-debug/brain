@@ -1,0 +1,6 @@
+# Backlog for the Watcher learning loop (WATCHER.md §4.3/§4.4).
+# One video/reel URL per line. The scheduled run transcribes the NEWEST line and
+# skips any URL whose transcript already exists (--skip-existing).
+# Keep this to material not yet transcribed; an empty queue means nothing to do.
+# On-demand: Actions -> "Watcher learning loop" -> Run workflow -> paste a URL.
+https://www.youtube.com/watch?v=uWkQ1sHYzng

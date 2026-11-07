@@ -1,0 +1,160 @@
+{
+ "date": "2026-11-04",
+ "count": 14,
+ "conversations": [
+  {
+   "id": "dbba37c0c64a479cad347ddbc2fad60f",
+   "title": "**REPOSITORY:** `madnessgate44-debug/Amina`\n**B...",
+   "events": 18,
+   "pages": 1,
+   "owner_messages": 2,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "775c4bc72f8f0da59c74686345217be5f627dc8886690b342ef0f8c0dc6c4fbc"
+  },
+  {
+   "id": "09c5da07f01f4b8891cb732fa0e5214b",
+   "title": "Conversation 09c5da07f01f4b8891cb732fa0e5214b",
+   "events": 10,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "1ca897ef566a2fd8edd506562f93a266c958253b3259b99150bc597f0d1deaae"
+  },
+  {
+   "id": "c2d70998e0a74ebfa9df4368c0ba9d00",
+   "title": "Conversation c2d70998e0a74ebfa9df4368c0ba9d00",
+   "events": 10,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "ccf70ca6abf6801ed335c4f0d6460d230aaa88e1ee48b7c444a5c10eaeafe87e"
+  },
+  {
+   "id": "a4053d0220a24e3e976422d228dfaab4",
+   "title": "Openhands loop \u2014 2026-11-04 04:01:59 UTC",
+   "events": 87,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "7e6b1584ff0b08d239d44fa1b9f419b12fb3c1b24664dc750ed9acd3126e9e26"
+  },
+  {
+   "id": "c479474e8e764f1f93ba678dae8c69fa",
+   "title": "Openhands loop \u2014 2026-11-04 06:00:49 UTC",
+   "events": 90,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "dc0671c555a2c3aa5ce07170ac905b28b7163d49e267e00108f0c7e0bce08b6f"
+  },
+  {
+   "id": "74d7068aa747433fae583ccf7c97ec0d",
+   "title": "Openhands loop \u2014 2026-11-04 08:01:35 UTC",
+   "events": 82,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "6be46bea8ec53b381a6dd03997ef31f51429de570032b19c240c7756bd0af0fd"
+  },
+  {
+   "id": "faac3af6ffa449a48fe0c4db677456ff",
+   "title": "Openhands loop \u2014 2026-11-04 10:01:25 UTC",
+   "events": 121,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "d32a907ed40abf6e15641b885d135da2cc856b8c2d812d724e270a55ec7a28b9"
+  },
+  {
+   "id": "e5da9551c53f42a29c24c24a3b9dd098",
+   "title": "\u2728 New Conversation",
+   "events": 68,
+   "pages": 1,
+   "owner_messages": 2,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "c47641ac9f4918d58a64912e15b45fb1267322f448659d042e2ab592e91ade4d"
+  },
+  {
+   "id": "72765f95ebd54e56b5057f0881a4fb06",
+   "title": "\ud83d\udc1b Gemini LLM not working after settings change",
+   "events": 580,
+   "pages": 6,
+   "owner_messages": 2,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "ab199362035d54ac6ca8184467eecf39e52a70c403bda062f8dab16d4127531c"
+  },
+  {
+   "id": "12adc8fe8e0a44928f2b3591bbe33b96",
+   "title": "Conversation 12adc",
+   "events": 12,
+   "pages": 1,
+   "owner_messages": 1,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "1905b460af073a709bc0223f867b7acf5e9e00b9713c5d4ac04dd52c01514f3f"
+  },
+  {
+   "id": "85222a67bf674401b68cf90e1ee2e0ec",
+   "title": "\ud83d\udd27 New Conversation Started",
+   "events": 23,
+   "pages": 1,
+   "owner_messages": 3,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "4da65c2d774ffcf0191b0b81d09c932b012137fbcba208b3c33bde611370597c"
+  },
+  {
+   "id": "e325f5c9ac434ffa89cb1bbb1c9a6cb2",
+   "title": "\ud83d\udd27 OpenHands Settings Fields Breakdown",
+   "events": 991,
+   "pages": 10,
+   "owner_messages": 20,
+   "agent_messages": 10,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "2b512dfdb5813ce624e52c060debd24f7a0a2078d6d111306d303d52f053a9d1"
+  },
+  {
+   "id": "37847d24f5834c5a963bbef5ce3bc7f3",
+   "title": "Openhands loop \u2014 2026-11-04 12:04:18 UTC",
+   "events": 99,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "358be268f46a8a999203015d082799a36cbe7ce8327bc47f5c1e22eed855f210"
+  },
+  {
+   "id": "b1f66c8fc0c9430491691128561c0370",
+   "title": "Openhands loop \u2014 2026-11-04 14:01:00 UTC",
+   "events": 98,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "57c00a72d858edb977f6184dbae88046b29cd36a48cb198be7d765506323e9d7"
+  }
+ ]
+}

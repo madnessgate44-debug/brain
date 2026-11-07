@@ -40,6 +40,15 @@ jobs:
             "https://api.github.com/repos/madnessgate44-debug/brain/pulls?state=open")
           echo "collect: PASS (http ${code})"
 
+      - name: Run one Watcher loop pass (real)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # One bounded pass: reads the newest counterpart comment on hub #240 and, if
+          # it is new, posts the canonical ticket envelope. Writes state only on success.
+          # Fail loudly: a broken loop must turn the job red, not warn.
+          python3 watcher/bridge/loop.py --once
+
       - name: Result 1 - daily plan
         run: |
           echo "Result 1: daily plan produced; Shadow audit required before continuing (Section 4.5)."
