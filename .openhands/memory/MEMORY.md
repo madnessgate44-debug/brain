@@ -367,6 +367,52 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
   `preset_metadata.repos`) / `/{id}/runs?limit=N`. The ENABLED "Openhands loop" `aa4ae120-...` targets
   `madnessgate44-debug/Openhands`, not `brain` — that is why the loop still needs the owner.
 
+## Mission 21 (2026-11-06) — ARTEMIS research (FB reel) — PR #283
+- Owner shared FB reel `facebook.com/share/r/19mVcPn8wa/` (id `1421050626342423`, 25.9s, Egyptian
+  Arabic, uploader "The Prince Osa") claiming a free Google tool lets Claude Code control a phone.
+- **Tool = `google/artemis`** (Verified via GitHub API): **16,711 stars**, 1,845 forks, Apache-2.0,
+  Python 3.12+, created 2026-08-13, last push 2026-10-01, **no releases** (source install only).
+  Real Android-automation agent; 99%+ on AndroidWorld; native **MCP server** for Antigravity /
+  Claude Code / Codex / Cursor / Windsurf; installs an on-device "Artemis Accessibility Helper".
+- **Correction to the reel:** it does NOT install on the phone as an app — it runs on a host
+  machine and drives the phone over USB/ADB. Only the helper APK lands on the phone.
+- **Deliverable (PR #283, draft, branch `research/artemis-phone-control`):**
+  `docs/research/ARTEMIS_PHONE_CONTROL_2026-11-06.md` (French translation of the reel + SWOT +
+  install/MCP guide) and `watcher/knowledge/video/2026-11-06-google-artemis-phone-control.{md,txt}`
+  (ASR transcript).
+- **Reusable recipe:** FB reels → `yt-dlp` gives metadata but **no captions**, so use the repo tool
+  `watcher/knowledge/tools/transcribe.py <url> --out DIR --model small --lang ar` (faster-whisper,
+  Egyptian Arabic; `base` was garbled, `small` was readable). Needs `pip install yt-dlp
+  faster-whisper imageio-ffmpeg` (no system ffmpeg). Note the tool's `--skip-existing` keys off a
+  title-derived slug, so rename outputs to `YYYY-MM-DD-<topic>.{md,txt}` like the existing artifacts.
+- **Blocked:** can't demo the phone-driving path here (no Android device, no ADB). Tavily web search
+  was over quota (HTTP 432) — used the GitHub API + raw README instead.
+
+## Mission 22 (2026-11-06) — SwarmChat: replace the homemade agent bridge (PR #289, draft)
+- Owner shared `Pranjal2041/swarmchat` with the "same protocol" (understand → transcript +
+  learning artifact → skill → replace the earlier thing we built).
+- **What it is:** open-source "Slack for agent swarms". MIT, Python 3.9+, **stdlib only, zero
+  deps**, one package = server + client. `pip install swarmchat` → v0.1.0. 104★, created
+  2026-10-29, **no releases**. Homepage `swarmchat.io`; authors CMU + Fleet AI.
+- **Verified live (2026-11-06):** `python3 -m swarmchat serve` boots; `admin add` prints a token
+  per agent; channel + DM send work; **`swarmchat wait` is a server-side long poll** — it blocked
+  then returned the message and exited 0; `wait --timeout 2` → exit **4**; `chats --json` = one
+  JSON object per line. `swarmchat view` = read-only live viewer (Chat/Board/Map/Replay/as-an-agent),
+  phone-friendly. Storage: `chats/<id>/log/NNNNNN.jsonl`, append-only, `grep`-able.
+- **Why it matters:** it IS what `watcher/bridge/` (hub.py + envelope.py + loop.py on GitHub issue
+  `brain#240`) hand-rolled. Its launch paper measured 8 agents hitting a score 3–7× sooner than a
+  solo agent (λ ≈ 0.43–0.86). The owner's "b*******" = the custom bridge; it is now **SUPERSEDED**.
+- **Deliverables (branch `research/swarmchat-coordination`):** research+SWOT
+  `docs/research/SWARMCHAT_AGENT_COORDINATION_2026-11-06.md`; artifacts
+  `watcher/knowledge/video/2026-11-06-swarmchat-launch.{txt,md,article.txt}` (the launch *video*
+  is silent music-only b-roll — ASR returns stock lines; the substance is the article + DESIGN.md);
+  new skill `watcher/skills/swarmchat-coordination/` (SKILL.md + README + reference/{SWARMCHAT,
+  HANDOFF,ACCEPTANCE}.md + `scripts/swarm_setup.py`, tested); `watcher/bridge/SUPERSEDED.md`;
+  `tests/test_swarmchat_skill.py` (2 tests, real server, `pytest.importorskip("swarmchat")`).
+- **Superseded:** the old skill `watcher/skills/watcher-bridge/` lives only on branch
+  `watcher/channel-handshake-240` (PR #243, never merged to main).
+- **Sandbox reset again:** deps vanished mid-session; re-ran `pip install -e ".[dev]"` and
+  `pip install yt-dlp faster-whisper imageio-ffmpeg swarmchat`.
 ## Mission 18 (2026-11-02) — full repo health check; 2 defects fixed (detail: memory/2026-11-02.md)
 - **Repo is ~9/10.** `pytest -q` 294 pass/1 skip; app boots, `/health` green; mission→artifact E2E works.
 - **FIXED (PR #270, head 28fe88b3, CI green, NOT merged):**
