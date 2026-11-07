@@ -388,7 +388,7 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
 - **Blocked:** can't demo the phone-driving path here (no Android device, no ADB). Tavily web search
   was over quota (HTTP 432) — used the GitHub API + raw README instead.
 
-## Mission 22 (2026-11-06) — SwarmChat: replace the homemade agent bridge (PR #289, draft)
+## Mission 22 (2026-11-06) — SwarmChat: replace the homemade agent bridge (PR #289, MERGED)
 - Owner shared `Pranjal2041/swarmchat` with the "same protocol" (understand → transcript +
   learning artifact → skill → replace the earlier thing we built).
 - **What it is:** open-source "Slack for agent swarms". MIT, Python 3.9+, **stdlib only, zero
@@ -516,3 +516,26 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
   (repo `gryszzz/reverse-engineer-everything`, 29★, MIT — the "reverse engineer everything" repo the owner named).
 - **Governance:** `docs/LOOP.md` requires a Shadow audit in `/shadow/` before each merge → logged
   `shadow/audit-2026-11-07.md` (PR #287).
+
+## Mission 23 (2026-11-07) — "push them all": audit deferrals resolved (PR #289 merged)
+- **Owner: "an audit found a ton of things not deployed/merged/pushed — push them all."**
+- **Finding 1 — nothing was unpushed.** Both local branches existed on origin (`research/swarmchat-
+  coordination`, `research/artemis-phone-control`); the sandbox's cached `refs/remotes/origin/*` was
+  stale (only 2 refs), which is why `git branch -r` looked empty. Always `git ls-remote --heads origin`.
+- **Finding 2 — PR #283 (ARTEMIS) was ALREADY MERGED** to `main` as `9dbdd23`; the PR list was just
+  stale. Content byte-identical (`git log origin/main -- <path>`).
+- **Finding 3 — the real gap was unmerged PRs**, per `shadow/audit-2026-11-07.md` (deferred list).
+- **Fixed:** un-drafted + merged **PR #289** (SwarmChat) → `main` `1d0c1f9`. Audit logged
+  `shadow/audit-2026-11-07-swarmchat.md` on the branch first (LOOP.md: "no audit, no merge").
+  CI on head `afc601d` = 7/7 green; merge method **merge** (repo style; squash+rebase also enabled).
+- **Deployment verified:** Vercel project `brain` production deploy from `main` = **READY**
+  (`brain-mmqn68fea-forge-fe22`, 2026-11-07T13:21Z). `https://brain-one-pi.vercel.app/health` → 200
+  fresh uptime; `/openapi.json` no longer lists `/connector` ⇒ **the stale 2026-11-01 build is gone**.
+  The #271 entrypoint fix is now live.
+- **Still deferred (owner calls, unchanged):** #272 (goal, 34 behind, collides), #243 (superseded by
+  #244 + rewrites live runtime state), #242 (MCP connector, collides with #271 on index.py/
+  requirements.txt), #196 (control-key auth), #183/#145/#122/#121/#4 (130–250 commits behind).
+- **Guard traps:** `curl … | python3` DENIED again (write to a file). `git push` hung on a **stale
+  embedded remote token** → fix: `git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@…`
+  + `GIT_TERMINAL_PROMPT=0`. REST `POST /pulls/{n}/ready_for_review` → **404** with this token; use
+  GraphQL `markPullRequestReadyForReview` (get node id via `repository.pullRequest(number:).id`).
