@@ -20,15 +20,6 @@
 - **Traps:** `git push` with the stale embedded remote token prompts for a password and hangs —
   push with a fresh token via a python subprocess. Shadow's evidence reader now reads
   `scripts/`, `tests/`, root `*.py` too (it went UNPROVEN on code it never read).
-- **Workflow E2E:** `watcher-session-log.yml` runs unattended (dispatch via
-  `POST .../actions/workflows/<file>/dispatches`). Its first real run exposed a noise-PR bug:
-  the manifest hashed the raw dump (volatile) → PR #264 hashes the rendered section
-  (`log_sha256`) instead; proven deterministic. Migration PR #265, then the run is a no-op.
-- **Auto-opened branches get NO CI** (pushes by the bot `GITHUB_TOKEN` don't trigger other
-  workflows) — expected, not a failure; still Shadow-audit + merge them.
-- **Test trap:** `export_conversations.main()` returns 1 when module `KEY` is empty; CI has no
-  `OPENHANDS_API_KEY`, so stub `ex.KEY` in any exporter test. Shadow evidence caps are now
-  16KB/file, 64KB total.
 
 ## Mission 17 (2026-11-01) — Facebook Reels + the learning loop PUBLISHED to main
 - Owner correction: "why is something in a sandbox — it should be published on main and working."
@@ -378,6 +369,17 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
 
 ## Mission 18 (2026-11-02) — full repo health check; 2 defects fixed (detail: memory/2026-11-02.md)
 - **Repo is ~9/10.** `pytest -q` 294 pass/1 skip; app boots, `/health` green; mission→artifact E2E works.
+- **FIXED (PR #270, head 28fe88b3, CI green, NOT merged):**
+  (1) documented `alembic upgrade head` failed — `alembic/env.py` + `script.py.mako` were never committed
+  (only `versions/001`); added both + `tests/test_alembic_migrations.py`. env.py resolves the URL from
+  `brain.core.config.load_config()` so migrations and app share one SQLite file.
+  (2) main-branch "Watcher learning loop" red — YouTube bot check made `transcribe.py` probe() raise
+  SystemExit; now skips honestly (exit 0) on unfetchable sources.
+- **NOT fixed (owner calls):** dead `.github/workflows/agent-zero-smoke.yml` + `agent-zero-runtime-smoke.yml`
+  on the repo but not in main (perpetual failures); static-analysis drift not gated by CI (ruff 81 /
+  mypy --strict 102 / black 113); ~31 docs reference missing files (many cross-repo to `Openhands`).
+- **`.env.example` `BRAIN_AI_MODEL=gemini-3.5-flash-lite` IS valid** (pool key lists it; 50 models live).
+  `/browser/plan` 503 without `BRAIN_AI_API_KEY` is the intended guard.
 - **FIXED (PR #270, head dd78bd38, CI green, NOT merged):** (1) documented `alembic upgrade head` failed —
   `alembic/env.py` + `script.py.mako` were never committed (only `versions/001`); added both + a regression
   test. env.py resolves the URL from `brain.core.config.load_config()` so migrations and app share one DB.
