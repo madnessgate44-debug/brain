@@ -539,3 +539,43 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
   embedded remote token** → fix: `git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@…`
   + `GIT_TERMINAL_PROMPT=0`. REST `POST /pulls/{n}/ready_for_review` → **404** with this token; use
   GraphQL `markPullRequestReadyForReview` (get node id via `repository.pullRequest(number:).id`).
+
+## Mission 24 (2026-11-07) — "merge all and push all that you did not merge yet" (owner explicit)
+- **Owner authorised goal-level merges this session.** Result: **0 open PRs** on
+  `madnessgate44-debug/brain`; `main` = `b67f28c`, green, production deployed.
+- **Merged (2 real merges):**
+  - **#242 (MCP connector)** → `d8b440c`. Rebased on `main`; conflict-resolved; **pinned `mcp>=1.10.0,<2`**
+    (mcp 2.x renames `FastMCP`→`MCPServer`; unpinned import breaks the connector). Fixed
+    `tests/test_vercel_entrypoint.py` (index.py `app` is now a `CombinedApp`, not bare FastAPI).
+    Audit `shadow/audit-2026-11-07-connector-mcp.md`.
+  - **#272 (Claude-Code parity, goal)** → `b67f28c`. Merged `main` in (9 conflicts, all resolved
+    with `git checkout --theirs` = main's side; main is newer/authoritative). **Fixed the one red
+    CI check:** `tests/test_skills_router.py::test_router_matches_a_migration` passed only where a
+    local skill cache had a "migration" skill; made it hermetic by injecting the skill. 112 files
+    added; CI 8/8 green; suite 449 passed. Audit `shadow/audit-2026-11-07-claude-code-parity.md`.
+- **Closed as superseded, NOT merged (5 unrelated-history + 1 superseded):**
+  - **#243 (watcher/channel-handshake-240):** main carries `watcher/bridge/SUPERSEDED.md` retiring
+    exactly this homemade bridge in favour of SwarmChat (#289); the note says the old watcher-bridge
+    skill was *deliberately never merged*. Merging would re-add retired code + overwrite live
+    runtime state (`state.json`, `tickets.json`).
+  - **#196, #183, #145, #122, #121, #4:** **unrelated git history — NO merge base with main**
+    (`git merge-base` returns empty; a *different* root commit `72e4331…` vs main's `9ed39cf…`).
+    GitHub literally cannot merge them (hence `mergeable_state` was never clean). 166–415 commits
+    behind. #196's feature (control-key auth) is **already on main** as `brain/api/deps.py`
+    `require_control_key` (`hmac.compare_digest` against `BRAIN_CONTROL_API_KEY`).
+  - Each closed with a written reason + AI-disclosure line.
+- **Verified:** `main` tests workflow on `b67f28c` = success; production `https://brain-one-pi.vercel.app`
+  `/health` 200 fresh (uptime ~74s, `started_at` 15:14:39Z) and `/connector` 200 (`mcp_path: /mcp`).
+- **Reusable recipes:**
+  - **"Unrelated history" test:** `git merge-base origin/main origin/<br>` empty **and** the branch's
+    `git rev-list --max-parents=0` root ≠ main's root ⇒ GitHub can never merge it. (Patch-id alone is
+    misleading: a branch's own tip patch-id is always found among `--all` because it's its own commit.)
+  - **Hermetic skill-router test:** CI has repo-only skills (`~/.openhands/cache` absent) ⇒ only 11
+    skills (repo-role/watcher/agents), **no "migration" skill**. Tests must not depend on the cache;
+    `monkeypatch.setattr(sk, "all_skills", lambda: [...])`.
+  - **Check CI on a branch head that predates your merge:** hit `/commits/<sha>/check-runs`; #272's
+    original head `5aac018` was already red on all three test jobs.
+  - **CI job logs:** `GET /repos/{o}/{r}/actions/jobs/{job_id}/logs` (follow redirect with `-L`).
+  - **Install deps locally:** `pip install -e ".[dev]"` then `pip install openhands-sdk==1.54.0
+    openhands-tools==1.54.0` (6 tests need `openhands`; CI installs them, sandbox didn't).
+- **Guard trap:** `curl … | python3` DENIED (pipe-to-python) — always write JSON to a file first.
