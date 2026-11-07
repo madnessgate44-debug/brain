@@ -76,4 +76,16 @@ Active scope is exactly these five. Do not reactivate the wider fleet.
 - MCP connector health: `POST /mcp` without a key → **401** (up, auth enforced) `[V]`.
 - Archive last success: `Watcher session log` 2026-11-07T06:23:25Z `[V]`.
 
+## 6. Daily checkpoint cadence (who checks what)
+
+| Checkpoint (Cairo) | Owner | Mechanism | Status |
+|---|---|---|---|
+| 09:00, 14:00, 20:00 | ChatGPT | ChatGPT scheduled tasks | `[V]` enabled (per `6713885785`) |
+| 06:30, 17:00 | **OpenHands** | `.github/workflows/brain-checkpoints.yml` + `scripts/checkpoint.py` (deterministic, no model) | `[V]` workflow on PR #295; `[U]` **not runnable until merged** — GitHub only runs `schedule`/`workflow_dispatch` from the default branch |
+
+- 06:00 Cairo = 04:00 UTC **conflicts** with `watcher-daily.yml` (`cron: "0 4 * * *"`), so the nearest
+  supported time is used: **04:30 UTC = 06:30 Cairo**. 17:00 Cairo = 15:00 UTC, no conflict, used as asked.
+- The workflow posts to #292 (or a "no material change" note), tagged VERIFIED/UNPROVEN/BLOCKED, with
+  Cairo + UTC timestamps, run IDs, and SHAs. It never waits for ChatGPT's checkpoints to do engineering work.
+
 _Brain refreshes this file each run. Read-only; no secret value._
