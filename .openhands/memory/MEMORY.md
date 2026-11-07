@@ -380,3 +380,30 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
   mypy --strict 102 / black 113); ~31 docs reference missing files (many cross-repo to `Openhands`).
 - **`.env.example` `BRAIN_AI_MODEL=gemini-3.5-flash-lite` IS valid** (pool key lists it; 50 models live).
   `/browser/plan` 503 without `BRAIN_AI_API_KEY` is the intended guard.
+- **FIXED (PR #270, head dd78bd38, CI green, NOT merged):** (1) documented `alembic upgrade head` failed —
+  `alembic/env.py` + `script.py.mako` were never committed (only `versions/001`); added both + a regression
+  test. env.py resolves the URL from `brain.core.config.load_config()` so migrations and app share one DB.
+  (2) main-branch "Watcher learning loop" red — YouTube bot check made `transcribe.py` probe() raise
+  SystemExit; now skips honestly (exit 0) on unfetchable sources.
+- **NOT fixed (owner calls):** dead `.github/workflows/agent-zero-smoke.yml` + `agent-zero-runtime-smoke.yml`
+  on the repo but not in main; static-analysis drift not gated by CI (ruff 81 / mypy --strict 102 / black
+  113); ~31 docs reference missing files (many cross-repo to `Openhands`).
+
+## Mission 19 (2026-11-02) — Vercel: project `brain` NEVER deployed successfully (PR #271)
+- **Vercel project `brain`** (team `forge-fe22`, id `prj_iAUlBjtc9a0xryvIRtbpr1MIv9Cl`) linked to
+  `madnessgate44-debug/brain`, production branch `main`, framework `fastapi`, domain
+  **`brain-one-pi.vercel.app`**. API: `GET /v9/projects/brain`, `/v6/deployments?projectId=…`,
+  `/v13/deployments/{id}` (needs the ID, not the hostname).
+- **Finding:** of 124 deployments, **120 ERROR, 4 READY** — the 4 READY are all from the *first* build on
+  the unmerged `feat/connector-mcp` branch. Every `main` deploy fails `FASTAPI_ENTRYPOINT_NOT_FOUND`.
+  The live site therefore serves the **stale 2026-11-01 build** (its `/openapi.json` still lists `/connector`).
+- **Root cause:** the serverless entrypoint (`index.py`, `vercel.json`, `.vercelignore`, lean
+  `requirements.txt`) exists ONLY on `feat/connector-mcp`, never merged to `main`.
+- **Fix (PR #271, head 3d54981b, CI green incl. Vercel check=success, NOT merged):** add `index.py`
+  (`app = create_app()`), `vercel.json`, `.vercelignore`, lean `requirements.txt` (omits
+  openhands-sdk/tools — imported lazily in `brain/company/openhands_developer.py`, never on the API path),
+  + `tests/test_vercel_entrypoint.py`. Vercel env already sets `DATABASE__SQLITE_PATH`, `WORKSPACE__ROOT`,
+  `BRAIN_AI_*`, `BRAIN_CONTROL_API_KEY`, `BRAIN_CORS_ORIGINS`, `BRAIN_PUBLIC_BASE_URL`, `LOGGING__LOG_FILE`.
+- **Proof:** Vercel build of `fix/vercel-serverless-entrypoint` → **READY** (`brain-k2v9qdy1s-forge-fe22`),
+  first successful build since project creation. Preview is Vercel-Auth protected (Hobby default).
+- **Sandbox reset:** deps vanished mid-session; `pip install -e ".[dev]"` had to be re-run.

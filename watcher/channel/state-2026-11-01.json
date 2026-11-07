@@ -1,0 +1,106 @@
+{
+  "_note": "Verified live state of the OpenHands Cloud automations for issue #240, and the disposition applied. Machine-readable companion to /shadow/channel-state-audit-2026-11-01.md. No secret value appears here.",
+  "issue": 240,
+  "captured_at_utc": "2026-11-01T06:30:33Z",
+  "account": {
+    "kind": "personal-workspace",
+    "org_id": "84dc7c65-8ba1-4896-90ce-f16084a9afb7",
+    "git_claims": [],
+    "budgets_http": 400,
+    "budgets_detail": "Organization budgets are not available for personal workspaces"
+  },
+  "verdict": "REJECTED for activation",
+  "channel_mode": "human-mediated",
+  "automations_left_enabled": [],
+  "pre_existing_automations": [
+    {
+      "id": "aa4ae120-c4bd-4cf5-9762-ddf5638109c5",
+      "name": "Openhands loop",
+      "trigger_type": "cron",
+      "schedule": "0 */2 * * *",
+      "enabled": true,
+      "state": "ACTIVE",
+      "note": "Pre-existing before this investigation. Not part of issue #240; left untouched."
+    },
+    {
+      "id": "216fd7ae-94a1-4779-a3cd-e95b6053166b",
+      "name": "Miss Noor - autonomous owner window (9h)",
+      "trigger_type": "cron",
+      "schedule": "0 */2 * * *",
+      "enabled": false,
+      "state": "INACTIVE",
+      "note": "Pre-existing. Not part of issue #240; left untouched."
+    }
+  ],
+  "issue_240_automations": [
+    {
+      "id": "017c4b55-8904-47b0-863e-a36ca4df406a",
+      "name": "Watcher channel - issue #240",
+      "trigger_type": "event",
+      "on": "issue_comment.created",
+      "filter": "icontains(comment.body, '@watcher') && !icontains(comment.body, '[TO-CHATGPT]') && repository.full_name == 'madnessgate44-debug/brain' && issue.number == `240` && !ends_with(sender.login, '[bot]')",
+      "created_at": "2026-11-01T06:00:18.465214Z",
+      "state_before": "INACTIVE",
+      "enabled_before": false,
+      "was_active_earlier_this_session": true,
+      "observed_runs": [
+        {
+          "run_id": "f30b6fcb-e3f6-45f3-a730-28bf2ab6071e",
+          "status": "COMPLETED",
+          "trigger_source": "event",
+          "cost": 0.0012309304,
+          "created_at": "2026-11-01T06:02:33.865369Z"
+        }
+      ],
+      "disposition": "DELETED",
+      "delete_http": 204,
+      "post_delete_get_http": 404,
+      "deleted_at_utc": "2026-11-01T06:30:23Z"
+    },
+    {
+      "id": "c2521706-7a97-4d64-b191-0b29ddc10682",
+      "name": "Watcher engagement heartbeat - issue #240",
+      "trigger_type": "cron",
+      "schedule": "*/20 * * * *",
+      "created_at": "2026-11-01T06:07:35.617927Z",
+      "state_before": "ACTIVE",
+      "enabled_before": true,
+      "observed_runs": [
+        {
+          "run_id": "b8fe2882-ecb9-432a-89f6-4b8915d149bd",
+          "status": "COMPLETED",
+          "trigger_source": "manual",
+          "cost": 0.0,
+          "created_at": "2026-11-01T06:07:40.438305Z"
+        },
+        {
+          "run_id": "fbf81402-4f8a-4b7a-84ee-2d0576301ff7",
+          "status": "COMPLETED",
+          "trigger_source": "cron",
+          "cost": 0.0,
+          "created_at": "2026-11-01T06:21:04.989681Z"
+        }
+      ],
+      "disposition": "DELETED",
+      "delete_http": 204,
+      "post_delete_get_http": 404,
+      "deleted_at_utc": "2026-11-01T06:30:23Z"
+    },
+    {
+      "id": "7aea2400-61ef-42dd-8b6f-c4de5266bf9f",
+      "name": "Watcher channel - issue #240 (DISABLED DRAFT)",
+      "disposition": "ALREADY DELETED by an earlier session",
+      "post_delete_get_http": 404,
+      "verified_at_utc": "2026-11-01T06:28:07Z"
+    }
+  ],
+  "findings": [
+    "The recorded channel verdict said 'nothing is enabled' and that the draft was deleted. Verified against the live account at 06:25Z, two issue-#240 automations still existed: 017c4b55 (event) and c2521706 (cron */20). Only 7aea2400 had been deleted.",
+    "The cron heartbeat c2521706 was ACTIVE and fired a real cron run at 06:21:04Z before it was stopped, so the 'nothing enabled' claim was false at capture time.",
+    "Both leftover automations were deleted at 06:30:23Z (204 each; GET now 404), which makes reality match the recorded verdict.",
+    "enabled:false is not inert (prior finding): a disabled draft must be deleted, never parked. This is why both were deleted rather than disabled.",
+    "The receiver cannot be scoped on this account: git-claims is empty and budgets returns 400 for a personal workspace.",
+    "Spend is not established as zero: estimated_spend moved from 0.557 (recorded earlier) to 0.5751637291999996 (observed), and one event run carried cost 0.0012309304. No automation remains enabled for issue #240."
+  ],
+  "recreate_condition": "Recreating any issue-#240 automation requires an owner spend decision (zero-cost gate) and a claimed team org. Do not recreate without both."
+}
