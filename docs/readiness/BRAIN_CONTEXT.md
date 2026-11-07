@@ -88,4 +88,10 @@ Active scope is exactly these five. Do not reactivate the wider fleet.
 - The workflow posts to #292 (or a "no material change" note), tagged VERIFIED/UNPROVEN/BLOCKED, with
   Cairo + UTC timestamps, run IDs, and SHAs. It never waits for ChatGPT's checkpoints to do engineering work.
 
+**Explicit honesty note.** A cadence written in these docs is **not** a scheduler, and an agent session
+**cannot self-schedule** — it only acts on invocation. The 06:30/17:00 checkpoints become real only when
+`brain-checkpoints.yml` exists on the **default branch** and GitHub's cron fires; to claim a schedule is
+active, verify with `GET /repos/{owner}/{repo}/actions/runs?event=schedule` and quote the run count. As
+of this writing that count is **0** (the workflow is on PR #295, unmerged).
+
 _Brain refreshes this file each run. Read-only; no secret value._
