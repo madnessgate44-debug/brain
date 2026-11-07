@@ -1,13 +1,14 @@
 name: Shadow report and sweep
 
-# Implements WATCHER.md §3/§5: the 09:00/21:00 report to Ahmed and the hourly sweep
-# backstop. The sweep audits any open non-draft PR that has no Shadow verdict yet.
+# Implements WATCHER.md §3/§5: the 09:00/21:00 report to Ahmed, the hourly sweep
+# backstop, and the daily fit-for-purpose gate (fix #1 of the 2026-11-07 audit).
+# The sweep audits any open non-draft PR that has no Shadow verdict yet.
 # These crons only take effect once this file is on the default branch.
 # Rule: never print, echo, or commit a secret value.
 
 on:
   schedule:
-    - cron: "0 7 * * *"    # 09:00 Africa/Cairo (UTC+2) report
+    - cron: "0 7 * * *"    # 09:00 Africa/Cairo (UTC+2) report + daily purpose gate
     - cron: "0 19 * * *"   # 21:00 Africa/Cairo (UTC+2) report
     - cron: "5 * * * *"    # hourly sweep at :05
   workflow_dispatch:
@@ -15,7 +16,7 @@ on:
       job:
         description: "Which job to run"
         type: choice
-        options: [report, sweep]
+        options: [report, sweep, gate]
         default: report
 
 permissions:
@@ -25,7 +26,7 @@ permissions:
 
 jobs:
   report:
-    if: github.event_name == 'workflow_dispatch' && inputs.job == 'report' || github.event.schedule != '5 * * * *'
+    if: (github.event_name == 'workflow_dispatch' && inputs.job == 'report') || (github.event_name == 'schedule' && github.event.schedule != '5 * * * *')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -40,8 +41,22 @@ jobs:
           SHADOW_TS: ${{ github.event.schedule }}
         run: python3 shadow/report.py --report
 
+  gate:
+    # Daily fit-for-purpose gate: fails the workflow when a depth finding regressed against
+    # the locked baseline. A red run here is the signal the audit asked for.
+    if: (github.event_name == 'workflow_dispatch' && inputs.job == 'gate') || github.event.schedule == '0 7 * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run the fit-for-purpose gate
+        run: python3 shadow/report.py --gate
+
   sweep:
-    if: github.event_name == 'workflow_dispatch' && inputs.job == 'sweep' || github.event.schedule == '5 * * * *'
+    if: (github.event_name == 'workflow_dispatch' && inputs.job == 'sweep') || github.event.schedule == '5 * * * *'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

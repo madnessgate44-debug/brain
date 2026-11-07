@@ -88,6 +88,51 @@ def _registry_summary() -> str:
     return f"{len(rows)} registered rows, {working} WORKING"
 
 
+def purpose_gate() -> tuple[bool, str]:
+    """Run the daily fit-for-purpose gate (fix #1 of the 2026-11-07 audit).
+
+    Returns (passed, one-line summary). The gate compares the purpose audit against the
+    locked baseline in watcher/knowledge/depth-baseline.json and fails when a finding
+    regressed. Read-only: it never writes the baseline.
+    """
+    tool = os.path.join(ROOT, "watcher", "knowledge", "tools", "purpose_audit.py")
+    if not os.path.isfile(tool):
+        return False, "purpose_audit.py is absent, so fit-for-purpose cannot be checked"
+    ok, summary = _run_gate_tool(
+        [sys.executable, tool, "--root", ROOT, "--gate"], "purpose gate:"
+    )
+    return ok, summary
+
+
+def agent_status_gate() -> tuple[bool, str]:
+    """The W1 half of the daily gate: the report-only ratio must not rise past its ratchet."""
+    tool = os.path.join(ROOT, "scripts", "agent_status.py")
+    if not os.path.isfile(tool):
+        return False, "agent_status.py is absent, so the W1 ratchet cannot be checked"
+    ok, detail = _run_gate_tool(
+        [sys.executable, tool, "--repo", ROOT, "--commits", "60"], "Report-only commits:"
+    )
+    return ok, detail
+
+
+def daily_gate() -> tuple[bool, list[str]]:
+    """Both halves of the daily gate Shadow runs. Returns (passed, one line per check)."""
+    checks = [("fit-for-purpose", purpose_gate()), ("W1 report-only", agent_status_gate())]
+    return all(ok for _, (ok, _) in checks), [f"{name}: {line}" for name, (_, line) in checks]
+
+
+def _run_gate_tool(cmd: list[str], marker: str) -> tuple[bool, str]:
+    """Run a gate tool; return (exit==0, the line that starts with `marker`)."""
+    import subprocess
+    try:
+        r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, f"gate could not run — {type(exc).__name__}"
+    lines = (r.stdout or r.stderr).strip().splitlines()
+    summary = next((line for line in lines if line.startswith(marker)), "")
+    return r.returncode == 0, summary or (lines[-1] if lines else "no output")
+
+
 def _verdict_line(bodies: list[str]) -> str:
     """The most recent Shadow verdict line, e.g. 'VERDICT: VERIFIED'. Empty if none."""
     verdict = next((b for b in reversed(bodies) if "Shadow audit" in b), "")
@@ -135,6 +180,10 @@ def report() -> str:
     lines = [f"## Shadow report — {os.environ.get('SHADOW_TS', '')}".rstrip()]
     lines.append("")
     lines.append(f"Pool: {_registry_summary()}")
+    passed, gate_lines = daily_gate()
+    lines.append(f"Fit-for-purpose gate: {'PASS' if passed else 'FAIL'}")
+    for gl in gate_lines:
+        lines.append(f"  - {gl}")
     lines.append(f"Open PRs: {len(prs)}")
     for pr in prs:
         gate = "audited" if _has_shadow_verdict(pr["number"]) else "NO VERDICT"
@@ -153,7 +202,14 @@ def main() -> int:
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--sweep", action="store_true")
     ap.add_argument("--fix", action="store_true")
+    ap.add_argument("--gate", action="store_true",
+                    help="run the daily fit-for-purpose gate; exit 1 on a regression")
     a = ap.parse_args()
+    if a.gate:
+        passed, gate_lines = daily_gate()
+        for gl in gate_lines:
+            print(gl)
+        return 0 if passed else 1
     if a.sweep:
         sweep()
     elif a.fix:
@@ -161,7 +217,7 @@ def main() -> int:
     elif a.report:
         print(report())
     else:
-        ap.error("choose --report, --sweep, or --fix")
+        ap.error("choose --report, --sweep, --fix, or --gate")
     return 0
 
 
