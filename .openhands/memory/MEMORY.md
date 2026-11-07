@@ -579,3 +579,34 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
   - **Install deps locally:** `pip install -e ".[dev]"` then `pip install openhands-sdk==1.54.0
     openhands-tools==1.54.0` (6 tests need `openhands`; CI installs them, sandbox didn't).
 - **Guard trap:** `curl … | python3` DENIED (pipe-to-python) — always write JSON to a file first.
+
+## Mission 25 (2026-11-07) — functional + self-improvement audit of brain (PR #290, DRAFT, not merged)
+- **Owner asked** for a *behavioural* audit: "how the app is functioning and is it fit in its purpose
+  or not and how is it improving itself … not the code only". Report:
+  `shadow/audit-2026-11-07-functional-and-self-improvement.md` on branch
+  `audit/functional-self-improvement-20261107`.
+- **Functioning — all PASS when exercised:** local uvicorn E2E mission lifecycle INTAKE→EXECUTE→COMPLETE,
+  `mission-brief.md` written, 5 events; prod auth 401/200; `/chat` returned BRAIN_CHAT_OK on
+  `gemini-2.5-flash`; `/connector` 200 `mcp_path:/mcp`; company workflow with no token → **honest**
+  FAILED + `failure-diagnostic.json`. `purpose_audit.py` 12/12 OK, depth 2 PARTIAL (patch contract,
+  temp-dir) unchanged since 11-03.
+- **Self-improvement — machinery real, outcomes unmet:** report-only ratio 34%/29%/35% (target <25%,
+  NOT falling); `watcher-learning` failed 4 days straight (step `Transcribe (captions, else local ASR)`)
+  then recovered 11-07 — **silent outage, no alert**; ruff 96 / mypy 173 / black 152 all **un-gated**
+  by CI (`brain-ci.yml` runs only `pytest -q`); 76 stale doc refs; no lockfile; 379 branches.
+- **Correction to W4:** `session-agent-loop.yml` and `shadow-report.yml` have **0 runs ever** — they
+  only reached `main` today in the #272 merge (workflow registration `2026-11-07T15:14Z`, first-parent
+  history shows the file first appears in `b67f28c`). "Registered/active" ≠ "proven to run"; first cron
+  not yet due. Ledger's W4 ("all three scheduled and running") over-claims for 2 of 3.
+- **How to run the app locally for a functional test:** `DATABASE__SQLITE_PATH=… WORKSPACE__ROOT=…
+  BRAIN_CONTROL_API_KEY=<≥24 chars> uvicorn brain.api.app:create_app --factory --port 8123`. Notes:
+  (a) mission create response uses key **`id`**, not `mission_id`; (b) the ASGI app needs the lifespan
+  to run — a raw `httpx.ASGITransport` call fails with `State has no attribute 'db_manager'`; use a real
+  uvicorn process. `create_app` (REST) vs `brain.connector.app:create_combined_app` (REST+MCP, the
+  Dockerfile/`index.py` entrypoint).
+- **Audit tool commands:** `python3 watcher/knowledge/tools/purpose_audit.py [--json]` (writes
+  `watcher/knowledge/audits/purpose-YYYYMMDD.md`), `python3 scripts/agent_status.py [--commits N]`,
+  `python3 scripts/skill_check.py`, `python3 watcher/knowledge/tools/friction.py --json`.
+  `scripts/skills.py declaration "<task>"` = repo skill router (mandatory per ENGINEERING_EXECUTION_OS.md).
+- **Env:** lint tools not preinstalled → `pip install ruff==0.8.4 mypy==1.14.0 black==24.10.0
+  pytest-cov==6.0.0`. `openhands` SDK present, `playwright` absent.
