@@ -127,6 +127,27 @@ def fetch_comments(token: str) -> list[dict]:
     return out
 
 
+ACK_RE = re.compile(r"\*\*ACK\*\* got `(\d+)`")
+
+
+def last_ack_id(comments: list[dict]) -> int:
+    """Highest source-comment id named in one of our own ACK lines.
+
+    The loop runs in CI, where the checkout is thrown away, so a state.json write
+    never lands back on main and `last_seen_id` stays pinned at its committed
+    value. The loop then treats the same counterpart comment as new on every run
+    and re-posts the identical reply. Our replies already name the comment they
+    answered, so the high-water mark is recoverable from the thread itself.
+    """
+    best = 0
+    for c in comments:
+        if not is_watcher_post(c.get("body")):
+            continue
+        for found in ACK_RE.findall(c.get("body") or ""):
+            best = max(best, int(found))
+    return best
+
+
 def newest_counterpart(comments: list[dict], last_seen: int) -> dict | None:
     for c in reversed(comments):
         if is_watcher_post(c.get("body")):
@@ -270,7 +291,10 @@ def post(body: str, token: str) -> int:
 
 def one_pass(token: str, state: dict, dry_run: bool) -> str:
     comments = fetch_comments(token)
-    counterpart = newest_counterpart(comments, state.get("last_seen_id", 0))
+    # Trust the thread over the state file: a CI checkout never persists state.json,
+    # so a stale value here would replay an old reply.
+    last_seen = max(state.get("last_seen_id", 0), last_ack_id(comments))
+    counterpart = newest_counterpart(comments, last_seen)
     if not counterpart:
         return f"idle (last_seen_id={state.get('last_seen_id', 0)}, no newer counterpart)"
     now = github_now(token, counterpart.get("created_at"))
