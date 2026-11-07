@@ -14,9 +14,16 @@ from typing import Any
 
 def _redact(value: str) -> str:
     """Remove known secret values and common token/API-key shapes from diagnostics."""
-    for name, secret in os.environ.items():
-        if secret and any(marker in name.upper() for marker in ("TOKEN", "API_KEY", "SECRET", "PASSWORD")):
-            value = value.replace(secret, "[REDACTED]")
+    env_items = list(os.environ.items())
+    # First redact all non-trivial environment values regardless of variable name;
+    # then preserve name-based redaction for short values that are explicitly secret.
+    candidates = {secret for _, secret in env_items if secret and len(secret) >= 8}
+    candidates.update(
+        secret for name, secret in env_items
+        if secret and any(marker in name.upper() for marker in ("TOKEN", "API_KEY", "SECRET", "PASSWORD"))
+    )
+    for secret in sorted(candidates, key=len, reverse=True):
+        value = value.replace(secret, "[REDACTED]")
     value = re.sub(r"(?i)(Bearer\s+)[A-Za-z0-9._~+/-]+=*", r"\1[REDACTED]", value)
     value = re.sub(r"(?i)(api[_-]?key[\s:=]+)[^\s,;]+", r"\1[REDACTED]", value)
     return value

@@ -1,0 +1,171 @@
+name: Agent Zero Runtime Smoke Test
+
+on:
+  push:
+    branches:
+      - brain/agent-zero-operating-environment
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install and start local Ollama
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          nohup ollama serve >/tmp/ollama.log 2>&1 &
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          if [ "$ready" != "true" ]; then
+            tail -n 100 /tmp/ollama.log || true
+            echo "::error::Ollama did not start."
+            exit 1
+          fi
+          ollama pull qwen2.5-coder:3b
+
+      - name: Start official Agent Zero container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull agent0ai/agent-zero:latest
+          docker run -d --name agent-zero-smoke \
+            --add-host=host.docker.internal:host-gateway \
+            -p 5080:80 \
+            -e A0_SET_chat_model_provider=ollama \
+            -e A0_SET_chat_model_name=qwen2.5-coder:3b \
+            -e A0_SET_chat_model_api_base=http://host.docker.internal:11434 \
+            -e A0_SET_utility_model_provider=ollama \
+            -e A0_SET_utility_model_name=qwen2.5-coder:3b \
+            -e A0_SET_utility_model_api_base=http://host.docker.internal:11434 \
+            agent0ai/agent-zero:latest
+          ready=false
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:5080/ >/dev/null; then ready=true; break; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' agent-zero-smoke 2>/dev/null || true)" != "true" ]; then
+              docker logs --tail 100 agent-zero-smoke || true
+              echo "::error::Agent Zero container exited during startup."
+              exit 1
+            fi
+            sleep 4
+          done
+          if [ "$ready" != "true" ]; then
+            docker logs --tail 100 agent-zero-smoke || true
+            echo "::error::Agent Zero web service did not become ready."
+            exit 1
+          fi
+
+      - name: Verify authenticated Agent Zero API and real model response
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          PYTHON_BIN="$(docker exec agent-zero-smoke sh -c 'for p in /opt/venv/bin/python /opt/venv/bin/python3 /usr/local/bin/python /usr/local/bin/python3 /usr/bin/python3; do if [ -x "$p" ]; then printf "%s" "$p"; exit 0; fi; done; command -v python3 || command -v python' 2>/dev/null || true)"
+          if [ -z "$PYTHON_BIN" ]; then
+            docker exec agent-zero-smoke sh -c 'ls -la /opt/venv/bin /usr/local/bin /usr/bin 2>/dev/null | grep -E "python(3)?$" || true' || true
+            docker logs --tail 100 agent-zero-smoke || true
+            echo "::error::Could not locate Python inside the Agent Zero container."
+            exit 1
+          fi
+          echo "Agent Zero Python interpreter: $PYTHON_BIN"
+          API_TOKEN="$(docker exec agent-zero-smoke "$PYTHON_BIN" -c 'import json; print(json.load(open("/a0/usr/settings.json"))["mcp_server_token"])' 2>/dev/null || true)"
+          if [ -z "$API_TOKEN" ]; then
+            docker exec agent-zero-smoke sh -c 'find /a0 -maxdepth 5 -type f \( -iname "*setting*" -o -iname "*token*" -o -name ".env" \) -print 2>/dev/null | head -50; for f in /a0/usr/.env /a0/.env; do if [ -f "$f" ]; then echo "ENV_KEYS $f"; cut -d= -f1 "$f"; fi; done' || true
+            docker logs --tail 100 agent-zero-smoke || true
+            echo "::error::Could not read Agent Zero's generated API token from /a0/usr/settings.json."
+            exit 1
+          fi
+          echo "::add-mask::$API_TOKEN"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          Path("/tmp/a0-request.json").write_text(json.dumps({
+              "message": "Reply with exactly AGENT_ZERO_SMOKE_OK. Do not call tools."
+          }), encoding="utf-8")
+          PY
+          echo "Submitting the authenticated smoke request without Docker stdin piping."
+          set +e
+          docker exec agent-zero-smoke "$PYTHON_BIN" -c '
+          import json, sys, urllib.request, urllib.error
+          body = json.dumps({"message": "Reply with exactly AGENT_ZERO_SMOKE_OK. Do not call tools."}).encode("utf-8")
+          request = urllib.request.Request(
+              "http://127.0.0.1:80/api/api_message",
+              data=body,
+              headers={"X-API-KEY": json.load(open("/a0/usr/settings.json", encoding="utf-8"))["mcp_server_token"], "Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=1200) as response:
+                  payload = response.read()
+                  status = response.status
+          except urllib.error.HTTPError as error:
+              payload = error.read()
+              status = error.code
+          sys.stdout.buffer.write(payload)
+          print("__HTTP_STATUS__=" + str(status), file=sys.stderr)
+          ' > /tmp/a0-response.json 2> /tmp/a0-http-status.txt
+          EXEC_STATUS=$?
+          set -e
+          status="$(sed -n 's/^__HTTP_STATUS__=//p' /tmp/a0-http-status.txt | tail -n 1)"
+          if [ "$EXEC_STATUS" -ne 0 ] || [ "$status" != "200" ]; then
+            echo "::error::Agent Zero API returned HTTP ${status:-unknown} (request execution status $EXEC_STATUS)."
+            echo "API error response (first 2000 characters; token-redacted):"
+            python3 - "$API_TOKEN" <<'PY'
+          import sys
+          from pathlib import Path
+          token = sys.argv[1]
+          for filename in ("/tmp/a0-response.json", "/tmp/a0-http-status.txt"):
+              path = Path(filename)
+              if path.exists():
+                  text = path.read_text(encoding="utf-8", errors="replace").replace(token, "[REDACTED]")
+                  path.write_text(text, encoding="utf-8")
+          PY
+            head -c 2000 /tmp/a0-response.json || true
+            echo
+            echo "Request execution diagnostics (token-redacted):"
+            head -c 2000 /tmp/a0-http-status.txt || true
+            echo
+            docker logs --tail 100 agent-zero-smoke || true
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("/tmp/a0-response.json").read_text(encoding="utf-8"))
+          response = data.get("response", "")
+          if "AGENT_ZERO_SMOKE_OK" not in response:
+              print("Agent Zero response did not contain the expected marker.")
+              print(str(response)[:2000])
+              raise SystemExit(1)
+          print("PASS: official Agent Zero API returned the expected model response.")
+          PY
+
+      - name: Upload redacted smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-zero-smoke-${{ github.run_id }}
+          path: |
+            /tmp/a0-response.json
+            /tmp/a0-http-status.txt
+            /tmp/ollama.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop Agent Zero
+        if: always()
+        shell: bash
+        run: docker rm -f agent-zero-smoke >/dev/null 2>&1 || true

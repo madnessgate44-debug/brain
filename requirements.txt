@@ -1,7 +1,7 @@
-# Lean runtime dependencies for the Brain API + MCP connector.
-# Kept small so serverless hosts (Vercel, 500 MB uncompressed) stay well under limit.
-# The full Brain build, including the OpenHands developer backend, adds
-# openhands-sdk and openhands-tools; see the Dockerfile.
+# Lean runtime dependencies for the serverless deployment.
+# Keep this small: serverless hosts cap the uncompressed bundle (Vercel: 500 MB).
+# openhands-sdk / openhands-tools are only used by the company developer backend
+# (brain/company/openhands_developer.py) and are not imported by the API app.
 fastapi==0.143.0
 uvicorn[standard]>=0.35.0
 sqlalchemy==2.0.36
