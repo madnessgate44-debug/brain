@@ -10,4 +10,5 @@ from brain.api.routes import (
     browser,
     browser_planning,
     chat,
+    connector,
 )
