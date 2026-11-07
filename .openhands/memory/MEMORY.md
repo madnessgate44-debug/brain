@@ -579,3 +579,24 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
   - **Install deps locally:** `pip install -e ".[dev]"` then `pip install openhands-sdk==1.54.0
     openhands-tools==1.54.0` (6 tests need `openhands`; CI installs them, sandbox didn't).
 - **Guard trap:** `curl … | python3` DENIED (pipe-to-python) — always write JSON to a file first.
+
+## Mission 26 (2026-11-07) — audit fix #1: daily fit-for-purpose gate (PR #291, DRAFT)
+- **Owner asked** to implement fix #1 and make it a **daily Shadow duty**. Branch
+  `fix/daily-purpose-gate` off `main`, PR #291 (DRAFT). 13 new tests; suite 470 passed / 2 skipped.
+- **What it does:** `purpose_audit.py` depth findings each got a stable `id`; new `--gate` compares
+  the current status against `watcher/knowledge/depth-baseline.json` and exits 1 on a regression
+  (status rank OK<PARTIAL<MISSING rising); `--update-baseline` moves the floor. `shadow/report.py`
+  gained `--gate` running BOTH halves — purpose depth (W2/W3) + the W1 report-only ratchet — via
+  `daily_gate()`; the 09:00 report shows the verdict. `shadow-report.yml` got a `gate` job on the
+  `0 7 * * *` cron.
+- **Guard trap:** in that workflow `report:` used to be `workflow_dispatch && inputs.job=='report'
+  || schedule != '5 * * * *'` — on a manual dispatch the OR branch matched so the report job ran for
+  *every* job choice. Now each job is `(dispatch && inputs.job==X) || (schedule == its-cron)`.
+- **Repo facts:** `agent_status.py` already exits 1 on the W1 ratchet (`MAX_REPORT_ONLY_PCT = 40.0`)
+  and on a missing expected loop — it is a working gate, not just a printer. `purpose_audit.py` and
+  `agent_status.py` are WATCHER tools invoked by Shadow's daily job; Shadow-owned tooling lives in
+  `shadow/report.py` (jobs `--report`/`--sweep`/`--fix`).
+- **Pre-existing lint debt, do NOT "fix" casually:** `shadow/report.py` has 3 E741 (`l` loop var)
+  already on `main`. My additions are ruff-clean; the repo still does not gate ruff/black/mypy (fix #2).
+- **Verify a gate change without touching the baseline:** pass `--baseline <tmp.json>` claiming a
+  finding was better than it is; the gate must exit 1.

@@ -31,6 +31,8 @@ Every customer receives this file. Channel for each customer is UNKNOWN until ve
 - 06:00: Watcher starts the daily cycle.
 - Each Watcher result: Shadow wakes, audits it, then either approves or rejects.
 - 07:00 and every hour after: Shadow sweeps Watcher's open work as a backstop.
+- 07:00 (09:00 Cairo): Shadow runs the fit-for-purpose gate — purpose depth + the report-only
+  ratchet. A regression turns the run red and appears in the report below.
 - 09:00 and 21:00: Shadow sends Ahmed a report (what happened, what's blocked, what needs a yes/no).
 
 
