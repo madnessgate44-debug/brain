@@ -50,4 +50,11 @@ One register: every blocker, dependency-ordered, with an owner and a safe verifi
 4. Merge the two docs/infra PRs #293 and #294 (non-behavioural) — yes / no?
 5. Point the ticket hub helper at #292 (`C5`) — yes / no?
 
+## F. ChatGPT-integration blockers (workstream `6713088768`)
+
+See `CHATGPT_INTEGRATION.md` §13. Summary: G1 ChatGPT has no autonomous inbound invocation `[B]`;
+G2 the Owner must mount the MCP connector + key in ChatGPT `[OWNER ACTION]`; G3 SwarmChat is not
+durable `[B]`; G4 a ChatGPT scheduled task may need a paid tier `[OWNER ACTION]`. The supported path
+that already exists: the live Brain MCP connector (`docs/CONNECTOR.md`) + GitHub #292.
+
 _Phase 1 deliverable 4 of 4. Read-only._
