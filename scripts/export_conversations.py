@@ -52,6 +52,102 @@ def redact(text: str) -> str:
     return text
 
 
+# High-confidence secret shapes only. Used to prove redaction held: if any of these survive in
+# rendered or committed output, the run fails closed. The git-URL rule is deliberately excluded
+# here — it is a redaction convenience, not a secret shape, and would match ordinary docs.
+LEAK_PATTERNS = [
+    (re.compile(r"gAAAAA[A-Za-z0-9_\-]{20,}"), "fernet"),
+    (re.compile(r"sk-[A-Za-z0-9_\-]{20,}"), "openai-sk"),
+    (re.compile(r"ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|ghu_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"),
+     "github-token"),
+    (re.compile(r"AIza[0-9A-Za-z_\-]{30,}"), "google-key"),
+    (re.compile(r"AQ\.[A-Za-z0-9_\-]{40,}"), "google-oauth"),
+    # Require the whole PEM block (header + body + footer). A lone header in prose that merely
+    # names the pattern is not a secret, so it must not trip the scanner.
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]{20,}?-----END [A-Z ]*PRIVATE KEY-----"),
+     "private-key"),
+]
+
+
+def check_leaks(text: str) -> list[tuple[str, str]]:
+    """Return (kind, excerpt) for every secret-shaped value still present. Empty == clean.
+
+    Excerpts are truncated and never contain the full value, so a finding can be reported
+    without re-leaking the secret.
+    """
+    found = []
+    for pat, kind in LEAK_PATTERNS:
+        for m in pat.finditer(text):
+            found.append((kind, m.group(0)[:8] + "…"))
+    return found
+
+
+def leak_scan_files(paths: list[str]) -> list[tuple[str, str, str]]:
+    """Scan files/dirs for residual secrets. Returns (path, kind, excerpt)."""
+    hits: list[tuple[str, str, str]] = []
+    for p in paths:
+        files = []
+        if os.path.isdir(p):
+            for root, _dirs, names in os.walk(p):
+                files += [os.path.join(root, n) for n in names]
+        else:
+            files.append(p)
+        for f in files:
+            try:
+                with open(f, encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
+            except OSError:
+                continue
+            for kind, excerpt in check_leaks(text):
+                hits.append((f, kind, excerpt))
+    return hits
+
+
+def read_cursor(path: str) -> dict:
+    """Load the previous run's cursor, or {} if none. The cursor is the watermark:
+    each conversation's rendered-section hash plus the last successful run time."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+def write_cursor(path: str, date: str, manifest: list[dict]) -> None:
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"last_run_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                   "last_date": date,
+                   "count": len(manifest),
+                   "conversations": {m["id"]: m["log_sha256"] for m in manifest}}, fh, indent=1)
+
+
+def verify_canary() -> int:
+    """Prove the redaction gate end to end with a synthetic conversation.
+
+    Builds a conversation whose owner text carries a secret-shaped canary, renders it, and
+    asserts (a) the canary is gone from the rendered section and (b) the leak scan would have
+    caught it had it survived. Offline; no API, no writes, no real secret.
+    """
+    canary = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+    convo = {"id": "canary-00000000", "title": "Canary", "created_at": "2026-01-01T00:00:00Z",
+             "sandbox_status": "PAUSED"}
+    events = [{"source": "user", "llm_message": {"role": "user", "content": [{"type": "text", "text": f"token {canary} end"}]}}]
+    # redact() is applied to the whole rendered body in main(); mirror that here.
+    section = redact(render_conversation(convo, events))
+    if canary in section:
+        print("CANARY FAIL: secret survived redaction", file=sys.stderr)
+        return 2
+    if "[REDACTED-GITHUB]" not in section:
+        print("CANARY FAIL: redaction marker absent", file=sys.stderr)
+        return 2
+    if not check_leaks(f"x {canary}"):
+        print("CANARY FAIL: leak scanner missed the canary", file=sys.stderr)
+        return 2
+    print("canary ok: secret-shaped value redacted; scanner detects it when present")
+    return 0
+
+
 def _get(url: str, tries: int = 8) -> dict:
     for i in range(tries):
         req = urllib.request.Request(url)
@@ -196,7 +292,27 @@ def main() -> int:
     ap.add_argument("--raw-dir", default=".openhands/export/raw", help="directory for gzipped raw events")
     ap.add_argument("--from-raw", action="store_true",
                     help="render from cached raw files (no API calls; re-pull with --refresh)")
+    ap.add_argument("--scan", nargs="*", default=None,
+                    help="leak-scan the given paths for residual secret shapes and exit; "
+                         "no API calls, no writes. Exit 2 if anything is found.")
+    ap.add_argument("--verify-canary", action="store_true",
+                    help="prove the redaction gate end to end with a synthetic canary; "
+                         "no API calls, no writes. Exit 2 if the gate fails.")
     a = ap.parse_args()
+
+    if a.verify_canary:
+        return verify_canary()
+
+    if a.scan is not None:
+        hits = leak_scan_files(a.scan or ["docs/sessions"])
+        for f, kind, excerpt in hits:
+            print(f"LEAK {f}: {kind} {excerpt}")
+        if hits:
+            print(f"FAIL: {len(hits)} secret-shaped value(s) found")
+            return 2
+        print(f"clean: no secret shapes in {a.scan or ['docs/sessions']}")
+        return 0
+
     if not a.from_raw and not KEY:
         print("OPENHANDS_API_KEY not set", file=sys.stderr)
         return 1
@@ -268,7 +384,26 @@ def main() -> int:
         f.write(body)
     with open(os.path.join(a.out, f"{a.date}.manifest.json"), "w") as f:
         json.dump({"date": a.date, "count": len(convos), "conversations": manifest}, f, indent=1)
-    print(f"wrote {out_path} ({len(body)} chars)")
+
+    # Fail closed: prove the archive we are about to commit carries no residual secret shape.
+    # The manifest is also the idempotency record — it stores each conversation's rendered-section
+    # hash, so a re-run over the same events produces byte-identical files.
+    scanned = [out_path, os.path.join(a.out, f"{a.date}.manifest.json")]
+    hits = leak_scan_files(scanned)
+    if hits:
+        for f, kind, excerpt in hits:
+            print(f"LEAK {f}: {kind} {excerpt}", file=sys.stderr)
+        print("ABORT: secret-shaped value survived redaction", file=sys.stderr)
+        return 2
+
+    # Advance the watermark: the last-success time + per-conversation hashes the next run diffs
+    # against. Written only after the gate passes, so the cursor never points at a failed run.
+    cursor_path = os.path.join(a.raw_dir, "..", "cursor.json")
+    prev = read_cursor(cursor_path)
+    changed = sum(1 for m in manifest if prev.get("conversations", {}).get(m["id"]) != m["log_sha256"])
+    write_cursor(cursor_path, a.date, manifest)
+    print(f"wrote {out_path} ({len(body)} chars); leak scan clean; cursor advanced "
+          f"({changed} changed, prev run {prev.get('last_run_utc', 'none')})")
     return 0
 
 
