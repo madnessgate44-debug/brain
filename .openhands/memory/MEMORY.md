@@ -405,3 +405,27 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
 - **Proof:** Vercel build of `fix/vercel-serverless-entrypoint` → **READY** (`brain-k2v9qdy1s-forge-fe22`),
   first successful build since project creation. Preview is Vercel-Auth protected (Hobby default).
 - **Sandbox reset:** deps vanished mid-session; `pip install -e ".[dev]"` had to be re-run.
+
+## Mission 21 (2026-11-07) — merge batch, main-red fix, Watcher skills (PRs #271/#282/#286/#270/#244/#287)
+- **main was RED after #237** — `tests/test_brain_build_workflow_contract.py::test_workflow_reports_failures_without_secrets_or_provider_bodies`
+  asserted the LITERAL `"permissions:\\n      issues: write"` (backslash-n) while the workflow has a real
+  newline, so it could never pass. Fix = make it a real newline (#286 `c08d191`). Lesson: a workflow-contract
+  test that greps YAML must use real newlines, never `\n` inside a plain (non-raw) string.
+- **Merged this session:** #271 (Vercel serverless entrypoint — `index.py`/`vercel.json`/`.vercelignore`/lean
+  `requirements.txt`), #282, #286 (skills + the red-test fix), #270 (alembic `env.py`/`script.py.mako` +
+  transcribe fetch-failure handling), #244 (watcher channel `scripts/watcher_channel.py`). main green at `270e966e`.
+- **Rebase/merge recipe (sandbox):** the clone is a **shallow graft** → `git merge` can hit "refusing to merge
+  unrelated histories" and `git merge-base` is absent. Fix: `git fetch --unshallow origin` first. Force-push is
+  BLOCKED by the guard, so land a rebase as a **merge commit** instead: `git merge origin/main` on the PR branch,
+  resolve, push (no `--force`). GitHub's `PUT /pulls/{n}/update-branch` returns 422 when base/head conflict.
+- **Conflict-resolution rule for this repo:** append-style files (`MEMORY.md`, `watcher/reports/*`, `watcher/connectors.md`,
+  `shadow/registry.md`) conflict as parallel status snapshots; take `--theirs` (main is later) for contradictory
+  tables, union distinct sections.
+- **Deferred (owner call / superseded):** #242 (draft MCP connector, collides with #271 on `index.py`), #243
+  (superseded by #244; also rewrites live `watcher/bridge/{tickets,state}.json`, `trace-cursor`), #183 (dupe of
+  merged #156 report). #4/#121/#122/#145/#196/#272 are 131–249 commits behind — re-implement fresh.
+- **Watcher skills (owner mission):** `watcher/skills/watcher-learning/SKILL.md` +
+  `watcher/skills/watcher-reverse-engineering/SKILL.md`; finding `watcher/knowledge/reverse/reverse-engineer-everything.md`
+  (repo `gryszzz/reverse-engineer-everything`, 29★, MIT — the "reverse engineer everything" repo the owner named).
+- **Governance:** `docs/LOOP.md` requires a Shadow audit in `/shadow/` before each merge → logged
+  `shadow/audit-2026-11-07.md` (PR #287).
