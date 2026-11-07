@@ -388,7 +388,7 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
 - **Blocked:** can't demo the phone-driving path here (no Android device, no ADB). Tavily web search
   was over quota (HTTP 432) — used the GitHub API + raw README instead.
 
-## Mission 22 (2026-11-06) — SwarmChat: replace the homemade agent bridge (PR pending)
+## Mission 22 (2026-11-06) — SwarmChat: replace the homemade agent bridge (PR #289, draft)
 - Owner shared `Pranjal2041/swarmchat` with the "same protocol" (understand → transcript +
   learning artifact → skill → replace the earlier thing we built).
 - **What it is:** open-source "Slack for agent swarms". MIT, Python 3.9+, **stdlib only, zero
