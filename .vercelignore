@@ -1,0 +1,15 @@
+# Keep the deployment bundle to runtime code only.
+.git
+.github
+.openhands
+artifacts
+tests
+test_workspace
+watcher
+shadow
+docs
+workspace
+*.md
+!README.md
+__pycache__
+*.pyc
