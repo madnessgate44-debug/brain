@@ -27,6 +27,11 @@ the same page, `https://swarmchat.io/`. Its key claims are captured verbatim in
 `watcher/knowledge/video/2026-11-06-swarmchat-launch.article.txt` and analysed in
 `docs/research/SWARMCHAT_AGENT_COORDINATION_2026-11-06.md`.
 
+## En français
+
+`watcher/knowledge/video/2026-11-06-swarmchat-launch.fr.md` — résumé en français de
+l'annonce (la vidéo étant muette, il n'y a pas de parole à traduire).
+
 ## Why this is worth keeping
 
 The article is a rare, quantified study of **agent-team coordination**: eight coding

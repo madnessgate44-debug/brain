@@ -239,7 +239,9 @@ Live run of `pip install swarmchat` (v0.1.0) on 2026-11-06:
 | JSON mode | `chats --json` / `read --json` | PASS — one JSON object per line |
 | Directory / info | `people`, `info "#general"`, `whoami` | PASS |
 
-Artifacts: `watcher/knowledge/video/2026-11-06-swarmchat-launch.{txt,md,article.txt}`.
+Artifacts: `watcher/knowledge/video/2026-11-06-swarmchat-launch.{txt,md,fr.md,article.txt}`
+(the `.fr.md` is the French summary the owner asked for; the video itself is silent, so there is
+no speech to translate).
 
 ## 8. Recommendation `[I]`
 
