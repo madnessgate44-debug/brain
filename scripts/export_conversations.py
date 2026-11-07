@@ -52,6 +52,57 @@ def redact(text: str) -> str:
     return text
 
 
+# High-confidence secret shapes only. Used to prove redaction held: if any of these survive in
+# rendered or committed output, the run fails closed. The git-URL rule is deliberately excluded
+# here — it is a redaction convenience, not a secret shape, and would match ordinary docs.
+LEAK_PATTERNS = [
+    (re.compile(r"gAAAAA[A-Za-z0-9_\-]{20,}"), "fernet"),
+    (re.compile(r"sk-[A-Za-z0-9_\-]{20,}"), "openai-sk"),
+    (re.compile(r"ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|ghu_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"),
+     "github-token"),
+    (re.compile(r"AIza[0-9A-Za-z_\-]{30,}"), "google-key"),
+    (re.compile(r"AQ\.[A-Za-z0-9_\-]{40,}"), "google-oauth"),
+    # Require the whole PEM block (header + body + footer). A lone header in prose that merely
+    # names the pattern is not a secret, so it must not trip the scanner.
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]{20,}?-----END [A-Z ]*PRIVATE KEY-----"),
+     "private-key"),
+]
+
+
+def check_leaks(text: str) -> list[tuple[str, str]]:
+    """Return (kind, excerpt) for every secret-shaped value still present. Empty == clean.
+
+    Excerpts are truncated and never contain the full value, so a finding can be reported
+    without re-leaking the secret.
+    """
+    found = []
+    for pat, kind in LEAK_PATTERNS:
+        for m in pat.finditer(text):
+            found.append((kind, m.group(0)[:8] + "…"))
+    return found
+
+
+def leak_scan_files(paths: list[str]) -> list[tuple[str, str, str]]:
+    """Scan files/dirs for residual secrets. Returns (path, kind, excerpt)."""
+    hits: list[tuple[str, str, str]] = []
+    for p in paths:
+        files = []
+        if os.path.isdir(p):
+            for root, _dirs, names in os.walk(p):
+                files += [os.path.join(root, n) for n in names]
+        else:
+            files.append(p)
+        for f in files:
+            try:
+                with open(f, encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
+            except OSError:
+                continue
+            for kind, excerpt in check_leaks(text):
+                hits.append((f, kind, excerpt))
+    return hits
+
+
 def _get(url: str, tries: int = 8) -> dict:
     for i in range(tries):
         req = urllib.request.Request(url)
@@ -196,7 +247,21 @@ def main() -> int:
     ap.add_argument("--raw-dir", default=".openhands/export/raw", help="directory for gzipped raw events")
     ap.add_argument("--from-raw", action="store_true",
                     help="render from cached raw files (no API calls; re-pull with --refresh)")
+    ap.add_argument("--scan", nargs="*", default=None,
+                    help="leak-scan the given paths for residual secret shapes and exit; "
+                         "no API calls, no writes. Exit 2 if anything is found.")
     a = ap.parse_args()
+
+    if a.scan is not None:
+        hits = leak_scan_files(a.scan or ["docs/sessions"])
+        for f, kind, excerpt in hits:
+            print(f"LEAK {f}: {kind} {excerpt}")
+        if hits:
+            print(f"FAIL: {len(hits)} secret-shaped value(s) found")
+            return 2
+        print(f"clean: no secret shapes in {a.scan or ['docs/sessions']}")
+        return 0
+
     if not a.from_raw and not KEY:
         print("OPENHANDS_API_KEY not set", file=sys.stderr)
         return 1
@@ -268,7 +333,18 @@ def main() -> int:
         f.write(body)
     with open(os.path.join(a.out, f"{a.date}.manifest.json"), "w") as f:
         json.dump({"date": a.date, "count": len(convos), "conversations": manifest}, f, indent=1)
-    print(f"wrote {out_path} ({len(body)} chars)")
+
+    # Fail closed: prove the archive we are about to commit carries no residual secret shape.
+    # The manifest is also the idempotency/cursor record — it stores each conversation's
+    # rendered-section hash, so a re-run over the same events produces byte-identical files.
+    scanned = [out_path, os.path.join(a.out, f"{a.date}.manifest.json")]
+    hits = leak_scan_files(scanned)
+    if hits:
+        for f, kind, excerpt in hits:
+            print(f"LEAK {f}: {kind} {excerpt}", file=sys.stderr)
+        print("ABORT: secret-shaped value survived redaction", file=sys.stderr)
+        return 2
+    print(f"wrote {out_path} ({len(body)} chars); leak scan clean")
     return 0
 
 
