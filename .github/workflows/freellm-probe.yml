@@ -1,0 +1,49 @@
+name: FreeLLMPool keyless probe
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/freellm-probe.yml"
+      - "scripts/freellm_probe.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.actor == 'madnessgate44-debug') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor == 'madnessgate44-debug')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out probe code without credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Pull and start credential-free pinned proxy
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="ghcr.io/0xzr/freellmpool:0.13.0"
+          docker pull "$image"
+          digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
+          test -n "$digest"
+          echo "FreeLLMPool image digest: $digest"
+          docker run -d --name freellm \
+            --tmpfs /home/freellmpool/.config/freellmpool:rw,uid=10001,gid=10001 \
+            -p 127.0.0.1:8080:8080 \
+            "$image"
+
+      - name: Probe keyless routes and context limits
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/freellm_probe.py
+
+      - name: Always stop and remove proxy
+        if: always()
+        shell: bash
+        run: docker rm -f freellm || true
