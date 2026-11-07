@@ -43,3 +43,22 @@ def test_stamp_vtt_mmss(tr):
 
 def test_stamp_fallback(tr):
     assert tr._stamp("garbage") == "00:00"
+
+
+def test_unfetchable_classifies_bot_check_and_availability(tr):
+    assert tr._unfetchable("ERROR: Sign in to confirm you're not a bot.")
+    assert tr._unfetchable("This video is unavailable")
+    assert tr._unfetchable("Private video. Sign in if you've been granted access")
+    assert not tr._unfetchable("ffmpeg decode failed: Invalid data found")
+
+
+def test_probe_failure_is_reported_not_raised(tr, monkeypatch):
+    class Result:
+        returncode = 1
+        stderr = "ERROR: Sign in to confirm you're not a bot."
+        stdout = ""
+
+    monkeypatch.setattr(tr.subprocess, "run", lambda *a, **k: Result())
+    meta = tr.probe("https://example.test/watch?v=1")
+    assert meta["probe_error"].startswith("ERROR")
+    assert meta["url"] == "https://example.test/watch?v=1"
