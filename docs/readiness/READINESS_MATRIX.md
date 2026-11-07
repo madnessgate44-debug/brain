@@ -36,7 +36,7 @@ adversarial review and makes OpenHands the execution lead — the merge right is
 |---|---|---|---|---|
 | Brain build / chat / R&D | OpenAI-compatible (DeepSeek/OpenRouter) | `BRAIN_AI_API_KEY`, `BRAIN_AI_BASE_URL` | repo Actions secrets | `[V]` name; `[U]` value |
 | Brain R&D discovery | GitHub | `BRAIN_RD_GITHUB_TOKEN`, `BRAIN_GITHUB_TOKEN` | repo Actions secrets | `[V]` name; `[U]` value |
-| Shadow auditor | Google Gemini pool | `OHGeminiAPI`, `GEMINI_POOL_1..7` | repo Actions secrets | `[B]` — absent, see §4 |
+| Shadow auditor | Google Gemini pool | `OHGeminiAPI`, `GEMINI_POOL_1..7` | repo Actions secrets | `[B]` — sweep `42421027202` = **0 WORKING, 8 NOT SET** |
 | OpenHands automations | OpenHands Cloud | `OPENHANDS_API_KEY` | repo Actions secrets | `[V]` name; `[U]` value |
 | All workflows | GitHub | `GITHUB_TOKEN` (built-in) | Actions | `[V]` |
 
@@ -124,11 +124,12 @@ Shadow owns credential pool operations; Watcher coordinates service.
 | Independent review | Shadow | **partly** — audit runs but BLOCKED without its model `[B]` |
 | Verify + report | OpenHands, Watcher | **yes** `[V]` |
 
-**Gate result:** 5 of 6 capabilities ready. The single blocker is Shadow's model route (§2). Shadow
-stays **BLOCKED** until its Gemini pool is available; **OpenHands is not a substitute independent
-reviewer**, and the Owner is not asked to choose that substitution. The Amina proving exercise's
-*independent review* step therefore requires the Owner to add `OHGeminiAPI` + `GEMINI_POOL_1..7`
-(exact scope + rollback in `CREDENTIAL_REQUIREMENTS.md §4`); every other Phase-1 check proceeds
-without Shadow.
+**Gate result:** 5 of 6 capabilities ready. The single blocker is Shadow's model route (§2), which is
+**not an Owner gate** (Owner correction `6713837374`). A **credential custodian** — the correction
+names "Ghost", which does not exist in the repo (no code/doc reference, no repo, no SwarmChat token)
+— must load a working Gemini pool via the authorized path (`.github/workflows/shadow-keys.yml`, the
+non-sensitive PASS/FAIL sweep). Live sweep `42421027202` (2026-11-07T22:31:40Z) = **0 WORKING, 8 NOT
+SET**. Shadow stays **BLOCKED**; **OpenHands is not a substitute independent reviewer**. Every other
+Phase-1 check proceeds without Shadow.
 
 _Phase 1 deliverable 1 of 4. Read-only; no secret value, merge, deploy, or spend._

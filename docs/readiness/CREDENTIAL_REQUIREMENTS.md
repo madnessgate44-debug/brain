@@ -28,13 +28,50 @@ Shadow's is therefore `[U]`. Do **not** claim a key works because its name appea
 - Brain AI: `ai-provider-secret-check.yml`, `deepseek-api-key-check.yml`, `brain-credential-preflight.yml`.
 - A **presence** probe needs no secret value: the workflow either runs or fails closed.
 
-## 4. Remediation (needs Owner approval — do not perform)
+## 4. Custody, evidence, and the corrected blocker (supersedes the earlier "Owner gate")
 
-| Action | Exact scope | Rollback |
+Owner correction (`6713837374`): adding the pool is **not** an Owner gate. The architecture assigns
+provider credential-pool custody to a **credential custodian** (the correction names it "Ghost",
+supported by the Shadow/key-pool subsystem); the Owner must not be asked to source keys by default.
+
+**Status of the custodian (verified this session):**
+- **No participant named "Ghost" exists in the repository.** `grep -rin ghost` over the repo returns
+  no code or doc reference; there is no `*ghost*` repository in the `madnessgate44-debug` account; and
+  the SwarmChat identities are `owner/watcher/shadow/forge/openhands/cloud` — **no ghost token**.
+  So "Ghost" is currently an **undefined role**: the correction names an owner the system does not
+  have. This is the integration gap to resolve — either a custodian is stood up, or the Shadow
+  key-pool subsystem is designated the custodian explicitly.
+- **The key-pool subsystem exists and is the correct tool:** `.github/workflows/shadow-keys.yml`
+  ("Shadow key sweep", `WATCHER.md §14.4`) tests every registered key × model with a minimal real
+  request and prints **PASS/FAIL only, never a value**. This is the safe health check the correction asks for.
+
+**Live sweep evidence (non-sensitive), run `42421027202`, 2026-11-07T22:31:40Z, `success`:**
+
+```
+label|models_http|generate_http|result
+GEMINI_POOL_1..7|-|-|NOT SET (secret absent)
+OHGeminiAPI|-|-|NOT SET (secret absent)
+SUMMARY: 0 WORKING, 8 NOT SET
+```
+
+So there is **no existing Gemini pool to inspect** — all eight secrets are absent, not merely
+unhealthy. The blocker is a real missing resource, and the custodian role that should supply it does
+not exist yet.
+
+**Second integration defect (OpenHands-owned, non-secret):** in the same run, the *GitHub API route
+probe* reported `github: FAIL (http 403)`. `shadow-keys.yml:73-79` probes `api.github.com/user` with
+`${{ secrets.GITHUB_TOKEN }}`; a workflow `GITHUB_TOKEN` (github-actions app) returns 403 on `/user`.
+The route is fine; the **probe is misclassified** and should use an endpoint the token is scoped for
+(e.g. `GET /repos/{owner}/{repo}`). Fix belongs in `shadow-keys.yml`, not in credentials.
+
+| Action | Owner of the action | Rollback |
 |---|---|---|
-| Add Shadow's pool | set `OHGeminiAPI` + `GEMINI_POOL_1..7` as repo Actions secrets | delete the 8 secrets |
-| Enable secret listing | give the automation token `secrets:read` (or a human lists them) | remove the scope |
+| Stand up the custodian role (or designate the Shadow key-pool subsystem as custodian) | Owner / Shadow | remove the designation |
+| Custodian loads a working Gemini pool via the authorized path (never printed) | Custodian | delete the secrets |
+| Fix the `github: FAIL (403)` probe classification | OpenHands | revert the probe line |
+| Enable secret listing (`secrets:read`) so presence is verifiable | Owner (token scope) | remove the scope |
 
 No credential was created, replaced, rotated, revealed, copied, or granted a permission in this phase.
+No secret value was printed.
 
 _Phase 1 deliverable 3 of 4. Read-only; no secret value handled._

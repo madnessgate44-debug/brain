@@ -73,7 +73,9 @@ jobs:
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # A workflow GITHUB_TOKEN is scoped to this repo, so /user returns 403 (github-actions
+          # app). Probe a repo-scoped endpoint instead, which is what the token is actually for.
           code=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${TOKEN}" \
-            "https://api.github.com/user")
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}")
           if [ "$code" = "200" ]; then echo "github: PASS"; else echo "github: FAIL (http ${code})"; fi

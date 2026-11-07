@@ -17,7 +17,8 @@ One register: every blocker, dependency-ordered, with an owner and a safe verifi
 
 | ID | Blocker | Impact | Remediation | Owner | Tag |
 |---|---|---|---|---|---|
-| B1 | Shadow's model route absent (`OHGeminiAPI`, `GEMINI_POOL_1..7`) | no independent audit → no merge under `LOOP.md` | add the secrets | Owner | `[B]` |
+| B1 | Shadow's model route absent (`OHGeminiAPI`, `GEMINI_POOL_1..7`); sweep `42421027202` = **0 WORKING, 8 NOT SET** | no independent audit → no merge under `LOOP.md` | custodian (see `CREDENTIAL_REQUIREMENTS.md §4`) loads the pool via the authorized path | **Custodian** (the correction names "Ghost", which does not exist in the repo — an undefined role to resolve), not the Owner | `[B]` |
+| B7 | `shadow-keys.yml` GitHub probe reports `github: FAIL (http 403)` — probes `/user` with a workflow token that is not scoped for it | misclassified as a credential failure | point the probe at `GET /repos/{owner}/{repo}` | OpenHands | `[V]` |
 | B2 | Repo-secret listing is 403 for this token | cannot prove presence for most secrets | token scope, or a human lists them | Owner | `[B]` |
 | B3 | Agent wake/trigger not wired | no real-time multi-agent coordination | adopt SwarmChat `wait` or a GitHub dispatch bus | Owner | `[U]` |
 | B4 | SwarmChat is sandbox-local | live room is not durable; a Cloud automation cannot reach it | treat #292 as the durable record; or host SwarmChat | Owner | `[V]` |
