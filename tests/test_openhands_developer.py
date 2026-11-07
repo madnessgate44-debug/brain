@@ -3,7 +3,21 @@
 import pytest
 
 from brain.company.agent_runner import AgentOutputError
-from brain.company.openhands_developer import _safe_relative_path, _safe_request_paths, _sdk_model_name, _sdk_llm_kwargs, _uses_native_gemini
+from brain.company.openhands_developer import (
+    _developer_tools,
+    _safe_relative_path,
+    _safe_request_paths,
+    _sdk_llm_kwargs,
+    _sdk_model_name,
+    _task_prompt,
+    _uses_native_gemini,
+)
+
+
+def test_developer_task_prompt_includes_the_role_skill():
+    prompt = _task_prompt("Do the work", {"repository_snapshot": {"source_contents": {}}})
+    assert "ROLE SKILL (developer):" in prompt
+    assert "Implementation Engineer" in prompt
 
 
 @pytest.mark.parametrize("path", ["../outside.py", "/tmp/outside.py", "src/../../outside.py", "brain\\unsafe.py"])
@@ -24,6 +38,22 @@ def test_unsafe_path_examples_in_task_text_are_not_output_path_hints():
 
 def test_safe_explicit_path_in_task_text_is_preserved():
     assert _safe_request_paths("Update tests/test_feature.py") == {"tests/test_feature.py"}
+
+
+def test_developer_tools_grant_file_editor_and_local_shell():
+    names = [tool.name for tool in _developer_tools("https://api.deepseek.com/v1")]
+    assert "file_editor" in names
+    assert "terminal" in names
+
+
+def test_developer_tools_use_gemini_file_tools_plus_shell_on_native_gemini():
+    names = [
+        tool.name
+        for tool in _developer_tools("https://generativelanguage.googleapis.com/v1beta/openai")
+    ]
+    assert "terminal" in names
+    assert "file_editor" not in names
+    assert "read_file" in names
 
 
 def test_google_openai_compatible_url_uses_native_gemini_provider():

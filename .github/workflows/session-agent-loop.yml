@@ -1,0 +1,71 @@
+name: Session agent loop
+
+# W4 (watcher/knowledge/WEAKNESSES.md): Watcher and Shadow have scheduled workflows; the
+# session agent had none, so it only ran when the owner opened a session by hand. This gives
+# it a loop: run the depth checks, then start one self-contained Cloud conversation that finds
+# and fixes the highest-priority open defect and opens a PR.
+#
+# Requires repo secret OPENHANDS_API_KEY (Cloud API). Without it, the loop records the wiring
+# as a dry run instead of failing, so the check stays honest.
+# Never push main: evidence and audit output arrive as a PR (CI + Shadow audit gate it).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * *"   # 07:00 Africa/Cairo, daily
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: session-agent-loop
+  cancel-in-progress: false
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Depth checks (purpose audit + agent status)
+        run: |
+          python3 watcher/knowledge/tools/purpose_audit.py --out watcher/knowledge/audits 2>&1 | tee /tmp/loop.log
+          echo "---" | tee -a /tmp/loop.log
+          python3 scripts/agent_status.py --commits 60 2>&1 | tee -a /tmp/loop.log
+
+      - name: Start the session agent's loop (one Cloud conversation)
+        env:
+          OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+        run: |
+          if [ -z "$OPENHANDS_API_KEY" ]; then
+            echo "OPENHANDS_API_KEY is not set; recording a dry run." | tee -a /tmp/loop.log
+            python3 scripts/start_session_loop.py --dry-run 2>&1 | tee -a /tmp/loop.log
+          else
+            python3 scripts/start_session_loop.py 2>&1 | tee -a /tmp/loop.log
+          fi
+
+      - name: Publish the run as a pull request (never push main)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "session-agent-bot"
+          git config user.email "session-agent-bot@users.noreply.github.com"
+          git add watcher/knowledge/audits watcher/knowledge/evidence
+          if git diff --cached --quiet; then
+            echo "no loop output to commit"
+            exit 0
+          fi
+          stamp="$(date -u +%Y%m%d-%H%M)"
+          branch="session-loop/${stamp}"
+          git checkout -b "$branch"
+          git commit -m "chore(session): scheduled loop run ${stamp}"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "chore(session): scheduled loop run ${stamp}" \
+            --body "Automated session-agent loop. Depth checks (purpose audit + agent status) and the started conversation link are in the diff. This closes W4 for the session agent; CI + Shadow audit gate the merge."

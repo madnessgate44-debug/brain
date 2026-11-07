@@ -14,5 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Verify policy and agent instructions
         run: node scripts/check-engineering-execution-os.mjs
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: W1 ratchet — the report-only ratio must not rise
+        run: python3 scripts/agent_status.py --commits 60
+      - name: W7 — the skill check must be required, and roles must have skills
+        run: python3 scripts/skill_check.py

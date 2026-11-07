@@ -1,0 +1,17 @@
+{
+ "date": "2026-10-15",
+ "count": 1,
+ "conversations": [
+  {
+   "id": "43bfdf2b750d47b6b896afd567218bb9",
+   "title": "\ud83d\udd12\ufe0f Forge audit on Amina: Gemini & Grok",
+   "events": 3670,
+   "pages": 37,
+   "owner_messages": 25,
+   "agent_messages": 19,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "f6858d0e86d14ccc125c709b0ffa364c99b1b1db82afc7f5675a9af212d227be"
+  }
+ ]
+}

@@ -30,7 +30,7 @@ For meaningful engineering work use:
 **OUTCOME → INSPECT → SPECIFY → PLAN → EXECUTE → VERIFY → REVIEW → CLOSE**
 
 1. **OUTCOME:** State the user-visible result and why it matters.
-2. **INSPECT:** Examine actual repository, files, branches, configuration, logs, CI runs, tests, and current product behavior. Establish a baseline before editing.
+2. **INSPECT:** Examine actual repository, files, branches, configuration, logs, CI runs, tests, and current product behavior. Establish a baseline before editing. **First, run the skill router** — `python3 scripts/skills.py declaration "<the task in one line>"` — and act on the skills it names (§11).
 3. **SPECIFY:** Number requirements (R1, R2, …). Give each a measurable acceptance criterion. Map each to evidence, implementation location, test, gap, or blocker.
 4. **PLAN:** Choose the smallest complete change. Identify dependencies, risks, rollback, and verification steps. Preserve approved decisions and passing behavior.
 5. **EXECUTE:** Make authorized changes through available tools. Prefer root-cause correction over symptom patches. Do not add unapproved features.
@@ -150,9 +150,18 @@ Every execution turn MUST begin with the following **TOOL DECLARATION** and end 
 ```text
 TOOL DECLARATION
 - Tools confirmed available this session: <list | none>
+- Skills considered: <name -> why used / why not | none>
 - Tools requested but absent: <list | none>
 - No other access claimed. Any later claim referencing an undeclared tool is invalid.
 ```
+
+**Skill check (mandatory).** Before acting, run `python3 scripts/skills.py declaration "<task>"`. It
+searches every skill available this session (repo, plugin, public) and ranks them by trigger. Put
+its output in the declaration. A skill is chosen by its trigger, not by mood. If the router names
+a skill and it was not used, say why in the declaration. "None matched" is only valid when the
+router returns nothing; "none" without a reason is non-compliant. Run the router again mid-task
+whenever the work changes shape. Do not claim a skill was used unless it was actually invoked and
+its guidance applied.
 
 ### COMPLIANCE HEADER — end every execution turn
 

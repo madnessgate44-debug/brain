@@ -1,0 +1,67 @@
+name: Shadow report and sweep
+
+# Implements WATCHER.md §3/§5: the 09:00/21:00 report to Ahmed and the hourly sweep
+# backstop. The sweep audits any open non-draft PR that has no Shadow verdict yet.
+# These crons only take effect once this file is on the default branch.
+# Rule: never print, echo, or commit a secret value.
+
+on:
+  schedule:
+    - cron: "0 7 * * *"    # 09:00 Africa/Cairo (UTC+2) report
+    - cron: "0 19 * * *"   # 21:00 Africa/Cairo (UTC+2) report
+    - cron: "5 * * * *"    # hourly sweep at :05
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Which job to run"
+        type: choice
+        options: [report, sweep]
+        default: report
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  report:
+    if: github.event_name == 'workflow_dispatch' && inputs.job == 'report' || github.event.schedule != '5 * * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Post the report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OHGeminiAPI: ${{ secrets.OHGeminiAPI }}
+          SHADOW_TS: ${{ github.event.schedule }}
+        run: python3 shadow/report.py --report
+
+  sweep:
+    if: github.event_name == 'workflow_dispatch' && inputs.job == 'sweep' || github.event.schedule == '5 * * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install audit deps
+        run: python -m pip install --quiet pyyaml
+      - name: Run the hourly sweep
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OHGeminiAPI: ${{ secrets.OHGeminiAPI }}
+          GEMINI_POOL_1: ${{ secrets.GEMINI_POOL_1 }}
+          GEMINI_POOL_2: ${{ secrets.GEMINI_POOL_2 }}
+          GEMINI_POOL_3: ${{ secrets.GEMINI_POOL_3 }}
+          GEMINI_POOL_4: ${{ secrets.GEMINI_POOL_4 }}
+          GEMINI_POOL_5: ${{ secrets.GEMINI_POOL_5 }}
+          GEMINI_POOL_6: ${{ secrets.GEMINI_POOL_6 }}
+          GEMINI_POOL_7: ${{ secrets.GEMINI_POOL_7 }}
+        run: |
+          python3 shadow/report.py --sweep
+          python3 shadow/report.py --fix

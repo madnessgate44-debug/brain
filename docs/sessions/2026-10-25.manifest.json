@@ -1,0 +1,50 @@
+{
+ "date": "2026-10-25",
+ "count": 4,
+ "conversations": [
+  {
+   "id": "be6d9c5f3bec479297ba809be937a234",
+   "title": "GitHub Issue #131: Implement zero-user-action, source-faithful conversation synchronization",
+   "events": 447,
+   "pages": 5,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "058461651ab3c8d1d4473922bc2bf2fe3b98552dc4e1c77b398d45ba0d2ffb5b"
+  },
+  {
+   "id": "58705495154e4fdd9c1873c9e9e34387",
+   "title": "SYNC-E2E controlled session 2026-10-25",
+   "events": 10,
+   "pages": 1,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "9591111d3a5c6e5b493bd757a006347204c131b995787821b377ae8688812d44"
+  },
+  {
+   "id": "281c6deb6157442ca13f8790830021be",
+   "title": "SYNC-E2E fault session 2026-10-25",
+   "events": 11,
+   "pages": 1,
+   "owner_messages": 1,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "bc7674977b6960f753a975a39ba1ace684e252ba4143dca3f1276229ea3b7dd9"
+  },
+  {
+   "id": "4580cc3157c246a7af4bd60cc3776cd7",
+   "title": "SYNC-E2E fault session 2 (2026-10-25)",
+   "events": 10,
+   "pages": 1,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "1c3e262e21de1333552c0ea5c28c8e9d515e35a50dbdb9687da6f8759546a5ee"
+  }
+ ]
+}

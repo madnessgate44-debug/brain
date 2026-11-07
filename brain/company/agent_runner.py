@@ -2,6 +2,7 @@
 
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 from brain.company.llm_provider import OpenAICompatibleProvider
@@ -11,6 +12,35 @@ from brain.company.workflow import validate_stage_entry
 
 class AgentOutputError(ValueError):
     """Raised when a specialist returns malformed structured output."""
+
+
+_SKILLS_DIR = Path(__file__).with_name("skills")
+_SKILL_CACHE: dict[str, str] = {}
+
+
+def load_role_skill(role_key: str) -> str:
+    """Load a role's skill file (brain/company/skills/<role>.md); cached; empty if absent.
+
+    Skills add reusable method guidance to a role's prompt. A missing file is not an
+    error: the role still runs on its built-in contract.
+    """
+    if role_key in _SKILL_CACHE:
+        return _SKILL_CACHE[role_key]
+    path = _SKILLS_DIR / f"{role_key}.md"
+    text = path.read_text(encoding="utf-8").strip() if path.is_file() else ""
+    _SKILL_CACHE[role_key] = text
+    return text
+
+
+def _skill_block(role_key: str) -> str:
+    skill = load_role_skill(role_key)
+    block = f"\n\nROLE SKILL ({role_key}):\n{skill}" if skill else ""
+    block += (
+        "\n\nSKILL ROUTER: before doing the work, run "
+        "`python3 scripts/skills.py suggest \"<the task in one line>\"` and follow the skills it "
+        "names. A skill is chosen by its trigger, not by habit. If none matches, say so."
+    )
+    return block
 
 
 _DECISION_VALUES = {
@@ -350,6 +380,7 @@ class SpecialistAgentRunner:
             + ", ".join(role.deliverables)
             + ". findings, blockers, evidence_needed must be arrays."
             + role_contract
+            + _skill_block(role_key)
         )
         prompt_evidence = _prepare_prompt_evidence(role_key, user_request, evidence)
         if role_key == "developer":
@@ -380,6 +411,47 @@ class SpecialistAgentRunner:
 
             sdk_result = await run_openhands_developer(user_request, prompt_evidence, self.provider)
             result = _validate_specialist_output(json.dumps(sdk_result), role)
+            result["role"] = role.key
+            result["role_title"] = role.title
+            return result
+
+        if role_key != "developer" and isinstance(self.provider, OpenAICompatibleProvider):
+            # Every other specialist gets the same agentic loop the developer has: a real
+            # OpenHands conversation with file/terminal tools, so it investigates the code
+            # instead of answering from pasted evidence (agent_runner.py:412 was single-shot).
+            # Its answer is validated by the same contract as the single-shot path below.
+            from brain.company.openhands_role import run_openhands_role
+
+            investigated = await run_openhands_role(
+                role.key, role.title, system_prompt, user_prompt, prompt_evidence, self.provider
+            )
+            try:
+                result = _validate_specialist_output(investigated, role)
+            except AgentOutputError:
+                # One bounded repair, mirroring the single-shot path: ask for the JSON only.
+                repair_user_prompt = json.dumps(
+                    {
+                        "role": role.key,
+                        "required_deliverables": list(role.deliverables),
+                        "required_top_level_keys": [
+                            "status", "deliverables", "findings", "blockers", "evidence_needed"
+                        ],
+                        "invalid_response_excerpt": investigated[:12000],
+                        "original_request": user_prompt,
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                )
+                repaired = await run_openhands_role(
+                    role.key,
+                    role.title,
+                    system_prompt
+                    + "\nReturn one corrected JSON object only; no markdown fences or prose.",
+                    repair_user_prompt,
+                    prompt_evidence,
+                    self.provider,
+                )
+                result = _validate_specialist_output(repaired, role)
             result["role"] = role.key
             result["role_title"] = role.title
             return result

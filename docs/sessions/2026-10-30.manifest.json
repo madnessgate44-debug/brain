@@ -1,0 +1,204 @@
+{
+ "date": "2026-10-30",
+ "count": 18,
+ "conversations": [
+  {
+   "id": "11b6fefc804a4bd286a93bb5d02ba9aa",
+   "title": "Openhands loop \u2014 2026-10-30 00:01:15 UTC",
+   "events": 106,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "c981727af838f9a7974878c7f6c72c8dae794bc501b0c55f2bf99ed968728182"
+  },
+  {
+   "id": "1093393358bd4ef1a1030f3a5f6db28d",
+   "title": "Openhands loop \u2014 2026-10-30 02:01:47 UTC",
+   "events": 78,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "6bc73d0ad86ce8a62e6de0d749f57bc5cebf7895923e9ee788935eee6b6274e6"
+  },
+  {
+   "id": "c4ebd70ec5df4dababad17ef262d5d4c",
+   "title": "Openhands loop \u2014 2026-10-30 04:00:38 UTC",
+   "events": 60,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "804667e2e6f0d02cea0741c8492ce1d31faa6cd32834c099c439b9e5a8ca51ad"
+  },
+  {
+   "id": "96f15534a9b2431191d203afbc2124e0",
+   "title": "Openhands loop \u2014 2026-10-30 06:01:08 UTC",
+   "events": 100,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "f901130bc079b64c6660c15c9d97a72e77e3ab4192cb38e28ba413f35a14d91a"
+  },
+  {
+   "id": "0c75e783bbf7427c8110fdfccc429c5b",
+   "title": "Openhands loop \u2014 2026-10-30 08:01:55 UTC",
+   "events": 104,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "998f7acd05ea97728cefc5728cb75b182495893cb39136b43b43c9d70ae150c2"
+  },
+  {
+   "id": "bc507af2523e42d18bf53645f842b25d",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-10-30 08:50:48 UTC",
+   "events": 930,
+   "pages": 10,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "4db481fa21a259f4a3a590c0ae1a675072c3456c1540472b59006ac413816dce"
+  },
+  {
+   "id": "2557b7660d9a46fcb1bf272546de0a04",
+   "title": "\ud83d\udd27 Review shared conversation link",
+   "events": 6458,
+   "pages": 65,
+   "owner_messages": 16,
+   "agent_messages": 5,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "a18316a5efdd868cfca1c8173c1d2bb57f791f43aa86c92eacbf34d29aa4743d"
+  },
+  {
+   "id": "966fc24cf87e4b2aa17e02ecaec7b8da",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-10-30 10:01:08 UTC",
+   "events": 426,
+   "pages": 5,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "18b3a593303e9e737c0671e34c51c84a22c886fad75955166ae471859e9ed563"
+  },
+  {
+   "id": "fe419fef88ee4c8f95b7489f3e2b1e37",
+   "title": "Openhands loop \u2014 2026-10-30 10:01:39 UTC",
+   "events": 84,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "6bfdb5c0dfb9b3a283a318e55cbbaeba321fc2c54435c27128961185b496b2e9"
+  },
+  {
+   "id": "906323f78d1244b2abf4a9073d6c70a8",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-10-30 12:01:47 UTC",
+   "events": 15,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "3c3dc18d79428da148d06f4c9b1c46d7d733bd44edacb128d7598dddf972d6c0"
+  },
+  {
+   "id": "5cedf44749324a929c1109fa50a98347",
+   "title": "Openhands loop \u2014 2026-10-30 12:01:56 UTC",
+   "events": 89,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "de41298730e529eba8da0f65b3b3443767cfad577272cc4cc2b5859d33f68e23"
+  },
+  {
+   "id": "d905d8ed096f435a9f663fc7600f5f78",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-10-30 14:01:36 UTC",
+   "events": 485,
+   "pages": 5,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "7869456f4509749e8ca4083c8bca1bb9b8e0836354b0c54a7663860fc509affc"
+  },
+  {
+   "id": "3e86a4d173dd4bc382ce77ffb7ef48b6",
+   "title": "Openhands loop \u2014 2026-10-30 14:02:08 UTC",
+   "events": 92,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "7dd63cce7a0ac7d44444758cfd7bf813f23aa53b96ff8093ca4d06f1d3f1a916"
+  },
+  {
+   "id": "0f4f098f006a4c9f8ec293419d1c1863",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-10-30 16:00:44 UTC",
+   "events": 123,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "3d89e582807a2017389eff03e72c83fbafa3f786dd5bb5041c8895db4871e042"
+  },
+  {
+   "id": "773393bdf1e44221bb6468bf45224e48",
+   "title": "Openhands loop \u2014 2026-10-30 16:00:56 UTC",
+   "events": 65,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "78dd044cb6d3c8df7b5adc9814082fd04e52302f163ce2f485ef2624c96751aa"
+  },
+  {
+   "id": "4fe5a30e728045f7810483af501029c3",
+   "title": "Openhands loop \u2014 2026-10-30 18:01:24 UTC",
+   "events": 106,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "207a854751896ab203ecf5a94812523136deb471b89378ae593d265e3d36e050"
+  },
+  {
+   "id": "643369b6639244ce9115fd2f981c481e",
+   "title": "Openhands loop \u2014 2026-10-30 20:01:16 UTC",
+   "events": 68,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "c5cebebb4b4603584abea94a43601d92836ab1911227cf47353064588cb2598a"
+  },
+  {
+   "id": "68e846bf863045ca9c74e8d081c1a55e",
+   "title": "Openhands loop \u2014 2026-10-30 22:01:25 UTC",
+   "events": 109,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "2183c154886238020e0bfa97bb661fa47184242a7797ad72ba6e339400a12b4b"
+  }
+ ]
+}

@@ -89,3 +89,27 @@ we need to start alerting session I need you to order I want to conversations to
 ### 2026-11-01T16:53:48Z — Ahmed
 
 you should get a complete download of all the chats that we had today on the Script about the street it should live on your daily log there also you should read them and then start learning exercise to find out what how you should evolve by the end of the day
+
+### 2026-11-03T07:40:00Z — Ahmed
+
+will you tell me that everything is fine after I love it and then I ask you a question so he keep on running for an hour like this thinking and doing stuff that means that you will s*** in me and that means that there's something wrong with the system that you're running on to begin with
+
+### 2026-11-03T07:45:00Z — Ahmed
+
+knock on me that also it means that you couldn't find or you couldn't find a problem and when I asked that you about one particular issue while you were research and you found that problem that means that you will a failure
+
+### 2026-11-03T07:50:00Z — Ahmed
+
+Now are the 3 of you can do your jobs correctly? Of so where is watcher learning report that should be henerated on it is own and it will come with action plans if how he intend to fix witch issues
+
+### 2026-11-03T07:55:00Z — Ahmed
+
+okay so I have noticed something you still pretending that you're doing the job I have read the report from water findings and how he intend to fix them and it's not what I was looking for he should show me the the videos he watched okay and he should show me the transcript of the videos you watch what he learned from them and what in he intended to do to fix them I saw nothing about fixing the real issues other than pretending that he that you guys are fixing yourself I don't see any real progress you still hallucinating and b*********** me
+
+### 2026-11-03T08:00:00Z — Ahmed
+
+the main problem is you because you're the one who's building all of them so you are them in problem you are the pretentious you're the one who keeps online to me and pretends that he did a job that he did not do the right way so there is something wrong with you how to fix this
+
+### 2026-11-03T08:05:00Z — Ahmed
+
+but how the whole world is working with you without having these problems... also the water was made to watch you and watch everybody else while they're working to understand what is irritating me from you guys and fix it

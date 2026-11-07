@@ -74,6 +74,16 @@ def test_render_is_deterministic():
     assert ex.render_conversation(c, evs) == ex.render_conversation(c, evs)
 
 
+def test_rendered_lines_have_no_trailing_whitespace():
+    # Multi-paragraph owner text becomes a blockquote; blank lines must render as a bare ">",
+    # never "> " with a trailing space, which git diff --check rejects.
+    c = {"id": "x", "title": "T", "created_at": "2026-11-01T00:00:00Z", "sandbox_status": "PAUSED"}
+    evs = [_user_event("first para\n\nsecond para\n\n")]
+    out = ex.render_conversation(c, evs)
+    assert not any(ln != ln.rstrip() for ln in out.split("\n")), "trailing whitespace in render"
+    assert "\n>\n" in out
+
+
 def test_main_export_is_deterministic(tmp_path, monkeypatch):
     """Two full export runs over the same conversations produce byte-identical files.
 

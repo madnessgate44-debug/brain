@@ -68,6 +68,37 @@ This is public search and bounded page retrieval, not a live interactive browser
 | Guaranteed unlimited model calls or compute | Impossible to promise on free tiers |
 | Proven performance better than TinyFish overall | Not established; requires a repeatable benchmark |
 
+## Verified free routes (2026-11-02)
+
+Live status, checked this session. "Free" = no card at signup, no converting trial.
+
+| Route | Free? | Verified state | Source |
+|---|---|---|---|
+| Gemini API (AI Studio keys) | yes, no card | 8/8 keys live; `gemini-2.5-flash`, `gemini-3-flash-preview`, `gemini-flash-lite-latest` return HTTP 200; `gemini-3.1-flash-lite-preview` HTTP 503 | aistudio.google.com free tier |
+| GitHub Actions runners | yes for public repos | used for checks, browser, watcher | docs.github.com billing |
+| Vercel Hobby | yes, no card | hosts `brain` + `amina` | vercel.com/pricing |
+| Playwright/Chromium | yes, open source | runs on the Actions runner | — |
+| OpenHands SDK + tools | yes, open source | already a pinned dependency | — |
+
+Not free / needs a card, so excluded: any metered API (e.g. TinyFish beyond its current
+$0 window), Vercel Pro, and ChatGPT Developer Mode (requires a paid ChatGPT plan).
+
+### Shadow's key pool (verified 2026-11-02)
+
+The pool lives in `shadow/keypool.py` (labels only, values from the secret store) and
+`shadow/registry.md` (status table). This session, all 8 labels were present and every
+key answered HTTP 200 on a fast model:
+
+```
+labels present: OHGeminiAPI + GEMINI_POOL_1..7  -> 8/8
+usable routes:  8 keys x 4 models               -> 32
+probe: one fast model per key                   -> 8 x HTTP 200
+```
+
+Values are never printed, written to a file, or committed. Shadow reads them from the
+environment, or from `SHADOW_POOL_FILE` (default `/workspace/shadow-pool.env`, outside the
+repo, 0600). That file is not persistent across a sandbox restart; the secrets themselves are.
+
 ## Benchmark to justify “better than TinyFish”
 
 For representative public research tasks, record:

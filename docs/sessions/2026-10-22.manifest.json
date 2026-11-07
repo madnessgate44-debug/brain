@@ -1,0 +1,61 @@
+{
+ "date": "2026-10-22",
+ "count": 5,
+ "conversations": [
+  {
+   "id": "90d3f13ea700425681b643bc56c776ce",
+   "title": "\ud83d\udcdd Check GPT schedule in comms hub",
+   "events": 207,
+   "pages": 3,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "0a6016f60464061f6d250b0bafa6377416940a33535bc7326d1e2d77d0d2d21f"
+  },
+  {
+   "id": "c315f0b0f03a4a0ba7751954f2ebf63a",
+   "title": "GitHub Issue #9: OpenHands: forensic product audit, strict TypeScript gate, and learner-flow verification",
+   "events": 638,
+   "pages": 7,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "301593208619f4f2571c260b7d4990e2a0d4e9b88fbfd9a53292408f5a5f5395"
+  },
+  {
+   "id": "296b0ce0a1f34183ac8244418ca253fd",
+   "title": "GitHub Issue #9: OpenHands: forensic product audit, strict TypeScript gate, and learner-flow verification",
+   "events": 802,
+   "pages": 9,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "023b2806fb8bff7c3354f447633b8799560f88eab4b4a69b6f676f2486db1932"
+  },
+  {
+   "id": "8db6375184834040bc49dabfae41e8ad",
+   "title": "\ud83d\udcdd Upload olive oil chats to comm hub",
+   "events": 1440,
+   "pages": 15,
+   "owner_messages": 6,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "d2747e79b3f2a0f78418e270f73a0c62eb974c99e5d573600b723f0967178923"
+  },
+  {
+   "id": "ab92584bdf3b4f9ba3318a7088ea9891",
+   "title": "GitHub Issue #9: OpenHands: forensic product audit, strict TypeScript gate, and learner-flow verification",
+   "events": 12251,
+   "pages": 123,
+   "owner_messages": 0,
+   "agent_messages": 30,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "7514762661600207a206267b0dec29e6ba8ff815c663bb6519282f3808f02bb0"
+  }
+ ]
+}

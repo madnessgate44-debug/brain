@@ -1,0 +1,28 @@
+{
+ "date": "2026-10-21",
+ "count": 2,
+ "conversations": [
+  {
+   "id": "38a3b41f4302467197d375a026fe3c30",
+   "title": "\ud83d\udcdd Amina app sellable blockers",
+   "events": 7626,
+   "pages": 77,
+   "owner_messages": 63,
+   "agent_messages": 24,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "07b1ca56b3bc063aef75bfbc43015edb29123cd442104d0754e3d0f748f51697"
+  },
+  {
+   "id": "94cd4b3331a74ac9b731965330ca5186",
+   "title": "\u267b\ufe0f Audit Amina against intended behavior",
+   "events": 7365,
+   "pages": 74,
+   "owner_messages": 12,
+   "agent_messages": 2,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "6aea1d672e6b699087fd0b7ceb2f690b9568935e9801f862cf22b09c91038580"
+  }
+ ]
+}

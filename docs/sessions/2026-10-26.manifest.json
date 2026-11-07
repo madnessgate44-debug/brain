@@ -1,0 +1,39 @@
+{
+ "date": "2026-10-26",
+ "count": 3,
+ "conversations": [
+  {
+   "id": "72f749a7b3ae4cae97e703da3d473f96",
+   "title": "\ud83d\udd27 Skills & agents needed in settings",
+   "events": 395,
+   "pages": 4,
+   "owner_messages": 5,
+   "agent_messages": 4,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "a6cd509c80dca536f7ff32cb862c1c90c5c0e77942c2c048a62dc45a388b7ca6"
+  },
+  {
+   "id": "cdb446d81de84539907ea9717dded4fc",
+   "title": "GitHub Issue #9: OpenHands: forensic product audit, strict TypeScript gate, and learner-flow verification",
+   "events": 481,
+   "pages": 5,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "d4aa8c3a14a7a419dcbce84538b4f1e2012edff0e117004afbe01952a84f2a92"
+  },
+  {
+   "id": "44b6acd29ca4479689a12f7a1e9ef2b2",
+   "title": "\ud83d\udd27 Confirm skills, agents & MD files from repo",
+   "events": 1766,
+   "pages": 18,
+   "owner_messages": 7,
+   "agent_messages": 5,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "c49bc44216e6703421c33936754dd07f5b906ff3604b777ea97dae43b7ee8e04"
+  }
+ ]
+}

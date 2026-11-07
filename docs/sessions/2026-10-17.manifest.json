@@ -1,0 +1,28 @@
+{
+ "date": "2026-10-17",
+ "count": 2,
+ "conversations": [
+  {
+   "id": "8e7ac5344f0948fc8b9f0b68599647a0",
+   "title": "\ud83d\ude80 Amina app sale readiness update",
+   "events": 200,
+   "pages": 2,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "3ec521825ebccba19ceb0bf047e8e8b39552969b8e9a2637db18e02632eb1ae8"
+  },
+  {
+   "id": "4c8d052277f44e8ba02c8131e4d42ba4",
+   "title": "\ud83d\udc1b Audit PR A: App.tsx error handling fixes",
+   "events": 1225,
+   "pages": 13,
+   "owner_messages": 17,
+   "agent_messages": 15,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "8075aac4b5a1d09700dc2a5f9fb25b7a901e2e13a0f599b7ef05aa893288183f"
+  }
+ ]
+}

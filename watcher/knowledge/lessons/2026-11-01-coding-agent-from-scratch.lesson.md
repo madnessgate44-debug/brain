@@ -1,0 +1,1511 @@
+# Lesson — 2026 11 01 coding agent from scratch
+
+- **Source:** https://www.youtube.com/watch?v=uWkQ1sHYzng
+- **Learned:** 2026-11-03
+- **Watched by:** Watcher (WATCHER.md §4.3/§4.4, §9)
+
+## What this teaches
+Language Models can transcend their training data and static knowledge by integrating external tools. This mechanism, called function calling or tool use, enables them to interact with the real world, perform actions, and gather current information. It is the fundamental principle for building agents that can dynamically solve open-ended problems and continuously adapt based on real-world feedback.
+
+## Diagnosis
+**SYMPTOM:** Our agents struggle to perform dynamic, real-world tasks like interacting with file systems, executing arbitrary code, or retrieving up-to-date information. They often fail to progress on long-horizon goals due to a lack of environmental awareness or action capabilities, acting as if "frozen in time" or confined to their initial prompt context.
+**ROOT CAUSE:** The agents are designed to be primarily text-in/text-out models, lacking a robust, standardized mechanism to declare an intent to use external capabilities, receive execution results, and integrate that feedback into their ongoing reasoning process. The responsibility for executing actions and managing the conversational context around tool use is not clearly separated.
+**EVIDENCE:**
+*   The speaker notes that a standard LLM "has a cutoff period and um it has no access to fresh uh information. So it can't tell you what the weather in Paris is today" (7:43-7:52), highlighting its inability to access current data.
+*   It is stated that "if you have um code that you're giving it, you pretty much have to put all of the code in the question in order for it to uh to uh understand it or reference it" (8:04-8:16), indicating a lack of dynamic code access.
+*   The solution presented is that the language model "doesn't it doesn't know how to use the tool. It'll just output the fact that it wants to use the tool. Right? And so this then comes back to you the developer or your app now. It's your job to actually run the tool" (11:01-11:13). This clearly separates the LLM's declaration of intent from the external execution.
+*   The iterative process involves appending "all the prior messages are being appended to this messages history that you feed back in so that the language model uh gets an understanding of what the original question was, why it made a tool call, what the response to the tool call is" (11:37-11:49), emphasizing context management by an external entity.
+
+## The fix
+Implement a standardized "function calling" or "tool use" interface where the coding agent (Forge) declares its intent to use a specific tool with defined parameters, and the mission orchestrator (Brain) intercepts this declaration, executes the corresponding real-world function, and then feeds the output back to the Forge agent as part of the persistent conversation history.
+
+## How to teach it
+1.  Give the agent a list of callable tools.
+2.  The agent decides which tool to use.
+3.  It declares its intent to use that tool.
+4.  We execute the tool for the agent.
+5.  We feed the tool's result back to the agent.
+
+## Which job it serves
+This serves the **developer** and **watcher** jobs. For developers, it provides the fundamental architectural pattern for agentic capabilities, directly closing the gap to enabling arbitrary shell execution and utilizing various skills. For the watcher, it establishes a clear audit trail by externalizing and logging every tool call and its result, which is crucial for understanding agent behavior and debugging long-horizon loops.
+
+## Proposed action
+**Brain**: Design and implement the core `ToolOrchestrator` module responsible for intercepting tool call declarations from Forge, executing the corresponding functions (e.g., `read_file`, `list_files`, `edit_file`, and eventually arbitrary shell commands), and managing the iterative message history for context feedback.
+
+## Transcript
+
+[00:00] All
+[00:00] right.
+[00:02] Uh, okay. So, uh, I'm going to get
+[00:05] started. So, what we're doing for this,
+[00:08] um, for this webinar, uh, is that
+[00:10] second, let me go
+[00:12] here. So, there should be a tweet that
+[00:14] went, um, live. Yeah. So, there's a
+[00:17] tweet that, uh, that was just kind of
+[00:19] scheduled to go out. Um, if you guys
+[00:22] want to partake in a raffle where we're
+[00:23] giving out a credit pack for $100, um,
+[00:27] if you like, retweet, and comment on
+[00:30] this, what kind of, uh, coding agents
+[00:32] you're building, or maybe not even
+[00:33] building, but, uh, what kind of coding
+[00:35] agents are you using? Um, to to help you
+[00:38] engage um, I'll also post the the slides
+[00:43] and the content afterwards here as well.
+[00:44] So, um, if you want to engage with that
+[00:47] tweet, uh, you'll automatically get
+[00:48] entered into a raffle. Um, and I believe
+[00:51] the prize is a hundred $100 credit pack
+[00:53] on on the together platform. So, go
+[00:56] ahead and engage if you'd like. I am
+[00:59] going to get started on this because
+[01:00] there's a bunch of stuff that I wanted
+[01:02] to cover and uh if there's any
+[01:04] questions, feel free to drop them in the
+[01:06] chat. I would rather prefer people ask a
+[01:09] lot of questions and we uh discuss uh as
+[01:12] opposed to I get through all of my
+[01:13] slides. That's less important.
+[01:16] So, what I'm really going to be um
+[01:17] talking about in maybe the next 40
+[01:19] minutes here is how you can build up a a
+[01:23] language model that can code, that can
+[01:26] uh search for code, run code, modify
+[01:29] code, um and then also solve open-ended
+[01:33] tasks end to end. So, something similar
+[01:36] to what a data scientist or a software
+[01:38] engineer would solve uh in a GitHub
+[01:41] repo, right? Um, and I'm going to start
+[01:43] from the absolute basics from from
+[01:46] scratch and then I'm I'm going to try to
+[01:48] build it up to see like what are the
+[01:50] problems that the language model has and
+[01:52] then how do you solve it and I'm going
+[01:53] and I'm going to try to solve uh as many
+[01:55] of these problems as possible so that
+[01:57] you get a a complete picture of what
+[01:59] these uh language models that are
+[02:01] writing code for you um are capable of
+[02:04] and uh what what's difficult for them.
+[02:07] Right? Okay. So I'll start off uh
+[02:10] there's three things that I'm going to
+[02:12] um take from scratch. I call them the
+[02:13] building blocks uh of of coding agents.
+[02:16] Um the first thing is function calling.
+[02:18] So I'll introduce function calling uh
+[02:20] and and what it is. So this is kind of
+[02:22] the um the foundation of pretty much any
+[02:24] agent um that you'll hear about. So I'll
+[02:27] cover that. Then I'll talk about
+[02:29] retrieval and context. Uh and this is
+[02:32] this is pretty key. It'll solve a big
+[02:34] problem. um for coding agents executing
+[02:37] code is also pretty important right so
+[02:39] I'll talk about how you solve for that
+[02:41] problem second let me make my screen a
+[02:44] little bit bigger
+[02:45] here okay
+[02:47] um then I'll talk about how you can
+[02:51] build workflows for for language models
+[02:54] so instead of just a language model
+[02:56] coding and running one call uh you want
+[02:59] to have uh more intricate complex
+[03:01] workflow so that it can handle more
+[03:03] complex tasks and then I'll end off with
+[03:05] a example of an agent that we released
+[03:08] actually um I believe last week or the
+[03:10] week before that which is a data science
+[03:12] agent and you can give it a data set and
+[03:15] an end toend task to train a model or to
+[03:18] explore data and it does it iteratively
+[03:20] step by step um and so there's code for
+[03:23] each one of these that I'll share um
+[03:26] that you can run um run during the
+[03:29] session or after the session if you'd
+[03:30] like um and then at the end uh we can
+[03:33] take any questions that I haven't
+[03:34] already taken during the during the
+[03:35] session as
+[03:40] well. All
+[03:41] right. So before we begin, I I'll just
+[03:45] uh introduce myself. Uh my name is Zan.
+[03:47] I'm an engineer um at uh together. I
+[03:50] work on the Devril team. Uh I'm pretty
+[03:52] passionate about AI. I've been working
+[03:54] in the field for a while. Um I'm also
+[03:57] very passionate about teaching and uh
+[03:58] and education and uh open source. Um,
+[04:01] I've put a I've put a um a QR code
+[04:04] there. If I don't get to your questions
+[04:06] um during the during the talk, feel free
+[04:09] to just um send them to me on my uh
+[04:12] social media platforms. I' I'd be happy
+[04:14] to take a call with you guys or uh
+[04:17] answer messages
+[04:20] afterwards. Okay. So, fundamentally what
+[04:23] what I'm going to try to the question
+[04:25] that I'm going to try to answer is how
+[04:26] can you use language models to generate
+[04:28] code? Uh, and so if you think about that
+[04:32] umbrella
+[04:33] statement, you're going to need to worry
+[04:35] about language models doing file IO.
+[04:38] They need to be able to uh write to
+[04:40] files, read from files, understand what
+[04:42] files exist in a repo to get a better
+[04:45] understanding of what they're working
+[04:46] with. Uh, they also need to run code,
+[04:49] right? There's only so much that you can
+[04:50] do just by reading code. um at some
+[04:53] point the code that you've written has
+[04:55] to be ran, executed, and then you get
+[04:57] feedback on what's right, what's wrong,
+[04:59] whether the tests pass or not, right? So
+[05:01] that's a critical functionality that
+[05:03] they'll need. If you also think about
+[05:05] it, uh if you if you want to code up a
+[05:08] task, you kind of have to understand
+[05:10] which parts of the repository are
+[05:12] relevant for your task and which parts
+[05:14] are irrelevant, right? And um if you if
+[05:17] you give a new codebase to a person uh
+[05:20] and you look at a person who's very uh
+[05:22] kind of understands a codebase really
+[05:24] well, the person that understands the
+[05:26] codebase really well knows exactly which
+[05:28] parts of the codebase are relevant to
+[05:29] the current functionality that they're
+[05:31] implementing. Somebody who's less uh
+[05:33] aware of the current codebase that
+[05:35] they're working on might not be able to
+[05:36] search that codebase and retrieve
+[05:38] relevant um code snippets. Well, right.
+[05:41] So, our language models need to have
+[05:43] some functionality that allow it to tell
+[05:45] it which part of a codebase is relevant
+[05:48] for the task at hand right now and
+[05:49] what's not relevant, right? Uh and in
+[05:51] general, coding and software engineering
+[05:54] and data science and these types of
+[05:55] tasks are open-ended. So, um you don't
+[05:58] just have to do all of these IO
+[06:00] execution uh search tasks in general.
+[06:03] You have these language models, these uh
+[06:05] coding agents have to be good problem
+[06:07] solvers. um they need to handle um
+[06:10] open-ended problems. They need to handle
+[06:13] if they write code that's buggy and that
+[06:15] won't execute, they need to be able to
+[06:16] self-correct uh and then um and then
+[06:19] kind of fix the code, debug the code,
+[06:21] and then go forward. Right? So, it
+[06:24] sounds very complex, but I'll try to
+[06:25] address each one of these things um and
+[06:28] and how we can solve for
+[06:30] these. Uh everything um in this uh talk
+[06:33] that I'm going to mention is open
+[06:35] source. All the code that I'm going to
+[06:36] show um the guides uh blog posts
+[06:39] whatever uh are open source. If you want
+[06:42] to have one link that'll take you to
+[06:43] pretty much all the code that I'm going
+[06:45] to share here um is uh is this link and
+[06:48] you can uh you can get access to that uh
+[06:51] afterwards as
+[06:52] well. Okay. So I'm going to start off uh
+[06:56] from the building blocks. Uh I'm going
+[06:58] to start off with function calling.
+[07:01] So if we back up and we think about how
+[07:03] we use language models, uh it's pretty
+[07:05] simple, right? You have some question,
+[07:08] you have some prompt. This could this
+[07:09] could be relevant to coding or
+[07:11] irrelevant. You can just ask a question
+[07:13] and then you get some uh some uh answer
+[07:16] out, right? And there it's it's text in
+[07:19] text out for for our purposes here. So
+[07:22] for example, you can ask it what the
+[07:23] capital of France is and then you get a
+[07:25] uh an answer out. This is pretty simple.
+[07:28] But if you ask a a slightly different
+[07:31] question, not too much more complicated,
+[07:34] but if I ask it, what's the weather in
+[07:36] Paris, right? Um it's impossible for a
+[07:39] language model to to know the answer to
+[07:41] this because a language model has a
+[07:43] cutoff period and um it has no access to
+[07:47] fresh uh information. So it can't tell
+[07:50] you what the weather in Paris is today
+[07:52] and depending on what day you ask this
+[07:53] question, the the weather will be
+[07:56] different. So there's something lacking
+[07:57] here, right? This language model is kind
+[07:59] of frozen in time um and it can't answer
+[08:02] current questions. What this also means
+[08:04] is that if you have um code that you're
+[08:08] giving it, you pretty much have to put
+[08:11] all of the code in the question in order
+[08:14] for it to uh to uh understand it or
+[08:16] reference it, right?
+[08:18] um if you have new code that was not in
+[08:20] its uh pre-training data or or um
+[08:23] fine-tuning data, then it has no idea
+[08:25] about
+[08:26] it. And so what we're going to need to
+[08:29] do is we need to let the model do a
+[08:31] little bit more than just input output
+[08:33] text in text out. Um what we want to do
+[08:36] is give it some
+[08:38] tools. And this is the uh this is kind
+[08:41] of the central idea that function
+[08:43] calling revolves around. we let the
+[08:45] model call tools in the outside world,
+[08:48] right? This could be calling an API.
+[08:51] This could be um I don't know using a
+[08:54] calculator. This could be having access
+[08:56] to memory or or anything like that. And
+[08:59] what this allows the model to do is if
+[09:02] it doesn't know the answer or um you're
+[09:05] asking about something that is
+[09:06] impossible for it to answer like the the
+[09:08] weather in Paris like we just showed, it
+[09:12] also now has a way out, right? It has
+[09:14] the ability to call a tool to get
+[09:16] information or to do something uh and
+[09:19] then it that that something that tool
+[09:21] might provide it an an answer or some
+[09:24] information that can give it an answer.
+[09:27] Uh and so these tools give language
+[09:29] models the ability to do actions in the
+[09:31] real world, get information from the
+[09:34] real world um and execute things in the
+[09:36] real world. Uh and that's basically the
+[09:39] concept of tool calling. Some people
+[09:41] call it um uh tool use, function
+[09:43] calling. All of those mean pretty much
+[09:45] the same thing. And it's essentially
+[09:46] this idea that the language model can
+[09:48] tell you when it would like to use a
+[09:51] function, when it would like to use a
+[09:52] tool. Uh and then you use the tool and
+[09:54] you give the uh the information back to
+[09:56] the language
+[09:57] model. Uh and so I want to dive a little
+[10:00] deeper into how this tool use um concept
+[10:04] works because uh people think that it's
+[10:06] more complicated than it actually is.
+[10:08] Right? So imagine you are working uh
+[10:11] here. So this could be uh this could be
+[10:13] you yourself the developer or it could
+[10:15] be uh client side right it could be your
+[10:17] app that you're building that is
+[10:19] interfacing with the language model. Uh
+[10:21] and then here this is your favorite
+[10:23] language model. This is whatever
+[10:25] language model that you'd like to like
+[10:26] to use for your app. Uh and I'll break
+[10:29] down function calling into five steps.
+[10:31] Right? So what you do is
+[10:34] um rather than just give the language
+[10:38] model the question so what's the weather
+[10:40] in Paris you also give it access to
+[10:42] tools that it can call if it thinks it
+[10:45] needs those tools to answer this
+[10:46] question right so you give that to the
+[10:48] language model and then the language
+[10:51] model goes in and says okay I have no
+[10:53] idea what the answer to this question is
+[10:55] but I do have a tool here that I can use
+[10:57] to get more information about this. So
+[10:59] then what it does is it actually uses
+[11:01] the tool and it uh it doesn't it doesn't
+[11:04] know how to use the tool. It'll just
+[11:06] output the fact that it wants to use the
+[11:08] tool. Right? And so this then comes back
+[11:10] to you the developer or your app now.
+[11:13] It's your job to actually run the tool
+[11:16] because you know this function you maybe
+[11:18] have an API you can run this tool and
+[11:20] then you get the information and then
+[11:22] you have to feed this information back
+[11:24] to the language model. So it's very step
+[11:27] by step. The language model lets you
+[11:29] know what it needs. You uh get that
+[11:32] information, you run it. So you're going
+[11:34] to feed that information back in. Uh all
+[11:37] the prior messages are being appended to
+[11:40] this messages history that you feed back
+[11:41] in so that the language model uh gets an
+[11:43] understanding of what the original
+[11:45] question was, why it made a tool call,
+[11:47] what the response to the tool call is,
+[11:49] and now it can kind of answer the
+[11:51] original question over here because we
+[11:53] now gave it information. And so the last
+[11:55] step here is it'll parse that
+[11:57] information out and now it has uh
+[11:59] relevant context to to give you the
+[12:01] answer. Um and this is pretty much all
+[12:04] tool calling is right. You can have lots
+[12:07] and lots of tools here and then the
+[12:09] language model can choose to use them or
+[12:11] it can choose that for this question I
+[12:13] don't really need a tool and so I'll
+[12:14] just give you an answer straight up. If
+[12:17] it does uh choose to make a tool call
+[12:19] then you have to go and execute the tool
+[12:21] call and give it the information back.
+[12:25] Um, and that's pretty much how tool use,
+[12:28] uh, function calling, uh, tool calling
+[12:32] works. And so if you think about what
+[12:35] tools you need to give access to a to a
+[12:38] coding language model, well, to start
+[12:41] off, it needs to be able to read files,
+[12:43] right? You need to give it some sort of
+[12:45] functionality where it can tell you, oh,
+[12:46] I need to read so and so file. Um, if
+[12:49] you want it to edit and write code, you
+[12:51] also have to give it the ability to edit
+[12:53] those files, right? Uh, and then also
+[12:55] you need to give it the ability to see
+[12:57] what files exist in the environment that
+[12:59] it's in. Right? So, if you give it
+[13:01] access to a repository, um, it has to ls
+[13:04] uh, and list all of the different files
+[13:07] that are in that
+[13:08] repository. So, these are the kind of
+[13:10] the bare essential tools that the
+[13:13] language model needs access to.
+[13:19] Let me just see if there's any
+[13:27] questions. Yeah. So, there's one
+[13:29] question here. Let me take this one. Um,
+[13:31] how do we make the LLM call the right
+[13:32] tool function by train? Yeah. So, you
+[13:34] can train it. So, this is one of the
+[13:37] things. If you here I'm only giving it
+[13:40] one uh one tool to call, right? If you
+[13:43] give it three tools to call, uh it might
+[13:45] get confused. If you give it 15 tools to
+[13:47] call, it might get even more confused
+[13:49] because every tool you give it, you kind
+[13:51] of give it a description of when to use
+[13:53] it uh and when not to use it, what the
+[13:56] tool will uh what information the tool
+[13:58] will be able to give it. And so if you
+[14:00] have lots of tools that you pass into
+[14:01] the language model, um it might get
+[14:04] confused and might not know when to use
+[14:06] it. So the first step is you define what
+[14:09] the tool does and you let the language
+[14:10] model know. That's more of like a
+[14:12] prompting um solution. Uh and then if
+[14:15] that doesn't even if that doesn't work,
+[14:17] if you have way too many tools, you can
+[14:19] actually fine-tune the language model
+[14:21] for function calling. So you give it
+[14:23] scenarios and then you uh fine-tune it
+[14:26] for for the correct tools that it should
+[14:28] call uh depending on the input, right?
+[14:30] So you can actually fine-tune
+[14:38] it. Yeah. So there's another question.
+[14:40] So this this is also an interesting
+[14:41] question. What about should I wear a
+[14:43] jacket this night in Paris? So, first
+[14:45] you need to call a tool and then use the
+[14:46] answer uh uh use this answer again to
+[14:49] the outlet. Yeah, that's a good point.
+[14:51] So, here uh I directly asked it what the
+[14:54] weather in Paris is, right? So, it's
+[14:56] very obvious that it needs to call this
+[14:57] tool. But depending on how good the
+[15:00] language model is, if you ask an
+[15:02] indirect question, do I need to wear a
+[15:03] jacket? it should be able to um kind of
+[15:06] understand or reason or or whatever that
+[15:10] in order to determine if the person
+[15:12] needs a jacket, I need to know what the
+[15:13] weather is and therefore I need to call
+[15:16] this tool and then get this information
+[15:18] and then it has to then use this
+[15:20] information to answer the question,
+[15:22] right? Whether I need to wear a jacket
+[15:24] or not. So it's it has to determine
+[15:25] whether it's cold or not. So I'll show
+[15:27] you guys code on how how you execute all
+[15:30] these steps one by one and it'll
+[15:32] actually be clear which part the model
+[15:34] is calling the tool where we're
+[15:36] executing the tool and then where we're
+[15:37] feeding the information back and then
+[15:39] when we get the final answer
+[15:50] out yeah that's a this that's a good
+[15:53] point. So um uh for for a lot of these
+[15:56] models that are coming out now for
+[15:58] example if you look at uh Claude or
+[16:00] Gemini um they've been trained to use
+[16:03] tools uh in in certain scenarios. Um
+[16:06] even if you use uh apps like chat GPT if
+[16:09] you give it a specific question uh it'll
+[16:11] call a tool and you'll know that it's
+[16:13] calling a tool because you can see it
+[16:15] make a particular request uh and the
+[16:17] response will be styled differently. So
+[16:20] I noticed this where if you ask it about
+[16:22] the NBA for example, it has a specific
+[16:24] tool for the NBA. Um then you you can
+[16:26] try it
+[16:32] yourself.
+[16:34] Okay. So what I'm going to do now, let
+[16:37] me see if there's any more questions and
+[16:39] then I'll actually just go into code and
+[16:41] show how this
+[16:46] works. Yeah. Uh so there's a there's a
+[16:48] question here. Uh can the AI agent
+[16:51] control my Azure account like creating
+[16:52] or editing a database? Um it can uh the
+[16:58] the code or the the code that it needs
+[17:00] to write or run to um create or edit a
+[17:04] database uh it can already generate. The
+[17:06] only thing that you have to be kind of
+[17:09] you have to uh let it do is uh have
+[17:11] access to uh to your uh to your account,
+[17:14] right? Credentials. Um and then you also
+[17:16] have to be careful because if it does
+[17:18] something like it drops a table or
+[17:20] something and you can't reverse it
+[17:23] um you don't want to be in that
+[17:25] situation right so for for example in
+[17:27] this uh in this sess uh in the session
+[17:30] all the code that I'm going to execute
+[17:32] is uh going to be in a sandbox
+[17:34] environment where if it messes up I can
+[17:36] just run it
+[17:40] again okay so I'm going to I'll walk
+[17:43] through these steps if you want to
+[17:45] follow along, you can actually just um
+[17:47] go to this code notebook. Um I've opened
+[17:51] it up
+[17:53] here. So here I'm just going to uh show
+[17:57] you uh show you the first uh step here.
+[18:01] So this is a function that allows a
+[18:02] language model to read files, right? And
+[18:05] so really what it's doing is opening the
+[18:08] file and then it's reading the context
+[18:10] uh content of the file and then just
+[18:12] returning it to the language model. So
+[18:14] it's a very simple function. This is the
+[18:16] schema of the function. This is how I
+[18:18] tell the language model um how to call
+[18:20] the function or when to call the
+[18:22] function. Right? So the description here
+[18:24] is pretty important because that tells
+[18:25] the language model what this tool will
+[18:28] uh help it accomplish. I also tell it
+[18:31] what it needs to tell me when calling
+[18:33] this tool. Right? So when calling this
+[18:35] tool, uh it needs to tell me what file
+[18:38] to read. So it has to give me a path and
+[18:40] then the tool will uh read the file and
+[18:42] then give it back the contents of that
+[18:44] file. So let me uh zoom in a bit so
+[18:47] people can
+[18:48] see. Okay. So I've got my function
+[18:52] defined. I've got my tool defined here.
+[18:55] And I've also got the schema for this
+[18:57] tool defined that I'll pass into the
+[18:59] language model. Uh and then I'll create
+[19:01] this um this text file, right? Uh and
+[19:05] then if you run this, you'll actually
+[19:06] create a text file over here. Uh and
+[19:09] then the first step now is you can
+[19:11] instruct the language model that it has
+[19:13] access to these external functions and
+[19:15] it can call them uh if needed. And then
+[19:18] if you ask it, you know, read the the
+[19:20] file secret.txt and um and tell me what
+[19:23] it says inside of it. Uh and if it if it
+[19:26] can't read the the file, there's no way
+[19:28] that it knows the content uh that's
+[19:30] inside of it, right? So it there's no
+[19:31] way that it can hack the system. Um, and
+[19:34] I'm going to give it access to this uh
+[19:36] this read file schema that I created
+[19:40] here. So, the first thing I'm going to
+[19:42] do is actually uh call the language
+[19:45] model and see what it see how it
+[19:47] responds to this query of read the
+[19:51] secret.txt. And if you run this, if you
+[19:53] run through this, you'll actually see
+[19:54] that it's calling a tool here and it's
+[19:56] calling our um calling our read file
+[19:59] function that we told it. Right? So,
+[20:01] that's step two. you can extract the
+[20:03] tool call from the model. The model is
+[20:05] telling you I need to run this call. I
+[20:08] need to run this tool to to successfully
+[20:11] execute. And then the next step is for
+[20:13] you to actually go in and run that tool
+[20:15] for the model. Right? So you extract the
+[20:18] tool call. If there is a function that
+[20:20] the model wants to call, you go in and
+[20:22] you load up the parameters that the
+[20:24] model wants to call it with. Right? So
+[20:25] again, the model tells you what the name
+[20:28] of the file is that you need to call the
+[20:29] tool on as well. So everything is in the
+[20:31] payload here. You go in um you execute
+[20:35] the
+[20:37] function on the uh arg that the model
+[20:41] gave you and then you feed the response
+[20:44] back into the model. So here I'm telling
+[20:47] it um so this is a a tool. This is a
+[20:50] tool response and I'm telling it what
+[20:53] tool I ran for it. This read file tool
+[20:55] and the response of this right and the
+[20:57] response of this is just the content of
+[20:59] the file. So, it's whatever string I put
+[21:01] into the file over here, right? This
+[21:04] guy. And so, now I appended it to the
+[21:07] messages that the model can see. Um, and
+[21:11] and I can kind of print out what tool I
+[21:13] called and the content that I responded.
+[21:16] Right now, the model has access to this
+[21:19] new information. I've basically given it
+[21:21] the uh output of the function. And now I
+[21:24] can recall the model over
+[21:26] here with this messages that's kind of
+[21:29] growing with new information and then
+[21:31] see what it does. Right? So uh when I uh
+[21:34] when I respond here it can answer the
+[21:36] question and it can kind of uh reveal
+[21:38] the secret and if it couldn't uh tell me
+[21:42] that it needed to read the file and I
+[21:43] couldn't execute the the read file
+[21:45] function then it couldn't execute this.
+[21:47] Right? So that's a complete end to end
+[21:50] tool call
+[21:51] executed. Uh if you want to read the
+[21:53] rest of this um you can you can go
+[21:55] through what I did is I basically put
+[21:57] this into a chat very simple code and I
+[22:00] ran it so that when you kind of chat
+[22:02] with it you can um you can tell it to uh
+[22:06] kind of chat read files and then
+[22:09] understand what's in the file and then
+[22:10] keep on chatting with you using the
+[22:12] information in the file. Uh the other
+[22:14] thing that if if you want to run this
+[22:16] code afterwards, the uh the other thing
+[22:18] that I did is I created a tool that
+[22:21] allows the language model to list all
+[22:22] the files in a directory. So if you run
+[22:25] it here, you'll get uh these uh these um
+[22:29] kind of uh files in the Google Collab
+[22:32] and you'll also get a bunch of hidden
+[22:33] files as well. Uh and then I give it
+[22:37] access I give uh access to the model for
+[22:40] this uh for this list files tool.
+[22:43] And then I uh show an example of how uh
+[22:45] how it can now read the files. So you
+[22:47] can chat with it and then it can now
+[22:49] read files when it needs to. And then I
+[22:51] also give it access to a function that
+[22:54] allows it to edit files as well. So here
+[22:58] uh the edit the edit files one is
+[23:00] interesting because it needs to tell me
+[23:02] what file it needs to edit, what the old
+[23:05] string is in the file that it wants to
+[23:07] edit, and what it wants to replace it
+[23:08] with. Right? So for example, if it um if
+[23:11] you give it a code file and it needs to
+[23:13] modify a function, it has to specify the
+[23:16] the string the lines of code that the
+[23:19] function is defined in. And then it
+[23:21] needs to specify what it wants to
+[23:23] replace that old function uh definition
+[23:25] or or code with. So it has to tell you
+[23:29] uh the the replacement as well, right?
+[23:31] The old string and the new
+[23:33] string. And then it just goes in, opens
+[23:35] up the file, reads it, uh, writes to the
+[23:38] file, and then it goes in. And so this
+[23:41] is really where all the work is
+[23:42] happening, right? We're going in
+[23:43] replacing the old string with the new
+[23:44] string if everything else uh is fine. If
+[23:47] we found the old string as
+[23:50] well. And so those are the three tools
+[23:53] that a a very basic coding agent needs.
+[23:56] Um, then what I did is I
+[23:58] basically call the language model and I
+[24:00] give it access to all of these tools.
+[24:02] the ability to read a file, list all the
+[24:05] files in a directory, and edit files.
+[24:08] And so when you run this code, you'll
+[24:10] actually see that you can get it now to
+[24:14] uh create files. So you can get it to
+[24:16] create this fsbuzz uh Python
+[24:19] script like this. And then you can get
+[24:22] it to save the file as well, right? And
+[24:23] then you can run the file and it'll
+[24:26] actually execute here.
+[24:28] Uh, and not only that, but then I also
+[24:30] went in and then I said, "Okay, I want
+[24:31] you to modify this file um to only print
+[24:35] uh what was it?
+[24:36] Uh, I think I told it to print up to 15
+[24:40] only." So, it modifies the fsbuzz file
+[24:43] uh and then gives me updated content and
+[24:46] then it saves it for and now it'll print
+[24:49] only to 1 to 15. So, now when I run the
+[24:51] file afterwards, I only get this uh 1 to
+[24:54] 15.
+[24:55] Um, and then you can kind of keep on
+[24:57] playing with this. Uh, you can keep on
+[24:59] getting it to create files and then
+[25:01] execute them to see what's uh what's
+[25:02] inside
+[25:04] them. And that's pretty much all it
+[25:06] takes to uh build a coding agent, right?
+[25:09] You've got code uh the ability to read
+[25:11] code, the ability to list the the files
+[25:13] that are in a directory, and the ability
+[25:15] to edit that uh those files as well.
+[25:18] It's kind of a very barebones from
+[25:20] scratch uh version of what it takes to
+[25:23] uh to build a coding agent. But the
+[25:25] issue here is
+[25:27] that if you do do this um if you notice
+[25:31] what you're doing, the most important
+[25:33] thing that you're doing there is you're
+[25:34] just appending to messages over and over
+[25:37] again, right? You're taking the
+[25:39] question, you're appending it to
+[25:40] messages. You're taking a tool call,
+[25:42] appending it to messages. you're taking
+[25:43] the response of the tool call and the
+[25:45] response of the tool call is what it
+[25:46] could be potentially very large, right?
+[25:49] Um the the language model might want to
+[25:51] get an understanding of the entire
+[25:53] codebase and so now you're appending
+[25:54] your entire codebase into this messages
+[25:57] um dictionary that's growing
+[26:01] um list and um you'll exceed the context
+[26:05] length of whatever language model you're
+[26:06] using really fast here, right? And so
+[26:09] this was one turn that I just showed
+[26:10] you, right? We had the system message
+[26:12] over there. Uh we had my question to the
+[26:15] model. The model calling the the model
+[26:18] maybe answering and then calling a tool
+[26:20] uh and then answering with the enriched
+[26:22] response here. Right? This is one turn.
+[26:24] Um and then you have to keep in mind
+[26:27] that there's multiple turns, right? So
+[26:30] um the issue that you'll run into with
+[26:32] this naive approach of you know bare
+[26:34] bones uh reading, writing and uh
+[26:37] understanding what files exist is that
+[26:39] uh you need a very very large context
+[26:42] link. Um so the the thing that is
+[26:45] important here is that you don't really
+[26:46] need to feed it your entire code base,
+[26:49] right? If you have one task, you could
+[26:52] maybe only give it the part of the
+[26:53] codebase that's relevant for it, right?
+[26:56] Uh and so this is what I'll go into into
+[26:58] the second part which is um retrieval
+[27:01] and context. How do you get a language
+[27:03] model to identify what part of the
+[27:05] codebase is relevant for a task and what
+[27:07] part is irrelevant? So before I move on
+[27:09] to this, let me just see if there's any
+[27:13] questions. Yeah. So there's some
+[27:15] questions. Um yeah, passing in the
+[27:21] schema. See
+[27:27] Yeah, this is a good point
+[27:29] actually.
+[27:31] Um, if you use the uh responses API,
+[27:35] yeah, so the the new API um is uh
+[27:38] maintain state, the problem is that for
+[27:41] the old API, it doesn't maintain state,
+[27:44] right? So what that means is
+[27:46] uh if every call you make it kind of has
+[27:49] to have the entire payload the entire
+[27:51] history of what's happened and then the
+[27:54] incremental what's going to happen next
+[27:57] right um and so that's a limitation of
+[28:00] the old uh uh old uh
+[28:06] API okay so now I'm going to talk a
+[28:08] little bit about code retrieval and the
+[28:10] fundamental problem that this solves
+[28:12] is it gives the language model one more
+[28:15] thing that it can do, right? Um, instead
+[28:18] of just reading in the entire codebase
+[28:20] and then trying to edit and and and
+[28:22] solve a problem with it, you give it the
+[28:24] ability to read only the part of the
+[28:26] codebase that it needs
+[28:28] to. Um, and so this is a pretty
+[28:31] interesting problem. How do you how do
+[28:33] you identify what's relevant? How do you
+[28:35] get it to read only that? And a lot of
+[28:38] the tools that we're using every day
+[28:40] like cursor, winds surf, and things like
+[28:41] that are already solving this, right?
+[28:43] And I'll show
+[28:46] you. So here we really only want to give
+[28:50] the language model code that it needs
+[28:52] access to. We don't want to dump in the
+[28:53] entire uh code base to it. And so here
+[28:57] we have some question for the language
+[28:58] model. We know that some code is
+[29:00] relevant for this question. So maybe we
+[29:02] wanted to reimplement some function. So
+[29:04] it definitely needs to see the function
+[29:05] and the code around it. So we just give
+[29:07] it access to that file or that snippet
+[29:09] of a file so that it can um give us a
+[29:12] response. And this is this is just
+[29:15] another way to say that we want to do
+[29:17] rag over a codebase, right? A codebase
+[29:20] could be millions and millions of uh of
+[29:22] lines of code. Uh and we only want to
+[29:24] extract out the chunks of a codebase,
+[29:26] the functions or the methods in a
+[29:27] codebase that are relevant for the
+[29:29] language model. Um and that's exactly
+[29:31] what retrieval augmented generation is,
+[29:33] right? I'm retrieving the relevant code
+[29:35] from my codebase and then I'm uh um I'm
+[29:38] stuffing it into the context of the
+[29:40] language model so that the the response
+[29:42] could be more
+[29:43] relevant. Another way to see this is if
+[29:47] I have my codebase here. So this is a
+[29:48] very simple codebase but imagine this is
+[29:51] a complex codebase um and I and I tell
+[29:54] the language model that it has to write
+[29:56] some function in the in the uh my
+[29:58] string.py file, right? So then
+[30:01] supposedly let's say the only thing that
+[30:03] this depends on is the script itself,
+[30:05] right? You have to find a way to
+[30:07] identify that this uh this prompt only
+[30:12] depends on this file. And so now you
+[30:14] only uh pass in this file into the
+[30:16] context of the language model. And this
+[30:19] is a pretty hard task because people
+[30:22] usually don't people uh people uh
+[30:25] underspecify in their prompt. Um, if you
+[30:28] ever chatted with cursor or or these
+[30:30] tools, you're not going to tell it
+[30:33] exactly what it needs to do. You want it
+[30:35] to kind of understand and that
+[30:38] understanding part is quite difficult.
+[30:40] Here I've actually listed out the name
+[30:42] of the file. Um, most of the times I'm
+[30:45] not going to list out the name of the
+[30:46] file, right? I'm just going to give it
+[30:47] access to my entire codebase and I'm
+[30:48] just going to ask it to write a function
+[30:51] um in the place of another function or
+[30:53] replace a function, right? Um, so you
+[30:55] kind of have to read between the lines
+[30:57] in terms of what functionality the user
+[31:00] wants you to accomplish and which part
+[31:02] of the code base they're actually
+[31:03] referring
+[31:05] to. One really really simple way that
+[31:08] you can solve this uh task of
+[31:10] identifying which code is relevant is is
+[31:14] how cursor does it, right? Or a lot of
+[31:17] these um these coding tools. Um you can
+[31:20] literally get the user to highlight
+[31:22] things, right? So in this example, the
+[31:24] user highlights a part of their code and
+[31:26] then asks explain this code. Explain
+[31:29] this code is a prompt that um is not
+[31:31] specific at all. Uh if I ask you to kind
+[31:35] of uh identify what part of the code I
+[31:37] was referring to, there's no way that
+[31:38] you could do that. The only way that you
+[31:40] know is because I highlighted it, right?
+[31:42] So how do you know what's relevant? You
+[31:44] can literally just ask the user. And uh
+[31:46] a lot of these tools use this uh
+[31:49] extensively but you can't do this uh you
+[31:52] can't always do this right and even for
+[31:54] this particular code to understand what
+[31:56] this code is doing I could just have uh
+[31:59] let's say I I I have a function and this
+[32:01] function just calls another function
+[32:03] right um and so in that case the context
+[32:06] that's highlighted is not enough it
+[32:08] would still need to identify what this
+[32:11] other function is doing and read in read
+[32:13] that into the context of the language
+[32:14] model so that the language model can
+[32:15] explain it. Right? So this is a first
+[32:18] step but it's not the final
+[32:20] solution. The other thing that you can
+[32:22] also do is you can do a textbased
+[32:24] search. So whatever code you have the
+[32:27] user highlighted you can do a textbased
+[32:29] search based on the um the text that's
+[32:32] mentioned here and retrieve other parts
+[32:34] of the codebase and also pass it into
+[32:36] the language model call. Uh and so here
+[32:39] uh if you've used these tools you'll
+[32:41] notice that they actually do text search
+[32:43] as well. um they often will just do a GP
+[32:48] uh to to look for specific um keywords
+[32:51] in your codebase. Uh and so when they do
+[32:53] that, they're basically trying to
+[32:56] identify keywords in the query and
+[32:59] they're trying to extract out um kind of
+[33:01] those keywords that are repeated in
+[33:03] anywhere in your codebase. Um and so
+[33:06] they use this functionality as well. The
+[33:08] problem with this functionality is that
+[33:10] it's um it's very keyword specific.
+[33:13] it'll extract out the function that you
+[33:14] need and then all the times the function
+[33:17] is called as well. Right? So here it
+[33:19] messes up because it um extracts out uh
+[33:22] not the uh not the um actual uh kind of
+[33:26] the definition of this nested list but
+[33:29] um kind of something that's uh that uses
+[33:32] a keyword that that fooled it. Right?
+[33:36] So really um what you want these models
+[33:39] to do is understand the query the
+[33:41] contents of the query and then extract
+[33:43] out the part of the codebase that is
+[33:46] specifically addressing that query. So
+[33:49] maybe the function or or or the class
+[33:51] that uh that can uh solve for it. And so
+[33:55] this is more of a semantic search
+[33:57] functionality where you can give it your
+[33:59] entire codebase. I'm just going to see
+[34:01] if there's questions here.
+[34:10] Yeah, this is a good question. This is a
+[34:11] good point.
+[34:13] Um, so in my code, I'm literally just uh
+[34:17] reading the contents of the file. Um,
+[34:20] kind of uh I'm opening it and reading
+[34:22] the contents of the file, right? Um, and
+[34:25] this person is saying that uh you can
+[34:27] actually use a unified diff to apply
+[34:30] changes to a file. This is a good point.
+[34:32] And even if you look at the um
+[34:35] Aderbench Ader polyglot um I think they
+[34:39] they published a blog post can't I think
+[34:42] it was about a year ago now where they
+[34:44] showed that if uh if you have a coding
+[34:46] agent that operates in diffs it is
+[34:49] actually uh much more accurate than if
+[34:52] you have a coding agent that does what I
+[34:54] showed earlier. It's a little easier to
+[34:56] understand what I did earlier because
+[34:57] it's kind of going in and modifying
+[34:59] things um one by one.
+[35:02] But uh they argued that uh if you uh if
+[35:06] you give it a unified diff it uh it
+[35:09] functions better. And I also remember
+[35:11] one of the reasons they said that that
+[35:12] was the case was because a lot of these
+[35:14] language models uh are pre-trained on a
+[35:18] bunch of GitHub data and GitHub um has a
+[35:22] lot of diffs. So they see a lot of that
+[35:24] in their pre-training data and they're
+[35:26] more familiar with that. Um I'm not sure
+[35:29] if that's true, but it made sense to me.
+[35:40] Yeah, there's another question here. Uh,
+[35:42] what do you think about the idea that we
+[35:43] use language models to describe all code
+[35:45] units, methods, classes, uh, in human
+[35:48] language and then we use that
+[35:49] description for semantic
+[35:51] search? Yeah, this is a good point. I
+[35:53] don't think it's necessary and I don't
+[35:56] think it's what a lot of these companies
+[35:58] are using. A lot of these companies are
+[36:00] using code retrieval models that can you
+[36:02] can embed chunks of code and then you
+[36:05] can give it queries or similar code and
+[36:07] it can retrieve relevant code. Um, and
+[36:12] that works fairly well. So I'll talk a
+[36:15] little bit about code retrieval models.
+[36:17] So you you take your code base, you
+[36:18] chunk it, you can chunk it into
+[36:21] different functions, different classes
+[36:22] or different files and and chunks within
+[36:25] those files. Um, and then you have your
+[36:27] code uh code embedding model and you can
+[36:31] put the embeddings into a vector
+[36:32] database if you if you've achieved a
+[36:34] large enough scale. And then the prompt
+[36:36] from the user comes in and you hit this
+[36:38] vector data over here. And so some part
+[36:41] of the codebase that's chunked into the
+[36:43] vector database will be relevant and
+[36:45] then you extract those chunks out and
+[36:47] you stuff them into the language model
+[36:48] prompt. Um, and then the language model
+[36:50] can kind of respond, right? And so this
+[36:52] is one way to embed code and then
+[36:56] extract out the top relevant code. And
+[36:59] so if you want to think about how uh
+[37:01] code embedding models work, uh really
+[37:04] what they're doing is they're taking
+[37:05] your code uh and they're kind of passing
+[37:08] it through this embedding model that's
+[37:10] generating vectors, right? Each vector
+[37:12] is one chunk and you define what one
+[37:14] chunk is. Uh and the idea behind this is
+[37:17] that similar code pieces will be closer
+[37:20] together and dissimilar code pieces uh
+[37:23] will be further apart. Right? So in this
+[37:25] uh visual uh if you have um kind of some
+[37:28] uh some concept of a cat and a dog, they
+[37:31] might be closer together versus a banana
+[37:32] and a cat might be further apart. So the
+[37:34] actual vector distance will be further
+[37:36] apart. Um, and so typically how I think
+[37:39] about this and I how I understand this
+[37:41] is if you're if you're looking at books
+[37:44] in a library, similar books are closer
+[37:46] together physically in the library.
+[37:47] Dissimilar books are further apart
+[37:49] because of the actual classification
+[37:51] system that is used to place those books
+[37:53] in the library. Right? So really what I
+[37:55] want to do is take my entire codebase
+[37:57] and structure it and place it into a
+[37:59] library where similar functions are
+[38:02] closer together, similar parts of the
+[38:04] codebase are closer together and then I
+[38:06] can retrieve uh retrieve those parts.
+[38:10] And so if you think more concretely
+[38:12] about what these uh code embedding
+[38:14] vectors look like um there's code here
+[38:16] that I that I wrote but basically I
+[38:19] asked the language model to give me an
+[38:20] implementation of bubble sort and then I
+[38:23] passed it through uh a code embedding
+[38:25] model. I used an open source one. It's
+[38:27] uh the uh the one from Alibaba. It's a
+[38:29] modern BERT uh
+[38:32] fine-tune and I asked it to vectorize
+[38:34] it. And then I here I'm just visualizing
+[38:36] the vector which is uh 768 dimensional
+[38:39] as a barcode. I thresholded the vector
+[38:41] and I just plotted it out so that you
+[38:42] can see what it looks like. And then I
+[38:45] asked another language model to
+[38:46] implement a heap sort
+[38:48] implementation. And this is what the
+[38:50] vector of that code looks like. So I
+[38:52] took that entire code snippet. I passed
+[38:54] it into a vector uh an embedding model
+[38:57] and it generated this vector for me. And
+[39:00] then I gave uh and then I gave it a
+[39:03] third code snippet which was a a Pygame
+[39:06] implementation of the game snake. Right?
+[39:08] And so these three vectors because
+[39:11] heapsort is much more similar to bubble
+[39:13] sort than it is to a pygame imple
+[39:16] implementation of snake. I should be
+[39:18] able to kind of see some of the
+[39:20] similarities between these vectors. And
+[39:21] if you squint your eye, you'll see that
+[39:23] the black lines co occur with the black
+[39:25] lines in these two, but they don't over
+[39:27] here. Right? you kind of see different
+[39:29] patterns at the bottom. Um, but it's a
+[39:32] little bit difficult. So then what I
+[39:33] actually did is I went in and I
+[39:36] calculated the distances between the
+[39:37] bubble sort vector, the heap sort vector
+[39:41] uh and that was uh 2 uh 22 let's say and
+[39:45] then the bubble sort and the pygame
+[39:47] vector uh this guy and this guy was
+[39:51] actually around.5 and then the heap sort
+[39:54] and the pygame uh vectors were 0.5 as
+[39:57] well. Right? So notice how code that is
+[40:01] uh that is uh irrelevant or dissimilar
+[40:04] has a higher distance. The vectors have
+[40:06] a higher distance. Code that is more
+[40:08] similar bubble sort and heap sort the
+[40:10] vector distance is actually smaller. So
+[40:12] those vectors are closer together in in
+[40:14] embedding
+[40:16] space. Um and if you want to see this in
+[40:18] action, if you want to run it, you want
+[40:20] to modify it yourself, uh I have a code
+[40:22] notebook here that you can that you can
+[40:24] also uh run as well. Right? So this is
+[40:27] the actual code. I've just printed it
+[40:30] out here.
+[40:31] Um second. So I I asked the language
+[40:34] model to generate bubble sort, heap
+[40:37] sort, uh pygame snake. Uh and then I use
+[40:41] this modern bird base uh fine-tune to
+[40:43] generate the vectors. The dimensions are
+[40:45] 768 dimensional. Uh and then I went in
+[40:49] and I just created this visual. So you
+[40:51] can kind of play around with it. You can
+[40:52] modify it um and see how it works,
+[40:55] right? And then this is where I actually
+[40:57] calculated the the vector distance
+[40:59] between
+[41:04] them. So this is a good question. This
+[41:07] person asks are constant sized inputs
+[41:10] necessary for embedding models because
+[41:12] functions are not the same size. Um
+[41:14] constant sized inputs are not necessary.
+[41:16] So if you look at this code, this is the
+[41:19] snake game implementation. The number of
+[41:21] tokens in this is very different from
+[41:24] the heap sort implementation. Right?
+[41:26] This um so the only thing that matters
+[41:29] is that your code snippet has to be
+[41:31] smaller than uh I believe for um modern
+[41:34] BERT it's about 8,000 tokens. It has to
+[41:37] be smaller than that maximum context
+[41:40] length of the model. That's all that
+[41:42] matters. So you can have anywhere up to
+[41:44] that number of tokens. It's a good
+[41:46] point.
+[41:52] There's another question here. Does it
+[41:54] do the search uh vector all the time a
+[41:57] query comes in? No, it doesn't. It
+[42:00] doesn't always search it. This is the
+[42:01] other thing that when I use a lot of
+[42:03] these coding agents, sometimes they will
+[42:05] trigger a search. Other times, if you've
+[42:07] specified which files are relevant, if
+[42:09] the user tells the model or if the user
+[42:12] tells the tool what files are relevant,
+[42:14] it won't trigger a search. um it'll just
+[42:17] use those userdefined uh userdefined
+[42:20] similarity. Other times, if the code
+[42:22] base is too large, it'll just
+[42:24] automatically trigger a GP first. So,
+[42:26] it'll do a textbased search first and if
+[42:28] that fails, then it'll go to a semantic
+[42:29] search. Um, so it's kind of interesting
+[42:32] how they've tiered the searches so that
+[42:35] you get really fast and quick searches
+[42:37] first and then if it's a really hard
+[42:39] problem, then it'll go to semantic
+[42:41] search.
+[42:51] So there's another uh question here.
+[42:53] Let's take this. This shows that similar
+[42:55] code is grouped together with the
+[42:57] embedding models. But the question is
+[42:58] what is the distance between word
+[43:00] sorting algorithm and those code
+[43:02] snippets? Yeah, that's a good point
+[43:03] because the the input query is not going
+[43:06] to be a code snippet. It could be a code
+[43:09] snippet. If the person highlights it,
+[43:10] then you could literally turn that
+[43:12] highlighted code into a query and you
+[43:15] can turn that into a query vector and
+[43:16] you can kind of um uh retrieve from your
+[43:19] vector database using that query vector.
+[43:21] But let's imagine the query is just a
+[43:23] prompt, right? Uh write me a sorting
+[43:26] algorithm uh or rewrite my sorting
+[43:28] algorithms in the codebase or something
+[43:29] like that, right? So now you have to
+[43:31] kind of take that uh query, vectorize it
+[43:35] and then calculate the distance between
+[43:37] that query and the actual code of the uh
+[43:41] the sorting algorithms. That's a good
+[43:45] point.
+[43:47] Okay. Uh I'm running out of time so I
+[43:50] want to move a little bit quickly. So
+[43:51] the the next problem that I want to
+[43:53] solve is that these language models
+[43:55] still can't run code, right? They can
+[43:57] search for code. They can edit files,
+[43:58] read files, but they can't really run
+[44:00] code. And if you can't run code, that
+[44:02] means that you don't know if you're pass
+[44:05] if the code you're writing is passing
+[44:06] tests, if you're going to get execution
+[44:08] errors when somebody does run it, um,
+[44:10] and you can't even optimize the code,
+[44:12] right? So if you uh if you can't run it,
+[44:14] you can't understand of the memory
+[44:16] footprint uh the runtime complexity of
+[44:18] the algorithm, you can kind of do
+[44:20] calculations, but uh it it would be good
+[44:22] to be able to run it and get an
+[44:24] understanding and do experiments on it.
+[44:26] Right? So the solution to this is to
+[44:28] give the language model ability to
+[44:30] execute
+[44:31] code. Uh and so here we're proposing
+[44:33] kind of giving it one more thing, right?
+[44:36] Um the ability to run code that it wants
+[44:39] to, right?
+[44:41] And so here it can use this tool now
+[44:43] this functionality to write code run it
+[44:45] and then get feedback on how it needs to
+[44:47] improve it and then it can keep on doing
+[44:50] this until you meet some sort of
+[44:51] termination condition. Uh and so for
+[44:54] this we have a kind of a a uh a um a
+[44:59] tool called together code interpreter
+[45:01] where you ask the language model to
+[45:04] solve a a coding problem. It writes code
+[45:07] and then you give it to together code
+[45:10] interpreter which is essentially a
+[45:11] sandbox environment where you can send
+[45:13] Python snippets and it will run the code
+[45:16] and it will give you back uh feedback or
+[45:19] execution or whatever the output of that
+[45:21] code running was. It'll give that back
+[45:23] to the language model and now the
+[45:25] language model can choose to run more
+[45:27] code and then get more feedback run more
+[45:30] code. So it can kind of go in this loop
+[45:32] or it can choose to terminate, right?
+[45:34] and you define what this termination
+[45:35] condition is. Maybe it passing the test
+[45:37] is a termination condition or running
+[45:40] within a predefined time is a ter is a
+[45:42] termination condition and it can kind of
+[45:44] go back and forth in this uh in this
+[45:45] loop and
+[45:47] iterate. Uh and so if you want to get an
+[45:50] understanding of how this works, uh
+[45:52] there's a third notebook that I've uh
+[45:54] that I uh that's uh over here. And this
+[45:57] will take you through kind of using
+[45:59] together code interpreter. Everything
+[46:01] from running like a simple hello world
+[46:04] command and uh kind of calling the code
+[46:07] interpreter and then getting it to uh uh
+[46:10] output this u to your to your terminal
+[46:12] and then printing it out. Uh you can
+[46:15] also do much more complicated things,
+[46:16] right? you can get it to persist uh
+[46:19] variables and then reuse them. So here
+[46:22] uh in my first code run I have a snippet
+[46:24] that just defines a variable x= 42 and
+[46:27] then I reconnect to it and then I ask it
+[46:29] to print out the value of the variable.
+[46:31] So it can persist state between uh
+[46:33] between different connections to this uh
+[46:34] to the session and it can print it out.
+[46:37] Uh you can also get it to do all sorts
+[46:39] of data sciency calculations, right? So
+[46:41] you can get it to do uh matrix
+[46:43] multiplications. You can get it to
+[46:44] calculate the igen values of a of a
+[46:47] matrix. Um together code interpreter
+[46:49] comes pre-installed with pretty much all
+[46:51] of the uh good data science and data
+[46:53] analysis libraries that you'll need. The
+[46:56] the coolest thing that you can do with
+[46:58] this is that you can upload files and
+[47:00] get it to um do data analysis on those
+[47:02] files as well as long as you give it uh
+[47:05] code to to do that analysis. Right? So
+[47:08] one interesting thing that I'll show you
+[47:11] here uh is you can upload a CSV file and
+[47:14] then you can give it code that trains a
+[47:17] model on that data in that CSV file and
+[47:20] then you can plot out the kind of line
+[47:22] of best fit. So here I generate a bunch
+[47:25] of random
+[47:26] data and then I turn it into a CSV file
+[47:30] and then I pass in this C uh this uh
+[47:32] this uh encoded CSV file uh to uh to
+[47:37] together code interpreter and then I
+[47:39] also give it code that it uh that it
+[47:43] uses to train the model. So together
+[47:44] code interpreter is going to run this
+[47:46] code against this
+[47:48] file and uh it also plots out the plots
+[47:52] out the line of best fit. So now when
+[47:55] you execute this you can actually kind
+[47:57] of get the responses it'll give you back
+[48:00] images as well and you can kind of
+[48:01] render them. So this is your data and
+[48:04] this is the plot from together code
+[48:06] interpreter.
+[48:08] And so right now I'm writing the code
+[48:11] myself, but really what you want to do
+[48:13] is give the language model the ability
+[48:15] to write code and then define together
+[48:17] code interpreter as one of the tools
+[48:19] that it can call to run that code and
+[48:21] get feedback on
+[48:23] that. And so that's exactly what I did.
+[48:26] So the one of the things that I did is
+[48:30] uh in one of our projects, we gave it
+[48:32] the ability to run code and get
+[48:33] feedback. And what that allows you to do
+[48:35] is if it wrote code that's buggy, it'll
+[48:38] try to run the code. It'll get the error
+[48:40] back and then it'll try to edit and
+[48:42] solve it. Um, and so here this is kind
+[48:46] of we're getting closer to a a an end
+[48:50] state where we have more of these uh
+[48:52] autonomous workflows where the language
+[48:54] model can write code, fix errors, and
+[48:56] then rerun the code. And this is what
+[48:59] you really need to solve real world
+[49:01] problems. recover recover from failed
+[49:02] attempts,
+[49:04] debug. And so here I wanted to show you
+[49:07] guys an example. I'll skip over these LM
+[49:09] uh workflows for agents um just in the
+[49:12] interest of time because I really want
+[49:14] to show you um this uh data science
+[49:16] agent that we that we worked on. I'll
+[49:19] give you the slides later if you want to
+[49:20] if you want to look over it. There's
+[49:21] more resources in that, but I want to go
+[49:23] to this example that shows you of what
+[49:25] you can accomplish with this. So this is
+[49:27] a uh this is a code notebook that we put
+[49:29] out and we're going to release more uh
+[49:32] more stuff around this uh in the in uh
+[49:36] soon. But if you think about what a data
+[49:38] scientist does. This is kind of a very
+[49:41] complex kind of uh loop, right? You
+[49:44] gather data, clean data, engineer
+[49:47] features, select models, do
+[49:48] hyperparameter optimization. Um you can
+[49:51] train multiple models, see which ones
+[49:53] work, deploy them into production,
+[49:55] monitor them to see whether there's data
+[49:58] uh data uh drift or not, and then you
+[50:00] improve it and you can kind of keep on
+[50:02] going about this, right? Um if you
+[50:05] simplify this slightly, let's say you do
+[50:07] take a data analysis task, right? Here
+[50:11] you you have some question that you want
+[50:13] to answer with data. You can have
+[50:16] explore the data, do exploratory data
+[50:17] analysis, train a model on it, and then
+[50:20] understand the the responses from that
+[50:22] model, right? Understand the responses
+[50:24] of that
+[50:25] analysis. If you wanted to do this, you
+[50:27] can actually do this with all the tools
+[50:29] that I've talked about, right? The
+[50:30] ability to edit files, the ability to
+[50:32] read code, um to uh to search for
+[50:35] relevant code, and then also the ability
+[50:38] to uh execute code and get feedback. And
+[50:40] so that's exactly what we did. We
+[50:42] actually wrote a um a data science agent
+[50:45] from scratch. Uh this is work that the
+[50:47] um the the agents team at at together
+[50:51] did. Um it was a lot of fun working uh
+[50:54] working on this. So you you give a
+[50:56] language model a question and then you
+[50:59] build out this iterative workflow where
+[51:01] it can plan out what it needs to do. It
+[51:04] produces code and then you take that
+[51:06] code. You give it to together code
+[51:08] interpreter and you give the output of
+[51:10] that code as an observation back to the
+[51:12] language model and now the language
+[51:14] model can decide I can I I now have the
+[51:16] output for the code that was ran. I can
+[51:19] either choose to terminate and finish or
+[51:21] I can take the next step right I can
+[51:23] plan to do something else and it can
+[51:25] keep on going until it uh until it uh
+[51:28] determines that the question is answered
+[51:30] and it terminates.
+[51:32] And so this very simple workflow that I
+[51:35] can kind of plot out here can do very
+[51:37] complex data science tasks. And so I
+[51:40] want to take you through this notebook
+[51:42] as the as the last step here um before
+[51:44] we end. So uh the the notebook is behind
+[51:48] this QR code and uh you can uh you can
+[51:50] look at it
+[51:54] but here you scroll all the way up.
+[52:00] You can read through this, but uh in
+[52:04] this
+[52:07] case going to run all of
+[52:11] these I I'll skip to the part that's uh
+[52:14] that's interesting here. A lot of this
+[52:16] is kind of boilerplate setting up the
+[52:18] agent. Uh this is where the agent is
+[52:20] defined, right? So
+[52:23] here really all the agent is doing is
+[52:27] planning and then writing code. I'm
+[52:30] parsing I'm trying to see where it wrote
+[52:32] code. So I'm parsing out the code and
+[52:35] then I'm calling together code
+[52:36] interpreter to run that code. I get the
+[52:40] responses. So here I parse out the code
+[52:44] and I I take its thinking process and
+[52:47] the action output. So the action output
+[52:48] is code and then we can run together
+[52:52] code interpreter to actually run the
+[52:54] action uh the action output here. and I
+[52:57] get the execution results and then I
+[52:59] loop through the execution results to
+[53:01] see if it if there's errors, if there's
+[53:03] images that were uh were uh printed
+[53:06] out. Uh and then I give it back to the
+[53:09] language model to decide what the next
+[53:10] steps are. And then I just keep on doing
+[53:12] this. This is basically wrapped in this
+[53:15] uh while loop where as long as I'm below
+[53:17] a certain budget count, I can keep on
+[53:19] going.
+[53:22] And so when you run this, you can uh
+[53:24] actually get it to execute very uh
+[53:26] interesting workflows. So let's see
+[53:28] this. The first one here, I'm just
+[53:31] asking it to load in the Irish data set
+[53:32] and create a scatter plot. And so first
+[53:35] it thinks about what it needs to do. It
+[53:37] writes code. I then run that code over
+[53:41] here. When I run that code, I get text
+[53:43] response and an image response. This guy
+[53:45] that I printed out here. And then I give
+[53:47] it back to the language model. Now the
+[53:49] language model
+[53:51] uh now the language model decides oh I
+[53:53] need to do something else next. I'm
+[53:54] going to write code to do that thing. I
+[53:56] take that code and I run it and I get
+[53:58] the result and then I give it back to
+[54:00] the language model and I just kind of
+[54:02] iteratively going until the language
+[54:04] model chooses to terminate or it hits
+[54:05] the uh the budget
+[54:08] boundary. And so this is quite quite
+[54:10] simple. The Irish data set is very well
+[54:13] understood and it can do this analysis
+[54:16] for you and it can generate these plots
+[54:18] for you.
+[54:19] The other cool thing that you can do is
+[54:21] you can you can see the second example.
+[54:23] Uh but I'll show you the third one which
+[54:24] is a little bit more interesting where
+[54:27] here I actually give it this data file.
+[54:31] Right? So here um I've got uh test uh
+[54:36] this uh train and test
+[54:38] CSV. I'm going to ask it to um to
+[54:42] perform EDA on this test train CSV file.
+[54:46] And so
+[54:49] here it's going to uh find the file.
+[54:53] It's going to start a together code
+[54:54] interpreter session with that file and
+[54:56] then the uh language model is going to
+[54:58] take over. So first it needs to load the
+[55:01] file in. So it writes the code to uh
+[55:04] load the file
+[55:06] in and then it says okay I need to uh
+[55:09] understand its structure. So it's using
+[55:11] these basic pandas functionality to
+[55:13] understand the shape the number of
+[55:15] columns read out the the schema over
+[55:18] here and then it says what do I need to
+[55:20] do next right so it's kind of going
+[55:22] about it as I would
+[55:24] uh one by one as a as a data scientist
+[55:27] and then it starts to visualize it so
+[55:28] it's doing EDA on your data set so it's
+[55:31] this is one prompt and it's just taking
+[55:33] it step by step and you can actually uh
+[55:35] walk through
+[55:36] it and so now it's visualizing the
+[55:39] different features
+[55:40] uh this data set is the Titanic data
+[55:42] set. If people are aware of this, it's a
+[55:43] very popular uh data set from from data
+[55:47] science and it just keeps on uh keeps on
+[55:50] going, right? Because this task is a bit
+[55:52] open-ended, the termination condition is
+[55:54] not too clear. It can kind of keep on
+[55:56] doing EDA and keep on finding
+[55:57] interesting things. If you give it a
+[55:59] more close-ended task like uh train a
+[56:01] model to classify uh on this data, then
+[56:04] it'll actually train the model and then
+[56:06] it'll that'll be the termination
+[56:07] condition. So here it'll keep on doing
+[56:10] uh EDA until it's satisfied and then
+[56:12] it'll get to the final answer and kind
+[56:13] of summarize everything that it did for
+[56:15] you. And so all that we're using here is
+[56:19] pretty much the um the combination of uh
+[56:23] a lot of the uh a lot of the kind of
+[56:25] building blocks that that I talked
+[56:29] about. So here, yeah, that's pretty much
+[56:33] all that I had. We're at time, but I'll
+[56:36] take some of these questions and then uh
+[56:37] and then we can we can end it off
+[56:40] here. There one question here. This
+[56:43] shows that similar code is Oh, this is a
+[56:44] this is an old question. My bad. There's
+[56:47] another question. Here the context is
+[56:48] continuously growing, right? Or is the
+[56:50] old context discarded at some point or
+[56:52] compressed? Yeah, here the context is uh
+[56:55] is growing. Um so you can add you can
+[56:58] add a functionality in the uh in the
+[57:00] agent where you summarize if you give it
+[57:03] if you give it a really high iteration
+[57:05] count. So my iteration max iteration
+[57:07] count was 20. If you set it to 100 you
+[57:10] might run into uh context length issues.
+[57:13] Um so there what we implemented is more
+[57:16] you summarize the functionality and then
+[57:18] you feed it in uh rather than uh dumping
+[57:22] uh the entire response. Uh, and then I
+[57:25] if you run into context length issues
+[57:27] even with that, you can get it to
+[57:28] summarize the last five to 10 the the
+[57:31] oldest 5 to 10 responses and then you
+[57:33] can uh kind of throw that out of your
+[57:36] growing history and uh and replace it
+[57:39] with that summary. So that's one way to
+[57:42] deal with the context length
+[57:47] issues. Thanks everybody. Uh I I'll keep
+[57:49] on taking questions here and then I'll
+[57:51] end the session. Um so if people have
+[57:53] questions just feel free to throw them
+[57:54] in the chat but if for people that are
+[57:56] that are leaving thank you so much for
+[57:58] dropping by. Um the the talk and the and
+[58:01] the slides will be made uh uh available
+[58:03] afterwards. And the question what can I
+[58:05] do if the conversation is too big for
+[58:07] the context of the model. Yeah. So that
+[58:09] gets to the the previous question that I
+[58:11] just
+[58:14] answered. Okay. The other thing that
+[58:17] I'll do if you if you guys have
+[58:19] questions that I didn't get to during
+[58:20] the session, feel free to uh ping me
+[58:22] afterwards on my on my um on my socials
+[58:25] and I'll be happy to uh uh talk to you
+[58:30] guys. Okay, thanks everybody. Um we are
+[58:34] hiring as well. So if you'd like um uh
+[58:36] uh you can apply. You can also join our
+[58:39] de developer community on Discord um and
+[58:42] and engage with us. Thanks so much
+[58:44] folks. Hope this was useful and um we're
+[58:47] going to be running a lot more of these
+[58:48] so uh keep an eye out for the next
+[58:51] session. Thanks so much for dropping by.
+[58:53] Thank you for your time.
