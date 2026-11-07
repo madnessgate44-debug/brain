@@ -62,3 +62,9 @@ def test_workflow_runs_the_gate_daily(report):
     assert "report.py --gate" in wf
     assert '"0 7 * * *"' in wf, "the gate must run on a daily cron"
     assert "gate:" in wf, "the gate must be its own job so a regression turns the run red"
+
+
+def test_workflow_checks_out_full_history_for_the_ratio(report):
+    """A shallow clone would make the W1 ratio read a 1-commit history and go falsely red."""
+    wf = (_ROOT / ".github" / "workflows" / "shadow-report.yml").read_text(encoding="utf-8")
+    assert wf.count("fetch-depth: 0") >= 2, "both the gate and report jobs read git history"

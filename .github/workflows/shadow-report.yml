@@ -31,6 +31,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # agent_status.py reads the last 60 commits for the W1 ratio
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -49,6 +51,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the W1 ratio needs history, not a shallow clone
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
