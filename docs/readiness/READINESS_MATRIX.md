@@ -1,8 +1,16 @@
 # READINESS_MATRIX — Phase 1 (2026-11-07)
 
 One row per participant × capability. Every cell is tagged: `[V]` verified by inspection this
-session, `[U]` unproven, `[B]` blocked. Evidence is a path, a SHA, a run, or a comment id.
-Read-only audit; no secret value is printed anywhere in this file.
+session, `[U]` unproven, `[B]` blocked, `[H]` hypothesis. Evidence is a path, a SHA, a run, or a
+comment id. (`[V]=[VERIFIED]`, `[U]=[UNPROVEN]`, `[B]=[BLOCKED]`, `[H]=[HYPOTHESIS]`.) Every
+evidence row carries its artifact path, run/comment URL, and UTC timestamp. An assertion is never
+promoted to `[V]` without a check. Read-only audit; no secret value is printed anywhere in this file.
+
+**Governance (explicit):** OpenHands **may not self-merge or deploy** absent explicit Owner
+authorization. `docs/LOOP.md` grants Shadow/Watcher a merge right; that grant is documentation and is
+under review (conflict C2). No executable workflow here pushes to `main` on OpenHands' behalf without
+the owner-policy check (`Check execution policy files` job). The read-only default
+(`ENGINEERING_EXECUTION_OS.md:118`) stands until the Owner changes it (conflict C3).
 
 Scope: ChatGPT, OpenHands, Forge, Shadow, Watcher, Brain runtime. Claude is removed
 (Owner directive `6712932899`). Base commit: `1a9cffb7d3834159aeedea2a202ec4fb13b9f02a`.
@@ -116,8 +124,11 @@ Shadow owns credential pool operations; Watcher coordinates service.
 | Independent review | Shadow | **partly** — audit runs but BLOCKED without its model `[B]` |
 | Verify + report | OpenHands, Watcher | **yes** `[V]` |
 
-**Gate result:** 5 of 6 capabilities ready. The single blocker is Shadow's model route (§2). The
-Amina proving exercise can start once the Owner either supplies Shadow's pool or explicitly accepts
-Shadow-blocked and names OpenHands as the verifier for that exercise.
+**Gate result:** 5 of 6 capabilities ready. The single blocker is Shadow's model route (§2). Shadow
+stays **BLOCKED** until its Gemini pool is available; **OpenHands is not a substitute independent
+reviewer**, and the Owner is not asked to choose that substitution. The Amina proving exercise's
+*independent review* step therefore requires the Owner to add `OHGeminiAPI` + `GEMINI_POOL_1..7`
+(exact scope + rollback in `CREDENTIAL_REQUIREMENTS.md §4`); every other Phase-1 check proceeds
+without Shadow.
 
 _Phase 1 deliverable 1 of 4. Read-only; no secret value, merge, deploy, or spend._

@@ -33,11 +33,17 @@ Gap to close in Phase 1: prove the research route (`brain-rd-discovery`) end-to-
 
 ## 3. Active products + priority (time-to-first-revenue)
 
-1. **Smart Farm** (`madnessgate44-debug/smart-farm`) — Kotlin Android, one real customer, no release yet.
-2. **Amina / Miss Noor** (`madnessgate44-debug/Amina`) — live on Vercel, needs auth + payment.
-3. **Gahiz** (`madnessgate44-debug/Gahiz`) — BPO assessment, scaffold.
-4. **Forge / Firstborn** (`madnessgate44-debug/Firstborn`) — internal infra (service/licence).
-5. **Brain** (`madnessgate44-debug/brain`) — internal control plane.
+Active scope is exactly these five. Do not reactivate the wider fleet.
+
+1. **Amina / Miss Noor** (`madnessgate44-debug/Amina`) — **first for the next exercise; one-week
+   deadline.** Live on Vercel; needs auth + payment.
+2. **Brain** (`madnessgate44-debug/brain`) — internal control plane (the orchestrator).
+3. **Forge / Firstborn** (`madnessgate44-debug/Firstborn`) — internal infra (service/licence).
+4. **Smart Farm** (`madnessgate44-debug/smart-farm`) — Kotlin Android, one real customer, no release yet.
+5. **Gahiz** (`madnessgate44-debug/Gahiz`) — BPO assessment, scaffold.
+
+> Priority correction (2026-11-07): an earlier draft of this packet ranked Smart Farm above Amina.
+> That is wrong. **Amina is first** (Owner direction: the one-week deadline).
 
 ## 4. Open tickets (correlate replies by id)
 

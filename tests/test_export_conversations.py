@@ -182,3 +182,22 @@ def test_scan_mode_clean_exits_zero(tmp_path, monkeypatch, capsys):
     ok.write_text("nothing secret here")
     monkeypatch.setattr("sys.argv", ["export_conversations.py", "--scan", str(ok)])
     assert ex.main() == 0
+
+
+def test_verify_canary_passes(capsys):
+    assert ex.verify_canary() == 0
+    assert "canary ok" in capsys.readouterr().out
+
+
+def test_verify_canary_fails_when_redaction_is_sabotaged(monkeypatch):
+    monkeypatch.setattr(ex, "redact", lambda t: t)
+    assert ex.verify_canary() == 2
+
+
+def test_cursor_roundtrip(tmp_path):
+    p = str(tmp_path / "cursor.json")
+    assert ex.read_cursor(p) == {}
+    ex.write_cursor(p, "2026-11-07", [{"id": "a", "log_sha256": "h1"}])
+    cur = ex.read_cursor(p)
+    assert cur["last_date"] == "2026-11-07" and cur["conversations"] == {"a": "h1"}
+    assert cur["last_run_utc"].endswith("Z")

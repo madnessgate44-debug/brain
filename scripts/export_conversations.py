@@ -103,6 +103,51 @@ def leak_scan_files(paths: list[str]) -> list[tuple[str, str, str]]:
     return hits
 
 
+def read_cursor(path: str) -> dict:
+    """Load the previous run's cursor, or {} if none. The cursor is the watermark:
+    each conversation's rendered-section hash plus the last successful run time."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+def write_cursor(path: str, date: str, manifest: list[dict]) -> None:
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"last_run_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                   "last_date": date,
+                   "count": len(manifest),
+                   "conversations": {m["id"]: m["log_sha256"] for m in manifest}}, fh, indent=1)
+
+
+def verify_canary() -> int:
+    """Prove the redaction gate end to end with a synthetic conversation.
+
+    Builds a conversation whose owner text carries a secret-shaped canary, renders it, and
+    asserts (a) the canary is gone from the rendered section and (b) the leak scan would have
+    caught it had it survived. Offline; no API, no writes, no real secret.
+    """
+    canary = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+    convo = {"id": "canary-00000000", "title": "Canary", "created_at": "2026-01-01T00:00:00Z",
+             "sandbox_status": "PAUSED"}
+    events = [{"source": "user", "llm_message": {"role": "user", "content": [{"type": "text", "text": f"token {canary} end"}]}}]
+    # redact() is applied to the whole rendered body in main(); mirror that here.
+    section = redact(render_conversation(convo, events))
+    if canary in section:
+        print("CANARY FAIL: secret survived redaction", file=sys.stderr)
+        return 2
+    if "[REDACTED-GITHUB]" not in section:
+        print("CANARY FAIL: redaction marker absent", file=sys.stderr)
+        return 2
+    if not check_leaks(f"x {canary}"):
+        print("CANARY FAIL: leak scanner missed the canary", file=sys.stderr)
+        return 2
+    print("canary ok: secret-shaped value redacted; scanner detects it when present")
+    return 0
+
+
 def _get(url: str, tries: int = 8) -> dict:
     for i in range(tries):
         req = urllib.request.Request(url)
@@ -250,7 +295,13 @@ def main() -> int:
     ap.add_argument("--scan", nargs="*", default=None,
                     help="leak-scan the given paths for residual secret shapes and exit; "
                          "no API calls, no writes. Exit 2 if anything is found.")
+    ap.add_argument("--verify-canary", action="store_true",
+                    help="prove the redaction gate end to end with a synthetic canary; "
+                         "no API calls, no writes. Exit 2 if the gate fails.")
     a = ap.parse_args()
+
+    if a.verify_canary:
+        return verify_canary()
 
     if a.scan is not None:
         hits = leak_scan_files(a.scan or ["docs/sessions"])
@@ -335,8 +386,8 @@ def main() -> int:
         json.dump({"date": a.date, "count": len(convos), "conversations": manifest}, f, indent=1)
 
     # Fail closed: prove the archive we are about to commit carries no residual secret shape.
-    # The manifest is also the idempotency/cursor record — it stores each conversation's
-    # rendered-section hash, so a re-run over the same events produces byte-identical files.
+    # The manifest is also the idempotency record — it stores each conversation's rendered-section
+    # hash, so a re-run over the same events produces byte-identical files.
     scanned = [out_path, os.path.join(a.out, f"{a.date}.manifest.json")]
     hits = leak_scan_files(scanned)
     if hits:
@@ -344,7 +395,15 @@ def main() -> int:
             print(f"LEAK {f}: {kind} {excerpt}", file=sys.stderr)
         print("ABORT: secret-shaped value survived redaction", file=sys.stderr)
         return 2
-    print(f"wrote {out_path} ({len(body)} chars); leak scan clean")
+
+    # Advance the watermark: the last-success time + per-conversation hashes the next run diffs
+    # against. Written only after the gate passes, so the cursor never points at a failed run.
+    cursor_path = os.path.join(a.raw_dir, "..", "cursor.json")
+    prev = read_cursor(cursor_path)
+    changed = sum(1 for m in manifest if prev.get("conversations", {}).get(m["id"]) != m["log_sha256"])
+    write_cursor(cursor_path, a.date, manifest)
+    print(f"wrote {out_path} ({len(body)} chars); leak scan clean; cursor advanced "
+          f"({changed} changed, prev run {prev.get('last_run_utc', 'none')})")
     return 0
 
 

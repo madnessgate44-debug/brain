@@ -57,4 +57,19 @@ G2 the Owner must mount the MCP connector + key in ChatGPT `[OWNER ACTION]`; G3 
 durable `[B]`; G4 a ChatGPT scheduled task may need a paid tier `[OWNER ACTION]`. The supported path
 that already exists: the live Brain MCP connector (`docs/CONNECTOR.md`) + GitHub #292.
 
+## G. Automation inventory (ChatGPT ticket §E — prove or state NOT CREATED)
+
+| Automation | Exists? | Evidence | Tag |
+|---|---|---|---|
+| Daily conversation archive | **yes** | `watcher-session-log.yml`, cron `30 0 * * *`, auto-merge; latest success 2026-11-07T06:23:25Z | `[V]` |
+| Watcher daily cycle | **yes** | `watcher-daily.yml`, cron `0 4 * * *`, last 5 runs success | `[V]` |
+| Brain R&D discovery (web research) | **yes** (workflow) | `brain-rd-discovery.yml`, `workflow_dispatch` | `[V]` workflow; `[U]` end-to-end run |
+| Public web research (`/brain browse`) | **yes** (workflow) | `brain-browser-research-issue.yml` | `[V]` workflow; `[U]` run |
+| **OpenHands daily production audit/fix automation** | **NOT CREATED** | only a form was prepared in this session (no `automation_form_update` submit; no automation id; no run) | `[V]` absent |
+| Secret health checks (`ai-provider-secret-check`, `deepseek-api-key-check`, `brain-credential-preflight`) | exist but **skipped** | all recent runs `completed/skipped` (e.g. 2026-11-07T16:19:24Z) — their triggers did not fire | `[V]` skipped |
+| ChatGPT's 3 read-only checkpoints (09:00/14:00/20:00 Cairo) | separate, not Brain's | ChatGPT-side; do not conflate with Brain's automation | `[U]` from here |
+
+**Distinct things — do not conflate:** (1) ChatGPT's read-only coordination checkpoints; (2) Brain's
+scheduled audit/fix automations; (3) the OpenHands daily production automation (not created).
+
 _Phase 1 deliverable 4 of 4. Read-only._

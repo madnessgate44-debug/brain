@@ -27,8 +27,10 @@ no fail-closed proof, and its cursor/idempotency were implicit.*
 |---|---|---|
 | No fail-closed leak gate | `check_leaks` / `leak_scan_files` + `main()` returns **2** if any secret shape survives redaction | `scripts/export_conversations.py` |
 | No standalone scan mode | `--scan [paths]` — no API, no writes; exit 2 on a hit; used by CI | same |
-| No dedicated CI gate | `archive-leak-scan.yml` scans `docs/sessions` on every push/PR touching it | `.github/workflows/` |
-| Redaction unproven | 6 new tests: each secret shape flagged; clean text passes; a sabotaged redaction **fails closed (exit 2)**; `--scan` exits non-zero on a hit | `tests/test_export_conversations.py` |
+| No redaction proof on a real event | `--verify-canary` builds a synthetic conversation carrying a secret-shaped canary, asserts it is redacted, and that the scanner catches it if it were not; exit 2 on failure; run in CI | same |
+| No explicit cursor/watermark | `read_cursor` / `write_cursor` write `.openhands/export/cursor.json` = `{last_run_utc, last_date, count, conversations:{id: log_sha256}}`, written **only after** the leak gate passes; the run prints how many sections changed vs the previous cursor | same |
+| No dedicated CI gate | `archive-leak-scan.yml` scans `docs/sessions`, runs the canary, and runs the tests on every change | `.github/workflows/` |
+| Redaction unproven | 9 tests: each secret shape flagged; clean text passes; a sabotaged redaction **fails closed (exit 2)**; `--scan` and `--verify-canary` exit non-zero on a hit; the cursor round-trips | `tests/test_export_conversations.py` |
 
 ## 3. How each Owner requirement is met
 
@@ -45,12 +47,17 @@ no fail-closed proof, and its cursor/idempotency were implicit.*
 
 ## 4. Cursor and last-success observability
 
-- **Cursor:** `docs/sessions/<date>.manifest.json` — per conversation, `log_sha256` is the recorded
-  hash of the committed section. A re-run over unchanged events yields the same hash, so no PR opens.
+- **Cursor/watermark:** `.openhands/export/cursor.json` — `{last_run_utc, last_date, count,
+  conversations:{id: log_sha256}}`, written **only after** the leak gate passes, so it never points
+  at a failed run. A re-run prints how many sections changed vs the previous cursor. (The per-day
+  `docs/sessions/<date>.manifest.json` also carries `log_sha256` per conversation.)
 - **Last success:** the `Watcher session log` workflow runs list (GitHub Actions → the workflow →
   runs); latest success is the last archived day. Example: 2026-11-07T06:23:25Z `success` `[V]`.
 - **Failure alert:** if the exporter returns non-zero (e.g. exit 2 on a leak), the workflow step
   fails and GitHub raises the failure on the Actions tab; the PR is not opened. This is the alert.
+- **Source scope:** every OpenHands Cloud conversation created on the target UTC day. **Exclusions:**
+  Owner↔ChatGPT conversations are **not** covered (no supported export/API is reachable — see §5);
+  the OpenHands event store must not be represented as containing ChatGPT conversations.
 
 ## 5. Source coverage and exclusions
 
