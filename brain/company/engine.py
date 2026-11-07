@@ -367,7 +367,21 @@ class CompanyWorkflowEngine:
         if test_evidence.get("executed") is not True:
             raise CompanyWorkflowBlocked("QA tool did not confirm actual test execution.")
         if test_evidence.get("status") != "PASS":
-            raise CompanyWorkflowBlocked("Repository checks failed; release is blocked.")
+            raise CompanyWorkflowBlocked(
+                "Repository checks failed; release is blocked.",
+                stage_evidence={
+                    "stopped_at": "repository_checks",
+                    "repository": repository,
+                    "branch": evidence["branch"],
+                    "changed_files": evidence.get("changed_files", []),
+                    "actual_diff": evidence.get("actual_diff", ""),
+                    "test_evidence": test_evidence,
+                    "repository_mutation_started": True,
+                    "tests_started": test_evidence.get("executed") is True,
+                    "release_blocked": True,
+                    "pull_request_created": False,
+                },
+            )
         evidence["test_results"] = test_evidence
         # QA, security, and customer review are independent reads of the same frozen
         # evidence, so they run concurrently. The gates below still evaluate in the

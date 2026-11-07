@@ -45,14 +45,20 @@ def test_stamp_fallback(tr):
     assert tr._stamp("garbage") == "00:00"
 
 
-def test_probe_raises_source_unavailable_not_systemexit(tr, monkeypatch):
-    """An unfetchable source must be skippable, not a hard exit that reddens the loop."""
+def test_unfetchable_classifies_bot_check_and_availability(tr):
+    assert tr._unfetchable("ERROR: Sign in to confirm you're not a bot.")
+    assert tr._unfetchable("This video is unavailable")
+    assert tr._unfetchable("Private video. Sign in if you've been granted access")
+    assert not tr._unfetchable("ffmpeg decode failed: Invalid data found")
 
-    class _Result:
+
+def test_probe_failure_is_reported_not_raised(tr, monkeypatch):
+    class Result:
         returncode = 1
+        stderr = "ERROR: Sign in to confirm you're not a bot."
         stdout = ""
-        stderr = "ERROR: [youtube] x: Sign in to confirm you're not a bot."
 
-    monkeypatch.setattr(tr.subprocess, "run", lambda *a, **k: _Result())
-    with pytest.raises(tr.SourceUnavailable):
-        tr.probe("https://youtube.com/watch?v=x")
+    monkeypatch.setattr(tr.subprocess, "run", lambda *a, **k: Result())
+    meta = tr.probe("https://example.test/watch?v=1")
+    assert meta["probe_error"].startswith("ERROR")
+    assert meta["url"] == "https://example.test/watch?v=1"

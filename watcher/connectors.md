@@ -2,7 +2,7 @@
 
 Status report for Watcher (WATCHER.md v1.1 §6). Updated daily. Last check: 2026-11-01.
 Legend: OK = verified working this session | PARTIAL = reachable but not fully exercised | UNKNOWN = not verifiable from the sandbox | GAP = known missing.
-UNKNOWN rows: 6 (counted 2026-11-01; an earlier count of 9 counted word occurrences, not rows).
+UNKNOWN rows: 4 (counted 2026-11-01; the two channel rows were promoted from UNKNOWN to OK/PARTIAL after the live event-automation run).
 
 | Connector | Status | Last check | Evidence | Gap |
 |---|---|---|---|---|
@@ -17,8 +17,8 @@ UNKNOWN rows: 6 (counted 2026-11-01; an earlier count of 9 counted word occurren
 | Design tool (phone-usable) | UNKNOWN | 2026-11-01 | excalidraw.com 200, tldraw.com 308 (reachable) | Free / no-card requirement NOT confirmed from an official pricing page; not listed as usable |
 | Gemini API | OK | 2026-11-01 | `GET /v1beta/models` 200 with key | Free-tier rate limits not measured |
 | OpenHands dispatch — in-session | OK | 2026-11-01 | `GET /app-conversations/count` with key 200 | — |
-| OpenHands channel — from outside | UNKNOWN | 2026-11-01 | unauthenticated `GET /app-conversations/count` 401 | No verified inbound/receive path from outside |
-| Communication channel to ChatGPT/Forge | UNKNOWN | 2026-11-01 | chatgpt.com returned 403 from sandbox | No verified send/receive path |
+| OpenHands channel — from outside | OK | 2026-11-01 | event automation `017c4b55…` received `issue_comment.created` and completed run `f30b6fcb…` (no human). Now DISABLED (spend unverified). See `watcher/channel/status-2026-11-01.md` | Re-enable needs Ahmed's spend approval |
+| Communication channel to ChatGPT/Forge | PARTIAL | 2026-11-01 | ChatGPT posts via the GitHub integration; Watcher replies via REST; both proven on #240. Autonomous receiver DISABLED | No zero-cost autonomous loop confirmed |
 
 ## Notes
 - `madnessgate44-debug` is a **user** account, not an organization: `GET /orgs/madnessgate44-debug/repos` returns 404; `GET /users/madnessgate44-debug/repos` returns 18 repos.
