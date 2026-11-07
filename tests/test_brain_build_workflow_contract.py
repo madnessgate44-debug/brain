@@ -87,7 +87,7 @@ def test_workflow_reports_failures_without_secrets_or_provider_bodies():
         "failed_step: ${{ steps.mission_lock.outcome",
         "steps.initialize.outcome == 'failure' && 'target repository access/initialization'",
         "FAILED_STEP: ${{ needs.mission.outputs.failed_step }}",
-        "permissions:\\n      issues: write",
+        "permissions:\n      issues: write",
         "github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner",
         "if (issueNumber)",
         "await core.summary",
