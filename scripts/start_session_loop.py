@@ -64,7 +64,7 @@ def _post(url: str, body: dict, key: str, tries: int = 6) -> dict:
         except urllib.error.HTTPError as e:
             last = e
             if e.code in (429, 500, 502, 503, 504):
-                time.sleep(min(2 ** attempt, 20))
+                time.sleep(min(2**attempt, 20))
                 continue
             raise
     raise RuntimeError(f"POST {url} failed after {tries} tries: {last}")
@@ -81,10 +81,28 @@ def _get(url: str, key: str, tries: int = 6) -> dict:
         except urllib.error.HTTPError as e:
             last = e
             if e.code in (429, 500, 502, 503, 504):
-                time.sleep(min(2 ** attempt, 20))
+                time.sleep(min(2**attempt, 20))
                 continue
             raise
     raise RuntimeError(f"GET {url} failed after {tries} tries: {last}")
+
+
+def _first(payload: object) -> dict:
+    """Return the first record from a V1 `?ids=` response.
+
+    Those endpoints return a JSON *list* of records (the reference client's
+    `app_conversations_get_batch` returns `r.json()` unchanged); a missing id comes back as
+    `[null]`. Some deployments wrap the same data as `{"items": [...]}`. Accept both shapes,
+    and treat `null`/empty as "no record" — never assume the payload is a dict.
+    """
+    if isinstance(payload, dict):
+        items = payload.get("items")
+        if isinstance(items, list):
+            return items[0] if items and isinstance(items[0], dict) else {}
+        return payload
+    if isinstance(payload, list):
+        return payload[0] if payload and isinstance(payload[0], dict) else {}
+    return {}
 
 
 def wait_for_ready(start_id: str, key: str, timeout_s: int = 300, interval_s: int = 5) -> str:
@@ -92,8 +110,7 @@ def wait_for_ready(start_id: str, key: str, timeout_s: int = 300, interval_s: in
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         task = _get(f"{API}/app-conversations/start-tasks?ids={start_id}", key)
-        items = task.get("items") or [task]
-        first = items[0] if items else {}
+        first = _first(task)
         if first.get("app_conversation_id"):
             return first["app_conversation_id"]
         if str(first.get("status", "")).upper() in {"ERROR", "FAILED"}:
@@ -103,26 +120,36 @@ def wait_for_ready(start_id: str, key: str, timeout_s: int = 300, interval_s: in
 
 
 def ui_url(conv_id: str, key: str) -> str:
-    record = _get(f"{API}/app-conversations?ids={conv_id}", key)
-    items = record.get("items") or [record]
-    first = items[0] if items else {}
-    return first.get("conversation_ui_url") or f"https://app.all-hands.dev/canvas/conversations/{conv_id}"
+    first = _first(_get(f"{API}/app-conversations?ids={conv_id}", key))
+    return (
+        first.get("conversation_ui_url")
+        or f"https://app.all-hands.dev/canvas/conversations/{conv_id}"
+    )
 
 
-def write_evidence(out_dir: Path, repo: str, branch: str, conv_id: str, url: str, dry: bool) -> Path:
+def write_evidence(
+    out_dir: Path, repo: str, branch: str, conv_id: str, url: str, dry: bool, note: str = ""
+) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     dest = out_dir / f"session-loop-{stamp}.md"
-    status = "DRY RUN — no conversation started" if dry else "started"
-    dest.write_text(
+    if dry:
+        status = "DRY RUN — no conversation started"
+    elif conv_id and url:
+        status = "LIVE — conversation started"
+    else:
+        status = "LIVE — conversation started, link not yet resolved"
+    body = (
         f"# Session agent loop — {stamp} UTC\n\n"
         f"Status: {status}\n\n"
         f"- repository: {repo}\n"
         f"- branch: {branch}\n"
         f"- app_conversation_id: {conv_id or '(none)'}\n"
-        f"- link: {url or '(none)'}\n",
-        encoding="utf-8",
+        f"- link: {url or '(none)'}\n"
     )
+    if note:
+        body += f"- note: {note}\n"
+    dest.write_text(body, encoding="utf-8")
     return dest
 
 
@@ -151,7 +178,23 @@ def main() -> int:
     started = _post(f"{API}/app-conversations", payload, key)
     start_id, conv_id = parse_start_task(started)
     if not conv_id:
-        conv_id = wait_for_ready(start_id, key)
+        try:
+            conv_id = wait_for_ready(start_id, key)
+        except RuntimeError as exc:
+            # The conversation was started; record that fact so the run is not invisible, but
+            # there is no link yet, so this does not count as a proven live run (see purpose_audit).
+            dest = write_evidence(
+                Path(a.out),
+                a.repo,
+                a.branch,
+                "",
+                "",
+                dry=False,
+                note=f"started start-task {start_id} but it was not ready: {exc}",
+            )
+            print(f"conversation started but not ready: {exc}")
+            print(f"evidence: {dest}")
+            return 1
     url = ui_url(conv_id, key)
     dest = write_evidence(Path(a.out), a.repo, a.branch, conv_id, url, dry=False)
     print(f"conversation started: {url}")
