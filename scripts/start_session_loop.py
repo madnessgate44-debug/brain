@@ -64,7 +64,7 @@ def _post(url: str, body: dict, key: str, tries: int = 6) -> dict:
         except urllib.error.HTTPError as e:
             last = e
             if e.code in (429, 500, 502, 503, 504):
-                time.sleep(min(2**attempt, 20))
+                time.sleep(min(2 ** attempt, 20))
                 continue
             raise
     raise RuntimeError(f"POST {url} failed after {tries} tries: {last}")
@@ -81,7 +81,7 @@ def _get(url: str, key: str, tries: int = 6) -> dict:
         except urllib.error.HTTPError as e:
             last = e
             if e.code in (429, 500, 502, 503, 504):
-                time.sleep(min(2**attempt, 20))
+                time.sleep(min(2 ** attempt, 20))
                 continue
             raise
     raise RuntimeError(f"GET {url} failed after {tries} tries: {last}")
@@ -92,8 +92,8 @@ def _first(payload: object) -> dict:
 
     Those endpoints return a JSON *list* of records (the reference client's
     `app_conversations_get_batch` returns `r.json()` unchanged); a missing id comes back as
-    `[null]`. Some deployments wrap the same data as `{"items": [...]}`. Accept both shapes,
-    and treat `null`/empty as "no record" — never assume the payload is a dict.
+    `[null]`. Some deployments wrap the same data as `{"items": [...]}`. Accept both shapes, and
+    treat `null`/empty as "no record" — never assume the payload is a dict.
     """
     if isinstance(payload, dict):
         items = payload.get("items")
@@ -121,15 +121,11 @@ def wait_for_ready(start_id: str, key: str, timeout_s: int = 300, interval_s: in
 
 def ui_url(conv_id: str, key: str) -> str:
     first = _first(_get(f"{API}/app-conversations?ids={conv_id}", key))
-    return (
-        first.get("conversation_ui_url")
-        or f"https://app.all-hands.dev/canvas/conversations/{conv_id}"
-    )
+    return first.get("conversation_ui_url") or f"https://app.all-hands.dev/canvas/conversations/{conv_id}"
 
 
-def write_evidence(
-    out_dir: Path, repo: str, branch: str, conv_id: str, url: str, dry: bool, note: str = ""
-) -> Path:
+def write_evidence(out_dir: Path, repo: str, branch: str, conv_id: str, url: str, dry: bool,
+                   note: str = "") -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     dest = out_dir / f"session-loop-{stamp}.md"
@@ -183,15 +179,8 @@ def main() -> int:
         except RuntimeError as exc:
             # The conversation was started; record that fact so the run is not invisible, but
             # there is no link yet, so this does not count as a proven live run (see purpose_audit).
-            dest = write_evidence(
-                Path(a.out),
-                a.repo,
-                a.branch,
-                "",
-                "",
-                dry=False,
-                note=f"started start-task {start_id} but it was not ready: {exc}",
-            )
+            dest = write_evidence(Path(a.out), a.repo, a.branch, "", "", dry=False,
+                                  note=f"started start-task {start_id} but it was not ready: {exc}")
             print(f"conversation started but not ready: {exc}")
             print(f"evidence: {dest}")
             return 1

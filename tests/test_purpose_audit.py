@@ -9,9 +9,7 @@ from pathlib import Path
 
 import pytest
 
-_MODULE_PATH = (
-    Path(__file__).resolve().parents[1] / "watcher" / "knowledge" / "tools" / "purpose_audit.py"
-)
+_MODULE_PATH = Path(__file__).resolve().parents[1] / "watcher" / "knowledge" / "tools" / "purpose_audit.py"
 
 
 @pytest.fixture(scope="module")
@@ -72,18 +70,13 @@ def test_render_marks_each_status(pa, tmp_path):
     assert "[ ] **Missing claim**" in text
 
 
-def _company_tree(
-    tmp_path: Path,
-    *,
-    loop_roles: int = 1,
-    total: int = 3,
-    deletions: bool = True,
-    general_loop: bool = False,
-):
+def _company_tree(tmp_path: Path, *, loop_roles: int = 1, total: int = 3, deletions: bool = True,
+                  general_loop: bool = False):
     company = tmp_path / "brain" / "company"
     company.mkdir(parents=True)
     roles = "".join(
-        f'    SpecialistRole(\n        key="role{n}",\n    ),\n' for n in "abcdefghij"[:total]
+        f'    SpecialistRole(\n        key="role{n}",\n    ),\n'
+        for n in "abcdefghij"[:total]
     )
     (company / "roles.py").write_text(roles, encoding="utf-8")
     branches = "".join(
@@ -92,9 +85,7 @@ def _company_tree(
     )
     if general_loop:
         branches += '    if role_key != "developer":\n        run_openhands_role()\n'
-    (company / "agent_runner.py").write_text(
-        branches + "    await self.provider.complete(s, u)\n", encoding="utf-8"
-    )
+    (company / "agent_runner.py").write_text(branches + "    await self.provider.complete(s, u)\n", encoding="utf-8")
     dev = "TemporaryDirectory()\n_MAX_FILES = 30\n_MAX_FILE_BYTES = 200000\n"
     if deletions:
         dev += 'raise AgentOutputError("does not support deletions")\n'
@@ -198,25 +189,19 @@ def test_evidence_link_is_empty_for_a_dry_run(pa, tmp_path):
 def test_depth_rejects_a_dry_run_as_live_evidence(pa, tmp_path):
     """W3: a dry run in the evidence dir is a presence, not a proof."""
     _company_tree(tmp_path)
-    _evidence(
-        tmp_path,
-        "session-loop-1.md",
-        "# Session agent loop\n\nStatus: DRY RUN — no conversation started\n\n"
-        "- app_conversation_id: (none)\n- link: (none)\n",
-    )
+    _evidence(tmp_path, "session-loop-1.md",
+              "# Session agent loop\n\nStatus: DRY RUN — no conversation started\n\n"
+              "- app_conversation_id: (none)\n- link: (none)\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "MISSING"
 
 
 def test_depth_passes_with_a_real_live_run_link(pa, tmp_path):
     _company_tree(tmp_path)
-    _evidence(
-        tmp_path,
-        "session-loop-2.md",
-        "# Session agent loop\n\nStatus: LIVE — conversation started\n\n"
-        "- app_conversation_id: conv-9\n"
-        "- link: https://app.all-hands.dev/canvas/conversations/conv-9\n",
-    )
+    _evidence(tmp_path, "session-loop-2.md",
+              "# Session agent loop\n\nStatus: LIVE — conversation started\n\n"
+              "- app_conversation_id: conv-9\n"
+              "- link: https://app.all-hands.dev/canvas/conversations/conv-9\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
     assert any("conv-9" in e for e in f["evidence"])

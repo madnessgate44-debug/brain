@@ -62,9 +62,7 @@ def scan(root: Path, pattern: re.Pattern) -> list[tuple[str, int, bool]]:
         if any(s in f.parts for s in SKIP):
             continue
         try:
-            for i, text in enumerate(
-                f.read_text(encoding="utf-8", errors="replace").splitlines(), 1
-            ):
+            for i, text in enumerate(f.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
                 if pattern.search(text):
                     hits.append((f.as_posix(), i, is_test_file(f)))
         except OSError:
@@ -120,34 +118,27 @@ def depth_findings(root: Path) -> list[dict]:
     role_keys = re.findall(r'key="([a-z_]+)"', roles_txt)
     # A role reaches the agentic loop if its branch wraps a call to an OpenHands SDK runner:
     # the developer's file-editing loop, or the investigative loop every other role now uses.
-    loop_roles = sorted(
-        {
-            m.group(1)
-            for m in re.finditer(r'role_key == "([a-z_]+)"', runner_txt)
-            if "run_openhands_developer" in runner_txt[m.start() : m.start() + 400]
-        }
-    )
+    loop_roles = sorted({
+        m.group(1)
+        for m in re.finditer(r'role_key == "([a-z_]+)"', runner_txt)
+        if "run_openhands_developer" in runner_txt[m.start(): m.start() + 400]
+    })
     # If the runner wires the general investigative loop, every non-developer role is covered.
     if "run_openhands_role" in runner_txt:
         loop_roles = sorted(set(loop_roles) | set(role_keys))
     if total_roles:
         status = "OK" if len(loop_roles) >= total_roles else "PARTIAL"
         rest = total_roles - len(loop_roles)
-        out.append(
-            {
-                "finding": f"Agentic loop covers {len(loop_roles)} of {total_roles} roles "
-                f"({rest} run single-shot)",
-                "status": status,
-                "evidence": [
-                    f"loop roles: {', '.join(loop_roles) or 'none'}",
-                    (
-                        "the rest call provider.complete once (agent_runner.py:412)"
-                        if rest
-                        else "every role reaches an OpenHands SDK loop"
-                    ),
-                ],
-            }
-        )
+        out.append({
+            "finding": f"Agentic loop covers {len(loop_roles)} of {total_roles} roles "
+                       f"({rest} run single-shot)",
+            "status": status,
+            "evidence": [
+                f"loop roles: {', '.join(loop_roles) or 'none'}",
+                ("the rest call provider.complete once (agent_runner.py:412)"
+                 if rest else "every role reaches an OpenHands SDK loop"),
+            ],
+        })
 
     max_files = (re.findall(r"_MAX_FILES = (\d+)", dev_txt) or ["?"])[0]
     max_file = (re.findall(r"_MAX_FILE_BYTES = (\d+)", dev_txt) or ["?"])[0]
@@ -159,63 +150,49 @@ def depth_findings(root: Path) -> list[dict]:
             ev.append("deletions forbidden (openhands_developer.py)")
         if constrains_new:
             ev.append("unplanned new files rejected (openhands_developer.py)")
-        out.append(
-            {
-                "finding": "Patch contract bounds what the agent may change",
-                "status": "PARTIAL" if (forbids_del or constrains_new) else "OK",
-                "evidence": ev,
-            }
-        )
+        out.append({
+            "finding": "Patch contract bounds what the agent may change",
+            "status": "PARTIAL" if (forbids_del or constrains_new) else "OK",
+            "evidence": ev,
+        })
 
     if "TemporaryDirectory" in dev_txt:
-        out.append(
-            {
-                "finding": "Developer works in a temporary workspace, not the repo checkout",
-                "status": "PARTIAL",
-                "evidence": ["openhands_developer.py uses TemporaryDirectory"],
-            }
-        )
+        out.append({
+            "finding": "Developer works in a temporary workspace, not the repo checkout",
+            "status": "PARTIAL",
+            "evidence": ["openhands_developer.py uses TemporaryDirectory"],
+        })
 
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
     proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
     links = {p.name: link for p in proof if (link := evidence_link(p))}
-    out.append(
-        {
-            "finding": "Committed evidence of a live issue -> PR run",
-            "status": "OK" if links else "MISSING",
-            "evidence": [f"{name} -> {link}" for name, link in links.items()]
-            or [
-                "no live-run evidence committed (a DRY RUN or an evidence file with no "
-                "conversation link does not prove the loop ran)"
-            ],
-        }
-    )
+    out.append({
+        "finding": "Committed evidence of a live issue -> PR run",
+        "status": "OK" if links else "MISSING",
+        "evidence": [f"{name} -> {link}" for name, link in links.items()]
+                    or ["no live-run evidence committed (a DRY RUN or an evidence file with no "
+                        "conversation link does not prove the loop ran)"],
+    })
 
     # W7: a role with no skill file runs on its bare contract. A missing skill is the Watcher's
     # job to find, so it is a depth finding here, not a separate script.
     skills_dir = company / "skills"
     missing_skills = [k for k in role_keys if not (skills_dir / f"{k}.md").is_file()]
     if role_keys:
-        out.append(
-            {
-                "finding": f"{len(role_keys) - len(missing_skills)} of {len(role_keys)} roles have a skill file",
-                "status": "OK" if not missing_skills else "PARTIAL",
-                "evidence": [
-                    f"missing: {', '.join(missing_skills) or 'none'}",
-                    "a role with no skill runs on its bare contract (brain/company/skills/)",
-                ],
-            }
-        )
-    router = root.parent / "scripts" / "skills.py"
-    out.append(
-        {
-            "finding": "A skill router exists so work finds its skill instead of guessing",
-            "status": "OK" if router.is_file() else "MISSING",
+        out.append({
+            "finding": f"{len(role_keys) - len(missing_skills)} of {len(role_keys)} roles have a skill file",
+            "status": "OK" if not missing_skills else "PARTIAL",
             "evidence": [
-                "scripts/skills.py" if router.is_file() else "scripts/skills.py is absent"
+                f"missing: {', '.join(missing_skills) or 'none'}",
+                "a role with no skill runs on its bare contract (brain/company/skills/)",
             ],
-        }
-    )
+        })
+    router = root.parent / "scripts" / "skills.py"
+    out.append({
+        "finding": "A skill router exists so work finds its skill instead of guessing",
+        "status": "OK" if router.is_file() else "MISSING",
+        "evidence": ["scripts/skills.py" if router.is_file() else "scripts/skills.py is absent"],
+    })
 
     # W4: a capability that no workflow schedules does not run.
     tools_dir = root.parent / "watcher" / "knowledge" / "tools"
@@ -224,13 +201,11 @@ def depth_findings(root: Path) -> list[dict]:
     tools = [p.name for p in sorted(tools_dir.glob("*.py"))] if tools_dir.is_dir() else []
     unscheduled = [t for t in tools if t not in wf_text]
     if tools:
-        out.append(
-            {
-                "finding": f"{len(tools) - len(unscheduled)} of {len(tools)} Watcher tools are scheduled",
-                "status": "OK" if not unscheduled else "PARTIAL",
-                "evidence": [f"unscheduled: {', '.join(unscheduled) or 'none'}"],
-            }
-        )
+        out.append({
+            "finding": f"{len(tools) - len(unscheduled)} of {len(tools)} Watcher tools are scheduled",
+            "status": "OK" if not unscheduled else "PARTIAL",
+            "evidence": [f"unscheduled: {', '.join(unscheduled) or 'none'}"],
+        })
     return out
 
 
@@ -257,15 +232,10 @@ def audit(root: Path, purpose: Path, tests_root: Path, base: Path | None = None)
             except ValueError:
                 pass
             evidence.append(f"{p}:{n}")
-        results.append(
-            {
-                "claim": claim,
-                "status": status,
-                "reachable": reachable,
-                "hint": hint,
-                "evidence": evidence,
-            }
-        )
+        results.append({
+            "claim": claim, "status": status, "reachable": reachable,
+            "hint": hint, "evidence": evidence,
+        })
     ok = sum(1 for r in results if r["status"] == "OK")
     depth = depth_findings(root)
     return {"checked": len(results), "ok": ok, "results": results, "depth": depth}
@@ -273,12 +243,8 @@ def audit(root: Path, purpose: Path, tests_root: Path, base: Path | None = None)
 
 def render(report: dict) -> str:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    lines = [
-        f"# Purpose audit — {ts}",
-        "",
-        f"{report['ok']}/{report['checked']} claims are implemented in production code.",
-        "",
-    ]
+    lines = [f"# Purpose audit — {ts}", "",
+             f"{report['ok']}/{report['checked']} claims are implemented in production code.", ""]
     for r in report["results"]:
         mark = {"OK": "[x]", "UNTESTED": "[~]", "MISSING": "[ ]"}[r["status"]]
         lines.append(f"{mark} **{r['claim']}** — {r['status']}")
@@ -299,9 +265,7 @@ def render(report: dict) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(
-        description="Does the code do what the app claims? (WATCHER.md §16.5)"
-    )
+    ap = argparse.ArgumentParser(description="Does the code do what the app claims? (WATCHER.md §16.5)")
     ap.add_argument("--root", default=".")
     ap.add_argument("--purpose", default="watcher/knowledge/purpose.md")
     ap.add_argument("--out", default="watcher/knowledge/audits")
