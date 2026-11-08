@@ -1,0 +1,11 @@
+{
+  "note": "Priority-ordered audit rotation. Owner scope reset 2026-11-07 narrowed the active portfolio to five products; the wider fleet is frozen and not audited. 'rank' drives rotation order; 'repo' is the GitHub name.",
+  "active_scope": true,
+  "repos": [
+    {"rank": 1, "name": "brain", "repo": "madnessgate44-debug/brain", "kind": "control-plane", "note": "the orchestrator itself; self-audited every run"},
+    {"rank": 2, "name": "Amina", "repo": "madnessgate44-debug/Amina", "kind": "product", "note": "Miss Noor; live on Vercel; first for the one-week exercise"},
+    {"rank": 3, "name": "Firstborn", "repo": "madnessgate44-debug/Firstborn", "kind": "product", "note": "Forge agent / browser tool"},
+    {"rank": 4, "name": "smart-farm", "repo": "madnessgate44-debug/smart-farm", "kind": "product", "note": "Kotlin Android; one real customer; no release yet"},
+    {"rank": 5, "name": "Gahiz", "repo": "madnessgate44-debug/Gahiz", "kind": "product", "note": "BPO assessment; scaffold"}
+  ]
+}
