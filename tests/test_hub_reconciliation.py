@@ -84,3 +84,20 @@ def test_watcher_daily_workflow_no_longer_routes_to_240():
     text = (ROOT / ".github" / "workflows" / "watcher-daily.yml").read_text(encoding="utf-8")
     assert "#240" not in text
     assert "hub #292" in text
+
+
+def test_bridge_instruction_docs_point_at_the_canonical_hub():
+    """The bridge's live instruction docs must not send the counterpart to #240.
+
+    `loop.py` now reads #292, so a doc that still tells ChatGPT to POST to #240 would
+    break the loop end to end: the reply would land where the loop no longer looks.
+    A legacy mention of #240 is fine, but no routing sentence may name it.
+    """
+    for name, stale in (
+        ("FORMAT.md", "Every comment Watcher posts on hub #240"),
+        ("CHATGPT-SKIN.md", "POST TO brain#240"),
+        ("CHATGPT-SKIN.md", "loop on GitHub issue\nmadnessgate44-debug/brain#240"),
+    ):
+        text = (ROOT / "watcher" / "bridge" / name).read_text(encoding="utf-8")
+        assert stale not in text, f"{name} still routes the counterpart to #240: {stale!r}"
+        assert "#292" in text, f"{name} does not name the canonical hub"
