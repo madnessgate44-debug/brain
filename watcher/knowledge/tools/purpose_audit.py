@@ -127,14 +127,21 @@ def depth_findings(root: Path) -> list[dict]:
 
     max_files = (re.findall(r"_MAX_FILES = (\d+)", dev_txt) or ["?"])[0]
     max_file = (re.findall(r"_MAX_FILE_BYTES = (\d+)", dev_txt) or ["?"])[0]
+    # W3: the contract bounds size, but no longer forbids deletions or unplanned new files.
+    # A bound is present only if the developer still rejects a whole class of change.
     forbids_del = "does not support deletions" in dev_txt
     constrains_new = "unplanned file" in dev_txt
+    lifts_del = '"deleted": True' in dev_txt or "'deleted': True" in dev_txt
     if dev_txt:
         ev = [f"limits: {max_files} files, {max_file} bytes/file"]
         if forbids_del:
             ev.append("deletions forbidden (openhands_developer.py)")
+        elif lifts_del:
+            ev.append("deletions allowed and collected as {path, deleted: true} (openhands_developer.py)")
         if constrains_new:
             ev.append("unplanned new files rejected (openhands_developer.py)")
+        else:
+            ev.append("unplanned new files allowed (openhands_developer.py)")
         out.append({
             "finding": "Patch contract bounds what the agent may change",
             "status": "PARTIAL" if (forbids_del or constrains_new) else "OK",

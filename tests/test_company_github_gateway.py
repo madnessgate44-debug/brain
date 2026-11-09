@@ -46,6 +46,65 @@ async def test_gateway_rejects_unbounded_change_set_before_network_call():
         )
 
 
+@pytest.mark.asyncio
+async def test_gateway_tree_removes_a_deleted_path_with_sha_null(monkeypatch):
+    gateway = GitHubRepositoryGateway(
+        token="test-token",
+        allowed_owner="example-owner",
+        api_base_url="https://example.test",
+    )
+    captured = {}
+
+    async def fake_request(method, path, **kwargs):
+        if method == "GET" and path == "/repos/example-owner/project":
+            return {"default_branch": "main"}
+        if path == "/repos/example-owner/project/git/ref/heads/main":
+            return {"object": {"sha": "base-sha"}}
+        if path == "/repos/example-owner/project/git/commits/base-sha":
+            return {"tree": {"sha": "base-tree"}}
+        if path == "/repos/example-owner/project/git/ref/heads/brain%2Fdelete-change":
+            raise GitHubGatewayError("GitHub API GET returned 404: branch missing")
+        if path.endswith("/git/blobs"):
+            return {"sha": "blob-sha"}
+        if path.endswith("/git/trees"):
+            captured["tree"] = kwargs["json"]["tree"]
+            return {"sha": "tree-sha"}
+        if path.endswith("/git/commits"):
+            return {"sha": "commit-sha"}
+        if path.endswith("/git/refs"):
+            return {}
+        if "/compare/" in path:
+            return {"files": [{"filename": "a.py", "patch": "@@ -1 +0,0 @@\n-old"}]}
+        raise AssertionError(f"Unexpected GitHub request: {method} {path}")
+
+    monkeypatch.setattr(gateway, "_request", fake_request)
+    result = await gateway.apply_change_set(
+        repository="example-owner/project",
+        change_set={"files": [{"path": "a.py", "deleted": True}]},
+        branch_name="brain/delete-change",
+        commit_message="delete a.py",
+    )
+    assert captured["tree"] == [
+        {"path": "a.py", "mode": "100644", "type": "blob", "sha": None}
+    ]
+    assert result["changed_files"] == ["a.py"]
+
+
+@pytest.mark.asyncio
+async def test_gateway_rejects_a_deletion_that_carries_content():
+    gateway = GitHubRepositoryGateway(
+        token="test-token",
+        allowed_owner="example-owner",
+        api_base_url="https://example.test",
+    )
+    with pytest.raises(GitHubGatewayError, match="deletion must not also carry"):
+        await gateway.apply_change_set(
+            repository="example-owner/project",
+            change_set={"files": [{"path": "a.py", "deleted": True, "content": "x"}]},
+            branch_name="brain/bad-change",
+            commit_message="bad",
+        )
+
 
 @pytest.mark.asyncio
 async def test_gateway_write_preflight_rejects_token_without_contents_write():

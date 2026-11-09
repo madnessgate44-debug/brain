@@ -150,6 +150,7 @@ def validate_change_set(change_set: Any) -> tuple[str, ...]:
             errors.append(f"files[{index}] must be an object")
             continue
         path = item.get("path")
+        deleted = item.get("deleted") is True
         content = item.get("content")
         if not isinstance(path, str) or not path:
             errors.append(f"files[{index}].path must be a non-empty string")
@@ -165,6 +166,11 @@ def validate_change_set(change_set: Any) -> tuple[str, ...]:
             if path in seen:
                 errors.append(f"duplicate file path: {path}")
             seen.add(path)
+        if deleted:
+            # A deletion carries no content; the write gateway removes the file.
+            if "content" in item and content is not None:
+                errors.append(f"files[{index}] marks a deletion but also supplies content")
+            continue
         if not isinstance(content, str):
             errors.append(f"files[{index}].content must be text")
             continue

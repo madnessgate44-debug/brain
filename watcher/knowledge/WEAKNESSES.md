@@ -45,8 +45,12 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
 - **Check:** the depth section of `purpose_audit.py`.
 - **Progress (2026-11-03): the loop now covers all 9 roles.** `brain/company/openhands_role.py`
   gives every non-developer specialist the same OpenHands SDK loop the developer has; the audit
-  reports "9 of 9 roles (0 run single-shot)". Still open under W3: the patch contract (deletions,
-  unplanned files), the temp-dir vs repo checkout, and the live-run proof.
+  reports "9 of 9 roles (0 run single-shot)". **Progress (2026-11-09): the patch contract is
+  lifted** — the developer collects edits, new files, and deletions (`openhands_developer.py`
+  `_collect_change_set`), the engine validator accepts deletion markers, and the write gateway
+  commits a deletion as a `sha: null` tree entry. The audit's patch-contract depth finding now
+  reports OK. Still open under W3: the temp-dir vs repo checkout, and the live-run proof (an
+  open PR #307 makes the audit require a real conversation link; not yet merged).
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
