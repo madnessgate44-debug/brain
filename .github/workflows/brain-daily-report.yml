@@ -1,0 +1,52 @@
+name: Brain daily report
+
+# The durable daily report for issue #292 (the integrated communication channel).
+# Composes the report with scripts/daily_report.py (deterministic: brain's own audits,
+# each repo measured against docs/audits/plans/<repo>.md, the rotation cursor, one
+# owner question) and fans it out to every reachable channel via
+# scripts/report_to_channels.py (an unconfigured channel is skipped, never faked).
+#
+# These crons only take effect once this file is on the default branch. Verify a real
+# schedule with: GET /repos/{owner}/{repo}/actions/runs?event=schedule
+# Rule: never print, echo, or commit a secret value.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 08:00 Africa/Cairo (UTC+2)
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: "Repos to audit this run"
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: brain-daily-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compose and post the daily report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPORT_ISSUE: "292"
+          SWARMCHAT_SERVER: ${{ secrets.SWARMCHAT_SERVER }}
+          SWARMCHAT_TOKEN: ${{ secrets.SWARMCHAT_TOKEN }}
+        run: |
+          python3 scripts/daily_report.py --repos "${{ github.event.inputs.repos || '1' }}"
