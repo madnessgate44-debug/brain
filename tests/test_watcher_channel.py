@@ -23,7 +23,7 @@ def event(
     body="[TO-WATCHER] hello @watcher",
     login="madnessgate44-debug",
     repository=DEFAULT_REPOSITORY,
-    issue=240,
+    issue=292,
 ):
     return {
         "comment": {"id": comment_id, "body": body, "user": {"login": login}},

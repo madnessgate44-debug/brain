@@ -537,3 +537,121 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
 - **Keys checked:** `OHGeminiAPI`, `GEMINI_POOL_1`, `GEMINI_POOL_2` all valid (models list HTTP 200).
 - **Guard traps:** `curl … | python3` DENIED (pipe-to-python) — write to a file then run python separately;
   don't `env | grep`; `curl … | head` to print is fine but avoid printing the key.
+
+## Mission 21 (2026-11-07) — merge batch, main-red fix, Watcher skills (PRs #271/#282/#286/#270/#244/#287)
+- **main was RED after #237** — `tests/test_brain_build_workflow_contract.py::test_workflow_reports_failures_without_secrets_or_provider_bodies`
+  asserted the LITERAL `"permissions:\\n      issues: write"` (backslash-n) while the workflow has a real
+  newline, so it could never pass. Fix = make it a real newline (#286 `c08d191`). Lesson: a workflow-contract
+  test that greps YAML must use real newlines, never `\n` inside a plain (non-raw) string.
+- **Merged this session:** #271 (Vercel serverless entrypoint — `index.py`/`vercel.json`/`.vercelignore`/lean
+  `requirements.txt`), #282, #286 (skills + the red-test fix), #270 (alembic `env.py`/`script.py.mako` +
+  transcribe fetch-failure handling), #244 (watcher channel `scripts/watcher_channel.py`). main green at `270e966e`.
+- **Rebase/merge recipe (sandbox):** the clone is a **shallow graft** → `git merge` can hit "refusing to merge
+  unrelated histories" and `git merge-base` is absent. Fix: `git fetch --unshallow origin` first. Force-push is
+  BLOCKED by the guard, so land a rebase as a **merge commit** instead: `git merge origin/main` on the PR branch,
+  resolve, push (no `--force`). GitHub's `PUT /pulls/{n}/update-branch` returns 422 when base/head conflict.
+- **Conflict-resolution rule for this repo:** append-style files (`MEMORY.md`, `watcher/reports/*`, `watcher/connectors.md`,
+  `shadow/registry.md`) conflict as parallel status snapshots; take `--theirs` (main is later) for contradictory
+  tables, union distinct sections.
+- **Deferred (owner call / superseded):** #242 (draft MCP connector, collides with #271 on `index.py`), #243
+  (superseded by #244; also rewrites live `watcher/bridge/{tickets,state}.json`, `trace-cursor`), #183 (dupe of
+  merged #156 report). #4/#121/#122/#145/#196/#272 are 131–249 commits behind — re-implement fresh.
+- **Watcher skills (owner mission):** `watcher/skills/watcher-learning/SKILL.md` +
+  `watcher/skills/watcher-reverse-engineering/SKILL.md`; finding `watcher/knowledge/reverse/reverse-engineer-everything.md`
+  (repo `gryszzz/reverse-engineer-everything`, 29★, MIT — the "reverse engineer everything" repo the owner named).
+- **Governance:** `docs/LOOP.md` requires a Shadow audit in `/shadow/` before each merge → logged
+  `shadow/audit-2026-11-07.md` (PR #287).
+
+## Mission 23 (2026-11-07) — "push them all": audit deferrals resolved (PR #289 merged)
+- **Owner: "an audit found a ton of things not deployed/merged/pushed — push them all."**
+- **Finding 1 — nothing was unpushed.** Both local branches existed on origin (`research/swarmchat-
+  coordination`, `research/artemis-phone-control`); the sandbox's cached `refs/remotes/origin/*` was
+  stale (only 2 refs), which is why `git branch -r` looked empty. Always `git ls-remote --heads origin`.
+- **Finding 2 — PR #283 (ARTEMIS) was ALREADY MERGED** to `main` as `9dbdd23`; the PR list was just
+  stale. Content byte-identical (`git log origin/main -- <path>`).
+- **Finding 3 — the real gap was unmerged PRs**, per `shadow/audit-2026-11-07.md` (deferred list).
+- **Fixed:** un-drafted + merged **PR #289** (SwarmChat) → `main` `1d0c1f9`. Audit logged
+  `shadow/audit-2026-11-07-swarmchat.md` on the branch first (LOOP.md: "no audit, no merge").
+  CI on head `afc601d` = 7/7 green; merge method **merge** (repo style; squash+rebase also enabled).
+- **Deployment verified:** Vercel project `brain` production deploy from `main` = **READY**
+  (`brain-mmqn68fea-forge-fe22`, 2026-11-07T13:21Z). `https://brain-one-pi.vercel.app/health` → 200
+  fresh uptime; `/openapi.json` no longer lists `/connector` ⇒ **the stale 2026-11-01 build is gone**.
+  The #271 entrypoint fix is now live.
+- **Still deferred (owner calls, unchanged):** #272 (goal, 34 behind, collides), #243 (superseded by
+  #244 + rewrites live runtime state), #242 (MCP connector, collides with #271 on index.py/
+  requirements.txt), #196 (control-key auth), #183/#145/#122/#121/#4 (130–250 commits behind).
+- **Guard traps:** `curl … | python3` DENIED again (write to a file). `git push` hung on a **stale
+  embedded remote token** → fix: `git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@…`
+  + `GIT_TERMINAL_PROMPT=0`. REST `POST /pulls/{n}/ready_for_review` → **404** with this token; use
+  GraphQL `markPullRequestReadyForReview` (get node id via `repository.pullRequest(number:).id`).
+
+## Mission 24 (2026-11-07) — "merge all and push all that you did not merge yet" (owner explicit)
+- **Owner authorised goal-level merges this session.** Result: **0 open PRs** on
+  `madnessgate44-debug/brain`; `main` = `b67f28c`, green, production deployed.
+- **Merged (2 real merges):**
+  - **#242 (MCP connector)** → `d8b440c`. Rebased on `main`; conflict-resolved; **pinned `mcp>=1.10.0,<2`**
+    (mcp 2.x renames `FastMCP`→`MCPServer`; unpinned import breaks the connector). Fixed
+    `tests/test_vercel_entrypoint.py` (index.py `app` is now a `CombinedApp`, not bare FastAPI).
+    Audit `shadow/audit-2026-11-07-connector-mcp.md`.
+  - **#272 (Claude-Code parity, goal)** → `b67f28c`. Merged `main` in (9 conflicts, all resolved
+    with `git checkout --theirs` = main's side; main is newer/authoritative). **Fixed the one red
+    CI check:** `tests/test_skills_router.py::test_router_matches_a_migration` passed only where a
+    local skill cache had a "migration" skill; made it hermetic by injecting the skill. 112 files
+    added; CI 8/8 green; suite 449 passed. Audit `shadow/audit-2026-11-07-claude-code-parity.md`.
+- **Closed as superseded, NOT merged (5 unrelated-history + 1 superseded):**
+  - **#243 (watcher/channel-handshake-240):** main carries `watcher/bridge/SUPERSEDED.md` retiring
+    exactly this homemade bridge in favour of SwarmChat (#289); the note says the old watcher-bridge
+    skill was *deliberately never merged*. Merging would re-add retired code + overwrite live
+    runtime state (`state.json`, `tickets.json`).
+  - **#196, #183, #145, #122, #121, #4:** **unrelated git history — NO merge base with main**
+    (`git merge-base` returns empty; a *different* root commit `72e4331…` vs main's `9ed39cf…`).
+    GitHub literally cannot merge them (hence `mergeable_state` was never clean). 166–415 commits
+    behind. #196's feature (control-key auth) is **already on main** as `brain/api/deps.py`
+    `require_control_key` (`hmac.compare_digest` against `BRAIN_CONTROL_API_KEY`).
+  - Each closed with a written reason + AI-disclosure line.
+- **Verified:** `main` tests workflow on `b67f28c` = success; production `https://brain-one-pi.vercel.app`
+  `/health` 200 fresh (uptime ~74s, `started_at` 15:14:39Z) and `/connector` 200 (`mcp_path: /mcp`).
+- **Reusable recipes:**
+  - **"Unrelated history" test:** `git merge-base origin/main origin/<br>` empty **and** the branch's
+    `git rev-list --max-parents=0` root ≠ main's root ⇒ GitHub can never merge it. (Patch-id alone is
+    misleading: a branch's own tip patch-id is always found among `--all` because it's its own commit.)
+  - **Hermetic skill-router test:** CI has repo-only skills (`~/.openhands/cache` absent) ⇒ only 11
+    skills (repo-role/watcher/agents), **no "migration" skill**. Tests must not depend on the cache;
+    `monkeypatch.setattr(sk, "all_skills", lambda: [...])`.
+  - **Check CI on a branch head that predates your merge:** hit `/commits/<sha>/check-runs`; #272's
+    original head `5aac018` was already red on all three test jobs.
+  - **CI job logs:** `GET /repos/{o}/{r}/actions/jobs/{job_id}/logs` (follow redirect with `-L`).
+  - **Install deps locally:** `pip install -e ".[dev]"` then `pip install openhands-sdk==1.54.0
+    openhands-tools==1.54.0` (6 tests need `openhands`; CI installs them, sandbox didn't).
+- **Guard trap:** `curl … | python3` DENIED (pipe-to-python) — always write JSON to a file first.
+
+## Mission 25 (2026-11-07) — functional + self-improvement audit of brain (PR #290, DRAFT, not merged)
+- **Owner asked** for a *behavioural* audit: "how the app is functioning and is it fit in its purpose
+  or not and how is it improving itself … not the code only". Report:
+  `shadow/audit-2026-11-07-functional-and-self-improvement.md` on branch
+  `audit/functional-self-improvement-20261107`.
+- **Functioning — all PASS when exercised:** local uvicorn E2E mission lifecycle INTAKE→EXECUTE→COMPLETE,
+  `mission-brief.md` written, 5 events; prod auth 401/200; `/chat` returned BRAIN_CHAT_OK on
+  `gemini-2.5-flash`; `/connector` 200 `mcp_path:/mcp`; company workflow with no token → **honest**
+  FAILED + `failure-diagnostic.json`. `purpose_audit.py` 12/12 OK, depth 2 PARTIAL (patch contract,
+  temp-dir) unchanged since 11-03.
+- **Self-improvement — machinery real, outcomes unmet:** report-only ratio 34%/29%/35% (target <25%,
+  NOT falling); `watcher-learning` failed 4 days straight (step `Transcribe (captions, else local ASR)`)
+  then recovered 11-07 — **silent outage, no alert**; ruff 96 / mypy 173 / black 152 all **un-gated**
+  by CI (`brain-ci.yml` runs only `pytest -q`); 76 stale doc refs; no lockfile; 379 branches.
+- **Correction to W4:** `session-agent-loop.yml` and `shadow-report.yml` have **0 runs ever** — they
+  only reached `main` today in the #272 merge (workflow registration `2026-11-07T15:14Z`, first-parent
+  history shows the file first appears in `b67f28c`). "Registered/active" ≠ "proven to run"; first cron
+  not yet due. Ledger's W4 ("all three scheduled and running") over-claims for 2 of 3.
+- **How to run the app locally for a functional test:** `DATABASE__SQLITE_PATH=… WORKSPACE__ROOT=…
+  BRAIN_CONTROL_API_KEY=<≥24 chars> uvicorn brain.api.app:create_app --factory --port 8123`. Notes:
+  (a) mission create response uses key **`id`**, not `mission_id`; (b) the ASGI app needs the lifespan
+  to run — a raw `httpx.ASGITransport` call fails with `State has no attribute 'db_manager'`; use a real
+  uvicorn process. `create_app` (REST) vs `brain.connector.app:create_combined_app` (REST+MCP, the
+  Dockerfile/`index.py` entrypoint).
+- **Audit tool commands:** `python3 watcher/knowledge/tools/purpose_audit.py [--json]` (writes
+  `watcher/knowledge/audits/purpose-YYYYMMDD.md`), `python3 scripts/agent_status.py [--commits N]`,
+  `python3 scripts/skill_check.py`, `python3 watcher/knowledge/tools/friction.py --json`.
+  `scripts/skills.py declaration "<task>"` = repo skill router (mandatory per ENGINEERING_EXECUTION_OS.md).
+- **Env:** lint tools not preinstalled → `pip install ruff==0.8.4 mypy==1.14.0 black==24.10.0
+  pytest-cov==6.0.0`. `openhands` SDK present, `playwright` absent.

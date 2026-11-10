@@ -10,14 +10,14 @@ One register: every blocker, dependency-ordered, with an owner and a safe verifi
 | C1 | ChatGPT's role | `docs/WORKFLOW.md:8-16` ("patient/second investigator") vs the directive (product architect) | amend the AGREEMENT line in `WORKFLOW.md §0` to the directive's wording | Owner | `[V]` |
 | C2 | Merge authority | `docs/LOOP.md:6` (Shadow+Watcher merge) vs the directive (Shadow = reviewer; OpenHands = execution lead) | keep Shadow's merge right **or** move it; one line in `LOOP.md` | Owner | `[V]` |
 | C3 | Execution posture | `ENGINEERING_EXECUTION_OS.md:118` (read-only default) vs bounded repairs | add a bounded PR-only grant paragraph, scoped to the 5 products | Owner | `[V]` |
-| C4 | Key ownership | `WATCHER.md §14` (Shadow owns the replacement pool) vs PR #293 Shadow BLOCKED | Shadow loads the pool via `shadow-keys.yml`, or the exercise accepts Shadow-blocked | Shadow | `[V]` |
-| C5 | Hub identity | `watcher/bridge/hub.py:17` (#240) vs the live channel (#292) | point the hub helper at #292 | OpenHands (with approval) | `[V]` |
+| C4 | Key ownership | `WATCHER.md §14` (Shadow writes keys) vs PR #293 Shadow BLOCKED | add the pool, or accept Shadow-blocked for the Amina exercise | Owner | `[V]` |
+| C5 | Hub identity | `watcher/bridge/hub.py` (#240) vs the live channel (#292) | **RESOLVED** — hub helper, bridge loop, channel core, and Shadow report now default to #292 (`BRAIN_HUB_ISSUE`/`SHADOW_HUB_ISSUE` override); historical `#240` records untouched | OpenHands | `[V]` |
 
 ## B. Capability blockers
 
 | ID | Blocker | Impact | Remediation | Owner | Tag |
 |---|---|---|---|---|---|
-| B1 | Shadow's model route absent (`OHGeminiAPI`, `GEMINI_POOL_1..7`); sweep `42421027202` = **0 WORKING, 8 NOT SET** | no independent audit → no merge under `LOOP.md` | **Shadow** (the credential-pool owner, `WATCHER.md §14`) loads the pool via the authorized path (`shadow-keys.yml`) | Shadow, not the Owner | `[B]` |
+| B1 | Shadow's model route absent (`OHGeminiAPI`, `GEMINI_POOL_1..7`); sweep `42421027202` = **0 WORKING, 8 NOT SET** | no independent audit → no merge under `LOOP.md` | custodian (see `CREDENTIAL_REQUIREMENTS.md §4`) loads the pool via the authorized path | **Custodian** (the correction names "Ghost", which does not exist in the repo — an undefined role to resolve), not the Owner | `[B]` |
 | B7 | `shadow-keys.yml` GitHub probe reports `github: FAIL (http 403)` — probes `/user` with a workflow token that is not scoped for it | misclassified as a credential failure | point the probe at `GET /repos/{owner}/{repo}` | OpenHands | `[V]` |
 | B2 | Repo-secret listing is 403 for this token | cannot prove presence for most secrets | token scope, or a human lists them | Owner | `[B]` |
 | B3 | Agent wake/trigger not wired | no real-time multi-agent coordination | adopt SwarmChat `wait` or a GitHub dispatch bus | Owner | `[U]` |
@@ -45,12 +45,11 @@ One register: every blocker, dependency-ordered, with an owner and a safe verifi
 
 ## E. Owner decisions (one per item)
 
-1. Shadow loads the pool (`OHGeminiAPI` + `GEMINI_POOL_1..7`) via `shadow-keys.yml` — not an Owner
-   action (`WATCHER.md §14`).
+1. Add Shadow's pool (`OHGeminiAPI` + `GEMINI_POOL_1..7`) — yes / no?
 2. Keep Shadow's merge right (`LOOP.md`) or move it to OpenHands — which?
 3. Approve a bounded PR-only execution grant scoped to the 5 products — yes / no?
 4. Merge the two docs/infra PRs #293 and #294 (non-behavioural) — yes / no?
-5. Point the ticket hub helper at #292 (`C5`) — yes / no?
+5. ~~Point the ticket hub helper at #292 (`C5`) — yes / no?~~ **DONE** — reconciled to #292 (see C5).
 
 ## F. ChatGPT-integration blockers (workstream `6713088768`)
 

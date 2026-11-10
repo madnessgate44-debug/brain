@@ -1,18 +1,19 @@
 """Deterministic core for the Watcher <-> ChatGPT GitHub issue-comment channel.
 
-The live receiver is an OpenHands Cloud Automation watching issue #240 for
+The live receiver is an OpenHands Cloud Automation watching issue #292 for
 ``issue_comment.created`` events. This module is the auditable, testable contract
 that the receiver and any future GitHub Actions fallback share: fail-closed
 matching, dedup by comment id, a reply loop guard, and the exact evidence fields
 the acceptance test requires. It performs no network access and holds no secrets.
 
-The acceptance test (issue #240) is: two consecutive handoffs complete without a
+The acceptance test (issue #292) is: two consecutive handoffs complete without a
 human opening a session. A reply may only claim RECEIVED when this module returns
 ``HANDLE`` and the receiver actually posted the reply.
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -22,7 +23,9 @@ MARKER = "@watcher"
 TASK_PREFIX = "[TO-WATCHER]"
 REPLY_PREFIX = "[TO-CHATGPT]"
 DEFAULT_REPOSITORY = "madnessgate44-debug/brain"
-DEFAULT_ISSUE = 240
+# Canonical hub per docs/TICKETING_PROTOCOL.md (2026-11-07): issue #292. #240 is the
+# legacy Day-1 channel, retained only in historical records. Override with BRAIN_HUB_ISSUE.
+DEFAULT_ISSUE = int(os.environ.get("BRAIN_HUB_ISSUE", "292"))
 
 
 class Decision(str, Enum):

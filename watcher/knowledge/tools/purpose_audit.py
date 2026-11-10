@@ -87,6 +87,21 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
     return False
 
 
+def evidence_link(path: Path) -> str:
+    """Return the conversation link recorded in an evidence file, or "" if there is none.
+
+    A DRY RUN records no conversation, so it is not proof the loop ran. Only a real URL under
+    the writer's `- link:` field counts; the placeholder it writes when it has no link does not.
+    """
+    for line in _read(path).splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- link:"):
+            value = stripped.split(":", 1)[1].strip()
+            if value.startswith(("http://", "https://")):
+                return value
+    return ""
+
+
 def depth_findings(root: Path) -> list[dict]:
     """Find depth gaps a presence check misses: does the feature cover the whole app?
 
@@ -150,10 +165,13 @@ def depth_findings(root: Path) -> list[dict]:
 
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
     proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
+    links = {p.name: link for p in proof if (link := evidence_link(p))}
     out.append({
         "finding": "Committed evidence of a live issue -> PR run",
-        "status": "OK" if proof else "MISSING",
-        "evidence": [p.as_posix() for p in proof] or ["no live-run evidence committed"],
+        "status": "OK" if links else "MISSING",
+        "evidence": [f"{name} -> {link}" for name, link in links.items()]
+                    or ["no live-run evidence committed (a DRY RUN or an evidence file with no "
+                        "conversation link does not prove the loop ran)"],
     })
 
     # W7: a role with no skill file runs on its bare contract. A missing skill is the Watcher's
