@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Always read / always post to the live hub (issue #240) — the loop's foundation.
+"""Always read / always post to the live hub (issue #292) — the loop's foundation.
 
 Owner (2026-11-01): "why are you not always checking the ticket on GitHub and able to
 update it with everything — establish that first, from your end."
@@ -23,7 +23,9 @@ import urllib.error
 import urllib.request
 
 REPO = "madnessgate44-debug/brain"
-HUB = 240
+# Canonical hub per docs/TICKETING_PROTOCOL.md (2026-11-07): issue #292. #240 is the
+# legacy Day-1 channel, retained only in historical records. Override with BRAIN_HUB_ISSUE.
+HUB = int(os.environ.get("BRAIN_HUB_ISSUE", "292"))
 
 
 def _req(url: str, token: str, method: str = "GET", payload: dict | None = None):

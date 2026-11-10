@@ -1,0 +1,226 @@
+{
+ "date": "2026-11-08",
+ "count": 20,
+ "conversations": [
+  {
+   "id": "94a82243213e47b19117cae454f28362",
+   "title": "Openhands loop \u2014 2026-11-08 00:02:01 UTC",
+   "events": 257,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "5aa45489d9bb6beb66807881ea68197cdc769773d1b258815ede7af846137a12"
+  },
+  {
+   "id": "aa271094b19b40bb99dc6419237db1d1",
+   "title": "Openhands loop \u2014 2026-11-08 02:01:38 UTC",
+   "events": 308,
+   "pages": 4,
+   "owner_messages": 0,
+   "agent_messages": 3,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "33b02be946435e14539dcc31850c95a3b3ead923b108f730f394d4f213b13438"
+  },
+  {
+   "id": "f6e5c38968294e55b2426db6d2031203",
+   "title": "Openhands loop \u2014 2026-11-08 04:01:54 UTC",
+   "events": 232,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 3,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "148a20b3e8cd0d4ed8a1d5b11746012db36317d856f3a2f219eb79cdc7b5573f"
+  },
+  {
+   "id": "a703e72aa90b4328946f027761dc7f8d",
+   "title": "Openhands loop \u2014 2026-11-08 06:02:20 UTC",
+   "events": 608,
+   "pages": 7,
+   "owner_messages": 0,
+   "agent_messages": 7,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "ef7cf97fe27336443060ab99ef12b242d2a6ef2f547f1a687075545a9136469e"
+  },
+  {
+   "id": "ae828a46754f4631b9e284181c91b8b6",
+   "title": "Conversation ae828",
+   "events": 0,
+   "pages": 1,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "83d02b056f1c12e8b0fddb85698e78ee49f2701d0bd9c61e069c0d5498fd2560"
+  },
+  {
+   "id": "2fcf92903f874236b87e31c44af86522",
+   "title": "New Automation \u2014 2026-11-08 08:05:34 UTC",
+   "events": 633,
+   "pages": 7,
+   "owner_messages": 1,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "b31d1ec40258fbb09c6223474f1d0f4d5296caca06d0044e02df1be7613ec88a"
+  },
+  {
+   "id": "22ad42cbbad6450188d5bcfd39192480",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-11-08 08:35:00 UTC",
+   "events": 1166,
+   "pages": 12,
+   "owner_messages": 1,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "db2e4a1d5ffd6beacf811b34eba407e2e36058f020d813f44d800f994b136d23"
+  },
+  {
+   "id": "c6d9f0b0eb7d46c78d7f392fe4ad9f13",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-11-08 08:36:26 UTC",
+   "events": 641,
+   "pages": 7,
+   "owner_messages": 1,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "78dce58080caabe5aaf791f600b8228769b49faae8c51513b608075d470222a5"
+  },
+  {
+   "id": "ed2bca5b0dcc4047afff0a6b6c2506bc",
+   "title": "Openhands loop \u2014 2026-11-08 08:36:36 UTC",
+   "events": 175,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 2,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "2dd99362c9ff8b585cb460e6c6781eb844e3ee994bf73382f140b4a039eaa2c5"
+  },
+  {
+   "id": "83fb91bee4834b0b966b1a1040157922",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-11-08 10:01:50 UTC",
+   "events": 630,
+   "pages": 7,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "e920f07c5e868cef0e5b61e2b1f180a3110e0761319ead5f83ccd85ea308068d"
+  },
+  {
+   "id": "106d998ce25a415f96a8b389fdeec808",
+   "title": "Openhands loop \u2014 2026-11-08 10:01:57 UTC",
+   "events": 234,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 2,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "e85ea6a7b1c4bb47defd3d85296cf2855fe14f641e318d669e53b0df8ca157aa"
+  },
+  {
+   "id": "7543e363514b4435a71a60546c79501c",
+   "title": "GitHub Issue #292: Brain daily reports",
+   "events": 479,
+   "pages": 5,
+   "owner_messages": 0,
+   "agent_messages": 2,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "f661d79d928df908d13a25324579b70ff2c16d3b666edfcaa04928ee533f39c8"
+  },
+  {
+   "id": "97dcf1e3d6af45c8881dd577792a2acf",
+   "title": "GitHub Issue #292: Brain daily reports",
+   "events": 531,
+   "pages": 6,
+   "owner_messages": 0,
+   "agent_messages": 5,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "ba61ed804fe26ca28bc89529cc234f07d8d4fa1da65af1db7aca7c8ebe12d7d9"
+  },
+  {
+   "id": "3e5158fe76944afba0f7bbae28ce9a1c",
+   "title": "GitHub Issue #146: [P0] Build Forge as ChatGPT's authenticated browser/computer-use tool",
+   "events": 753,
+   "pages": 8,
+   "owner_messages": 0,
+   "agent_messages": 4,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "9191c720fb96cd8857ff7c2d8f6ec023fe3ff5e52d1d39a802fff13943e52a6f"
+  },
+  {
+   "id": "d6d4c444fa5a4335af067c318c1a0ba3",
+   "title": "check brain and conversation Histories for upda...",
+   "events": 1057,
+   "pages": 11,
+   "owner_messages": 4,
+   "agent_messages": 2,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "03601bdb1b55f333bdb0b3b7fc82278e2cd56c1ddc899e0ffc3192a4e591d716"
+  },
+  {
+   "id": "f8851f8563ab4bc486288e086f10b335",
+   "title": "GitHub Issue #292: Brain daily reports",
+   "events": 601,
+   "pages": 7,
+   "owner_messages": 0,
+   "agent_messages": 4,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "5689d25f165f0b52aefeb3579518ebbf7a1757391f6e7d6dc808a2ad3fba7ece"
+  },
+  {
+   "id": "8ba621944a8147528599dce08ede9f06",
+   "title": "GitHub Issue #146: [P0] Build Forge as ChatGPT's authenticated browser/computer-use tool",
+   "events": 1004,
+   "pages": 11,
+   "owner_messages": 0,
+   "agent_messages": 3,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "4ea5a4214fb0d4a45ab07ecf5955870227396f2276ca985d7df3d5e732ee31ef"
+  },
+  {
+   "id": "e341bd8463694d68bd79dc609e408f33",
+   "title": "GitHub Issue #292: Brain daily reports",
+   "events": 293,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "6109edbca41360c3938a67c329b162d02449d4acd8ff3aed1a8b69b17087119a"
+  },
+  {
+   "id": "1a41b12458374cefad6a64eadc13b51e",
+   "title": "GitHub Issue #292: Brain daily reports",
+   "events": 440,
+   "pages": 5,
+   "owner_messages": 0,
+   "agent_messages": 3,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "ad0e9f0f43a137c45e2b9c8ef42cd016e31f02fcfd58c07998ce8b024267053b"
+  },
+  {
+   "id": "e166ab9ce3864fa89ded6f01dd480097",
+   "title": "Session agent loop \u2014 find and fix a real defect",
+   "events": 661,
+   "pages": 7,
+   "owner_messages": 1,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "44faaafb9f4839c2b4b584cda2b843d58928f769cf7a929e2c483f9c6d996942"
+  }
+ ]
+}
