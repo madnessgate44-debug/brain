@@ -31,13 +31,15 @@ The loops are real but **hemmed in**:
   seeded only from `source_contents` the gateway already fetched. No git, no full checkout.
 - The investigative roles are seeded from the same `source_contents`, so a role can only read
   files the gateway already fetched for it.
-- **Deletions are forbidden**: `openhands_developer.py:250-253` raises if the agent deletes a
-  file. Refactors, renames, and cleanups are impossible.
-- **New files are constrained**: `openhands_developer.py:238` raises on any new file not in the
-  architecture plan or named in the request. The agent cannot add a file it discovers it needs.
-- The patch contract is "up to 30 files, <=200 KB each, text only, no deletions".
+- **Deletions and new files are allowed (2026-11-09)**: the adapter collects an agent edit, a new
+  file, or a deletion (`{"path", "deleted": true}`) and the write gateway commits it — a deletion
+  becomes a tree entry with `sha: null`, which removes the path. The engine validator accepts
+  deletion markers. See "Lifted the patch contract" below.
+- The patch contract is now "up to 30 files, <=200 KB each, text only; deletions and new files
+  allowed, guarded by the independent review gates".
 - **Distance:** Claude Code edits the repo in place with full git and shell. Here the agent
-  works in a sandbox and can only *propose text*. **~3/10** for "the agent can change a repo".
+  works in a sandbox seeded from fetched files (still no full checkout). The change *kinds* are
+  now unbounded, but the *reach* (a real checkout) is not. **~4/10** for "the agent can change a repo".
 
 ### 3. The proof — the loop is not proven to run against a live model in CI
 - The loop **is** wired into the running service: `brain/runtime/mission_runtime.py:94` builds
@@ -55,7 +57,7 @@ The loops are real but **hemmed in**:
 | Claude-Code capability | brain today | Evidence |
 |---|---|---|
 | Agentic shell loop | **PARTIAL** — developer role only | `openhands_developer.py:124-126`; `agent_runner.py:401` |
-| File editing | **PARTIAL** — sandboxed, no deletions, bounded new files | `openhands_developer.py:238,250` |
+| File editing | **PARTIAL** — sandboxed; edits, new files, and deletions all allowed | `openhands_developer.py:140-179` (`_collect_change_set`); `github_gateway.py:204-228` |
 | Repo navigation / full checkout | **ABSENT** — temp dir seeded from fetched files | `openhands_developer.py:196` |
 | Skills (SKILL.md) | **PARTIAL** — prompt files, not SDK `Skill` objects | `agent_runner.py:21,36` |
 | Hooks | **PARTIAL** — PreToolUse on the developer conversation | `brain/company/hooks.py:51,68` |
@@ -66,10 +68,26 @@ The loops are real but **hemmed in**:
 
 ### Bottom line
 
-**Roughly 3 out of 10** toward a Claude-Code-like experience — up from ~1 of 7 primitives at
+**Roughly 4 out of 10** toward a Claude-Code-like experience — up from ~1 of 7 primitives at
 the start of the parity work, because the loop, skills, hooks, resume, and parallel gates now
-exist. The missing 7/10 is not more features; it is **depth**: one loop that can edit a real
-repo, delete and add files, run git, and do it against a live model with committed proof.
+exist, and (2026-11-09) the patch contract allows deletions and new files. The missing 6/10 is
+not more features; it is **depth**: one loop that edits a real repo checkout, runs git, and does
+it against a live model with committed proof.
+
+### Lifted the patch contract (2026-11-09)
+
+The sandbox contract no longer forbids whole classes of change:
+
+- `_collect_change_set` (`openhands_developer.py:140`) collects an edit, a **new file** the agent
+  created, and a **deletion** (as `{"path", "deleted": true}`), bounded only by the count/size caps.
+- The engine validator (`engine.py:136`) accepts a deletion marker and rejects a marker that also
+  carries content.
+- The write gateway (`github_gateway.py:204`) turns a deletion into a Git tree entry with
+  `sha: null`, which removes the path on the new branch. Branch-and-PR, independent review, QA,
+  security, and release gates are unchanged — they are the guard.
+
+Verified by the suite (`python3 -m pytest -q`: 485 passed, 2 skipped, 2026-11-09) and by
+`purpose_audit.py`, whose depth finding now reports **OK** for the contract.
 
 ## What the Watcher must do about it (the "act" part)
 
@@ -77,8 +95,11 @@ The Watcher's job is not to report this table. It is to **act on it**, in this o
 
 1. **Prove the loop once, for real.** Dispatch the company workflow on a trivial issue against
    a real repo and commit the resulting PR link as evidence. (Closes "the proof" gap.)
+   *Status 2026-11-09: an open PR (#307) makes the audit require a real conversation link and
+   commits one; not merged.*
 2. **Lift the patch contract.** Allow deletions and unplanned new files inside the sandbox,
    with the existing review gates as the guard. (Closes most of "the reach" gap.)
+   *Done 2026-11-09 — see "Lifted the patch contract" above.*
 3. **Run a second role on the loop.** Move the reviewer onto the same agentic runtime so it
    reads the diff itself. (Closes the "one of nine" gap.)
 4. **Re-measure.** Re-run this audit and `purpose_audit.py`; move the number only with evidence.

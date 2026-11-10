@@ -138,6 +138,25 @@ def test_validate_change_set_rejects_non_text_content_and_empty_patch():
     )
 
 
+def test_validate_change_set_accepts_a_deletion_marker():
+    assert validate_change_set({"files": [{"path": "src/old.py", "deleted": True}]}) == ()
+
+
+def test_validate_change_set_rejects_a_deletion_with_content():
+    errors = validate_change_set(
+        {"files": [{"path": "src/old.py", "deleted": True, "content": "x"}]}
+    )
+    assert any("marks a deletion but also supplies content" in error for error in errors)
+
+
+def test_validate_change_set_accepts_a_whole_deletion_patch():
+    # A change set that is entirely deletions is valid (e.g. removing dead code).
+    assert validate_change_set({"files": [{"path": "src/a.py", "deleted": True}]}) == ()
+    assert validate_change_set(
+        {"files": [{"path": "src/a.py", "deleted": True}, {"path": "src/b.py", "deleted": True}]}
+    ) == ()
+
+
 class InvalidFirstChangeSetRunner(FakeAgentRunner):
     """Simulate a model returning an empty patch before correcting itself."""
 

@@ -1,0 +1,13 @@
+{
+  "depth": {
+    "loop-coverage": "OK",
+    "patch-contract": "PARTIAL",
+    "repo-checkout": "PARTIAL",
+    "live-run-evidence": "OK",
+    "role-skills": "OK",
+    "skill-router": "OK",
+    "tools-scheduled": "OK"
+  },
+  "ok": 12,
+  "checked": 12
+}

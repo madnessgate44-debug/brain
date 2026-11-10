@@ -10,7 +10,6 @@ GitHub Actions path remains the authoritative test evidence; a local run is advi
 from __future__ import annotations
 
 import asyncio
-import re
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -20,11 +19,6 @@ from brain.company.agent_runner import AgentOutputError, load_role_skill
 from brain.company.hooks import build_hook_config
 
 
-_PATH_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9_.-])(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\."
-    r"(?:py|md|yml|yaml|json|toml|ts|tsx|js|jsx|html|css)(?![A-Za-z0-9_-])",
-    re.IGNORECASE,
-)
 _MAX_FILES = 30
 _MAX_FILE_BYTES = 200_000
 _MAX_TOTAL_BYTES = 2_200_000
@@ -41,21 +35,6 @@ def _safe_relative_path(raw_path: str) -> str:
     ):
         raise AgentOutputError(f"OpenHands proposed an unsafe repository path: {raw_path!r}")
     return path.as_posix()
-
-
-def _safe_request_paths(user_request: str) -> set[str]:
-    """Keep only safe explicit path hints; unsafe examples in prose are not output paths."""
-    safe_paths: set[str] = set()
-    for match in _PATH_PATTERN.finditer(user_request):
-        # The pattern can begin after the leading slash in an absolute path. Do not
-        # normalize that suffix into a seemingly safe relative output path.
-        if match.start() > 0 and user_request[match.start() - 1] in {"/", "\\\\"}:
-            continue
-        try:
-            safe_paths.add(_safe_relative_path(match.group(0)))
-        except AgentOutputError:
-            continue
-    return safe_paths
 
 
 def _uses_native_gemini(base_url: str | None) -> bool:
@@ -146,14 +125,58 @@ def _task_prompt(user_request: str, evidence: dict[str, Any]) -> str:
         f"ARCHITECTURE DECISIONS:\n{architecture}\n\n"
         f"PLANNED FILES:\n{file_plan!r}\n\n"
         f"AVAILABLE SOURCE PATHS:\n{sorted(source_contents) if isinstance(source_contents, dict) else []}\n\n"
-        "Rules: implement the acceptance criteria, preserve unrelated behavior, add or update "
-        "regression tests when appropriate, do not edit files outside the planned paths unless "
-        "a necessary existing file is present in the workspace, do not add dependencies unless "
-        "required by the architecture, and do not perform network access or external side effects. "
+        "Rules: implement the acceptance criteria and preserve unrelated behavior. You may edit "
+        "any file present in the workspace, add new files the change needs, and delete files the "
+        "change makes obsolete (remove them with the shell, e.g. `rm path`). Every change is "
+        "reviewed independently before release, so make the change you judge correct. Add or update "
+        "regression tests when appropriate, do not add dependencies unless required by the "
+        "architecture, and do not perform network access or external side effects. "
         "You may run the repository's own test, lint, and build commands locally; never run "
         "commands that reach the network. "
         "Make the actual file edits now. A verbal description without changed files is a failure."
     )
+
+
+def _collect_change_set(root: Path, original: dict[str, str]) -> list[dict[str, Any]]:
+    """Diff the workspace against the seeded files and return the change set.
+
+    Bounded by file count and size, but not by kind: an agent may edit existing files, add new
+    files the change needs, and delete files the change makes obsolete. Deletions travel as
+    ``{"path", "deleted": True}`` for the write gateway to remove.
+    """
+    changed: list[dict[str, Any]] = []
+    total_bytes = 0
+    for target in sorted(root.rglob("*")):
+        if not target.is_file() or target.is_symlink():
+            continue
+        relative = target.relative_to(root).as_posix()
+        if relative.startswith(".openhands/") or relative.startswith(".git/"):
+            continue
+        relative = _safe_relative_path(relative)
+        current = target.read_text(encoding="utf-8")
+        if relative in original and current == original[relative]:
+            continue
+        encoded_size = len(current.encode("utf-8"))
+        if encoded_size > _MAX_FILE_BYTES:
+            raise AgentOutputError(f"OpenHands output exceeds the per-file limit: {relative}")
+        total_bytes += encoded_size
+        if total_bytes > _MAX_TOTAL_BYTES:
+            raise AgentOutputError("OpenHands output exceeds the aggregate patch size limit.")
+        changed.append({"path": relative, "content": current})
+
+    present = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and not path.is_symlink()
+    }
+    for relative in sorted(set(original) - present):
+        changed.append({"path": relative, "deleted": True})
+
+    if not changed:
+        raise AgentOutputError("OpenHands completed without producing any repository file changes.")
+    if len(changed) > _MAX_FILES:
+        raise AgentOutputError(f"OpenHands changed more than {_MAX_FILES} files.")
+    return changed
 
 
 def _run_sdk_sync(
@@ -185,14 +208,6 @@ def _run_sdk_sync(
     if not original:
         raise AgentOutputError("No usable source files were supplied to OpenHands.")
 
-    planned = evidence.get("file_plan", [])
-    planned_paths = {
-        _safe_relative_path(path)
-        for path in planned
-        if isinstance(path, str) and path.strip()
-    } if isinstance(planned, list) else set()
-    request_paths = _safe_request_paths(user_request)
-    allowed_new_paths = planned_paths | request_paths
     api_key = getattr(provider, "api_key", None)
     model = getattr(provider, "model", None)
     base_url = getattr(provider, "base_url", None)
@@ -218,44 +233,7 @@ def _run_sdk_sync(
         conversation.send_message(_task_prompt(user_request, evidence))
         conversation.run()
 
-        changed: list[dict[str, str]] = []
-        total_bytes = 0
-        for target in sorted(root.rglob("*")):
-            if not target.is_file() or target.is_symlink():
-                continue
-            relative = target.relative_to(root).as_posix()
-            if relative.startswith(".openhands/") or relative.startswith(".git/"):
-                continue
-            relative = _safe_relative_path(relative)
-            current = target.read_text(encoding="utf-8")
-            if relative in original and current == original[relative]:
-                continue
-            if relative not in original and relative not in allowed_new_paths:
-                raise AgentOutputError(
-                    f"OpenHands created an unplanned file: {relative!r}; add it to the architecture file plan."
-                )
-            encoded_size = len(current.encode("utf-8"))
-            if encoded_size > _MAX_FILE_BYTES:
-                raise AgentOutputError(f"OpenHands output exceeds the per-file limit: {relative}")
-            total_bytes += encoded_size
-            if total_bytes > _MAX_TOTAL_BYTES:
-                raise AgentOutputError("OpenHands output exceeds the aggregate patch size limit.")
-            changed.append({"path": relative, "content": current})
-
-        deleted = sorted(set(original) - {
-            path.relative_to(root).as_posix()
-            for path in root.rglob("*")
-            if path.is_file() and not path.is_symlink()
-        })
-        if deleted:
-            raise AgentOutputError(
-                "OpenHands deleted existing files; Brain's current patch contract does not support deletions: "
-                + ", ".join(deleted[:10])
-            )
-        if not changed:
-            raise AgentOutputError("OpenHands completed without producing any repository file changes.")
-        if len(changed) > _MAX_FILES:
-            raise AgentOutputError(f"OpenHands changed more than {_MAX_FILES} files.")
+        changed = _collect_change_set(root, original)
 
     return {
         "status": "PASS",

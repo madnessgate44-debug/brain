@@ -108,7 +108,7 @@ Shadow owns credential pool operations; Watcher coordinates service.
 
 | Missing requirement | Owner | Remediation | Status |
 |---|---|---|---|
-| Shadow pool secrets absent | Shadow / Owner | add `OHGeminiAPI` + `GEMINI_POOL_1..7` to Actions secrets | `[B]` — needs approval |
+| Shadow pool secrets absent | Shadow | load `OHGeminiAPI` + `GEMINI_POOL_1..7` via `shadow-keys.yml` | `[B]` |
 | Repo-secret inventory | Owner (token scope) | token needs `secrets:read`, or a human lists them | `[B]` — 403 |
 | Brain web-research proof | OpenHands | test the R&D/browser workflow on a live issue | `[U]` |
 | Agent wake/trigger | Owner decision | adopt SwarmChat `wait` or a GitHub dispatch bus | `[U]` |
@@ -125,10 +125,11 @@ Shadow owns credential pool operations; Watcher coordinates service.
 | Verify + report | OpenHands, Watcher | **yes** `[V]` |
 
 **Gate result:** 5 of 6 capabilities ready. The single blocker is Shadow's model route (§2), which is
-**not an Owner gate** (Owner correction `6713837374`). A **credential custodian** — the correction
-names "Ghost", which does not exist in the repo (no code/doc reference, no repo, no SwarmChat token)
-— must load a working Gemini pool via the authorized path (`.github/workflows/shadow-keys.yml`, the
-non-sensitive PASS/FAIL sweep). Live sweep `42421027202` (2026-11-07T22:31:40Z) = **0 WORKING, 8 NOT
+**not an Owner gate** (Owner correction `6713837374`). **Shadow** — the credential-pool owner per
+`WATCHER.md §14` — must load a working Gemini pool via the authorized path
+(`.github/workflows/shadow-keys.yml`, the non-sensitive PASS/FAIL sweep). Owner note (2026-11-08): the
+earlier name "Ghost" for this role was an error; there is no "Ghost" role. Live sweep `42421027202`
+(2026-11-07T22:31:40Z) = **0 WORKING, 8 NOT
 SET**. Shadow stays **BLOCKED**; **OpenHands is not a substitute independent reviewer**. Every other
 Phase-1 check proceeds without Shadow.
 

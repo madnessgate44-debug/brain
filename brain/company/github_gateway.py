@@ -169,6 +169,11 @@ class GitHubRepositoryGateway:
             if not isinstance(item, dict) or not isinstance(item.get("path"), str):
                 raise GitHubGatewayError("Each change must contain a path and text content.")
             self._validate_path(item["path"])
+            if item.get("deleted") is True:
+                # A deletion carries no content; the tree entry removes the path.
+                if item.get("content") is not None:
+                    raise GitHubGatewayError("A deletion must not also carry file content.")
+                continue
             if not isinstance(item.get("content"), str):
                 raise GitHubGatewayError("Binary or missing file content is not supported.")
             if len(item["content"].encode("utf-8")) > 200_000:
@@ -198,6 +203,15 @@ class GitHubRepositoryGateway:
 
         tree_entries = []
         for item in files:
+            if item.get("deleted") is True:
+                # `sha: null` on an entry that exists in the base tree removes the path.
+                tree_entries.append({
+                    "path": item["path"],
+                    "mode": "100644",
+                    "type": "blob",
+                    "sha": None,
+                })
+                continue
             blob = await self._request(
                 "POST",
                 f"{base}/git/blobs",

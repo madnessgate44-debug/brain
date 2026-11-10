@@ -13,6 +13,8 @@ reports per claim:
 
     python3 purpose_audit.py [--root .] [--purpose watcher/knowledge/purpose.md]
                              [--out watcher/knowledge/audits] [--json]
+    python3 purpose_audit.py --gate            # exit 1 if fit-for-purpose regressed
+    python3 purpose_audit.py --update-baseline # lock the current state in as the floor
 """
 from __future__ import annotations
 
@@ -24,6 +26,10 @@ from pathlib import Path
 
 SCAN_DIR = "brain"
 SKIP = ("__pycache__", ".pyc")
+
+# Depth/claims statuses ordered worst-last, so a rising rank is a regression.
+RANK = {"OK": 0, "PARTIAL": 1, "MISSING": 2}
+DEFAULT_BASELINE = "watcher/knowledge/depth-baseline.json"
 
 
 def log(msg: str) -> None:
@@ -87,6 +93,21 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
     return False
 
 
+def evidence_link(path: Path) -> str:
+    """Return the conversation link recorded in an evidence file, or "" if there is none.
+
+    A DRY RUN records no conversation, so it is not proof the loop ran. Only a real URL under
+    the writer's `- link:` field counts; the placeholder it writes when it has no link does not.
+    """
+    for line in _read(path).splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- link:"):
+            value = stripped.split(":", 1)[1].strip()
+            if value.startswith(("http://", "https://")):
+                return value
+    return ""
+
+
 def depth_findings(root: Path) -> list[dict]:
     """Find depth gaps a presence check misses: does the feature cover the whole app?
 
@@ -115,6 +136,7 @@ def depth_findings(root: Path) -> list[dict]:
         status = "OK" if len(loop_roles) >= total_roles else "PARTIAL"
         rest = total_roles - len(loop_roles)
         out.append({
+            "id": "loop-coverage",
             "finding": f"Agentic loop covers {len(loop_roles)} of {total_roles} roles "
                        f"({rest} run single-shot)",
             "status": status,
@@ -127,15 +149,23 @@ def depth_findings(root: Path) -> list[dict]:
 
     max_files = (re.findall(r"_MAX_FILES = (\d+)", dev_txt) or ["?"])[0]
     max_file = (re.findall(r"_MAX_FILE_BYTES = (\d+)", dev_txt) or ["?"])[0]
+    # W3: the contract bounds size, but no longer forbids deletions or unplanned new files.
+    # A bound is present only if the developer still rejects a whole class of change.
     forbids_del = "does not support deletions" in dev_txt
     constrains_new = "unplanned file" in dev_txt
+    lifts_del = '"deleted": True' in dev_txt or "'deleted': True" in dev_txt
     if dev_txt:
         ev = [f"limits: {max_files} files, {max_file} bytes/file"]
         if forbids_del:
             ev.append("deletions forbidden (openhands_developer.py)")
+        elif lifts_del:
+            ev.append("deletions allowed and collected as {path, deleted: true} (openhands_developer.py)")
         if constrains_new:
             ev.append("unplanned new files rejected (openhands_developer.py)")
+        else:
+            ev.append("unplanned new files allowed (openhands_developer.py)")
         out.append({
+            "id": "patch-contract",
             "finding": "Patch contract bounds what the agent may change",
             "status": "PARTIAL" if (forbids_del or constrains_new) else "OK",
             "evidence": ev,
@@ -143,6 +173,7 @@ def depth_findings(root: Path) -> list[dict]:
 
     if "TemporaryDirectory" in dev_txt:
         out.append({
+            "id": "repo-checkout",
             "finding": "Developer works in a temporary workspace, not the repo checkout",
             "status": "PARTIAL",
             "evidence": ["openhands_developer.py uses TemporaryDirectory"],
@@ -150,10 +181,14 @@ def depth_findings(root: Path) -> list[dict]:
 
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
     proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
+    links = {p.name: link for p in proof if (link := evidence_link(p))}
     out.append({
+        "id": "live-run-evidence",
         "finding": "Committed evidence of a live issue -> PR run",
-        "status": "OK" if proof else "MISSING",
-        "evidence": [p.as_posix() for p in proof] or ["no live-run evidence committed"],
+        "status": "OK" if links else "MISSING",
+        "evidence": [f"{name} -> {link}" for name, link in links.items()]
+                    or ["no live-run evidence committed (a DRY RUN or an evidence file with no "
+                        "conversation link does not prove the loop ran)"],
     })
 
     # W7: a role with no skill file runs on its bare contract. A missing skill is the Watcher's
@@ -162,6 +197,7 @@ def depth_findings(root: Path) -> list[dict]:
     missing_skills = [k for k in role_keys if not (skills_dir / f"{k}.md").is_file()]
     if role_keys:
         out.append({
+            "id": "role-skills",
             "finding": f"{len(role_keys) - len(missing_skills)} of {len(role_keys)} roles have a skill file",
             "status": "OK" if not missing_skills else "PARTIAL",
             "evidence": [
@@ -171,6 +207,7 @@ def depth_findings(root: Path) -> list[dict]:
         })
     router = root.parent / "scripts" / "skills.py"
     out.append({
+        "id": "skill-router",
         "finding": "A skill router exists so work finds its skill instead of guessing",
         "status": "OK" if router.is_file() else "MISSING",
         "evidence": ["scripts/skills.py" if router.is_file() else "scripts/skills.py is absent"],
@@ -184,6 +221,7 @@ def depth_findings(root: Path) -> list[dict]:
     unscheduled = [t for t in tools if t not in wf_text]
     if tools:
         out.append({
+            "id": "tools-scheduled",
             "finding": f"{len(tools) - len(unscheduled)} of {len(tools)} Watcher tools are scheduled",
             "status": "OK" if not unscheduled else "PARTIAL",
             "evidence": [f"unscheduled: {', '.join(unscheduled) or 'none'}"],
@@ -246,16 +284,79 @@ def render(report: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def gate_findings(report: dict, baseline: dict) -> list[dict]:
+    """Findings that regressed against the locked floor.
+
+    A finding regresses when its status rank rises (OK -> PARTIAL -> MISSING). Findings
+    absent from the baseline are new and never fail; a depth finding with no stable id is
+    reported so a renamed finding cannot silently slip past the gate.
+    """
+    out: list[dict] = []
+    base = baseline.get("depth", {})
+    for d in report.get("depth", []):
+        key = d.get("id")
+        if not key:
+            out.append({"id": "?", "finding": d["finding"], "why": "no stable id"})
+            continue
+        was = base.get(key)
+        now = d["status"]
+        if was is None:
+            continue  # new finding: not a regression
+        if RANK.get(now, 9) > RANK.get(was, 9):
+            out.append({"id": key, "finding": d["finding"], "why": f"{was} -> {now}"})
+    return out
+
+
+def baseline_from(report: dict) -> dict:
+    """The floor to lock in: each finding's current status."""
+    return {
+        "depth": {d["id"]: d["status"] for d in report.get("depth", []) if d.get("id")},
+        "ok": report["ok"],
+        "checked": report["checked"],
+    }
+
+
+def render_gate(failed: list[dict], baseline: dict) -> str:
+    if not failed:
+        return (f"purpose gate: OK — no fit-for-purpose regression against "
+                f"{len(baseline.get('depth', {}))} locked finding(s).")
+    lines = [f"purpose gate: FAIL — {len(failed)} fit-for-purpose regression(s):"]
+    for f in failed:
+        lines.append(f"  - {f['id']}: {f['finding']} ({f['why']})")
+    lines.append("Fix the regression, or run --update-baseline only if the change is intended.")
+    return "\n".join(lines)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Does the code do what the app claims? (WATCHER.md §16.5)")
     ap.add_argument("--root", default=".")
     ap.add_argument("--purpose", default="watcher/knowledge/purpose.md")
     ap.add_argument("--out", default="watcher/knowledge/audits")
     ap.add_argument("--json", action="store_true", help="print the report as JSON")
+    ap.add_argument("--gate", action="store_true",
+                    help="exit 1 if a fit-for-purpose finding regressed against the baseline")
+    ap.add_argument("--update-baseline", action="store_true",
+                    help="lock the current state in as the new floor (intended changes only)")
+    ap.add_argument("--baseline", default=DEFAULT_BASELINE)
     a = ap.parse_args()
 
     root = Path(a.root)
     report = audit(root / SCAN_DIR, Path(a.purpose), root / "tests")
+
+    if a.update_baseline:
+        dest = Path(a.baseline)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(baseline_from(report), indent=2) + "\n", encoding="utf-8")
+        log(f"baseline updated -> {dest}")
+        return 0
+
+    if a.gate:
+        baseline_path = Path(a.baseline)
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8")) if baseline_path.is_file() else {}
+        failed = gate_findings(report, baseline)
+        log(render_gate(failed, baseline))
+        return 1 if failed else 0
+
     if a.json:
         log(json.dumps(report, indent=2))
         return 0

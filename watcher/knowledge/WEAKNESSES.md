@@ -25,7 +25,9 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   The Section 7 reverse-engineering "Core job" shipped a **30-byte placeholder README**.
 - **Belongs to:** all three. The session agent wrote most of the `.md`-only commits.
 - **Closure:** every report carries a code, test, or workflow change, or says plainly why not.
-- **Check:** the report-only ratio (`scripts/agent_status.py`), which must fall.
+- **Check:** the report-only ratio (`scripts/agent_status.py`), which must fall. **Enforced daily
+  by Shadow** since 2026-11-07: `shadow-report.yml` runs `shadow/report.py --gate` on the 09:00
+  cron, which fails the run when the ratio rises above its ratchet.
 
 ## W2 — We answer from memory, not from the code
 - **Evidence:** "how close are we to Claude Code" was answered **without reading the code**
@@ -42,11 +44,27 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   committed. Shadow's gaps G1-G7 are the same shape.
 - **Belongs to:** all three.
 - **Closure:** audits answer "does it cover the whole app, and is it proven to run?".
-- **Check:** the depth section of `purpose_audit.py`.
+- **Check:** the depth section of `purpose_audit.py`. **Enforced daily by Shadow** since
+  2026-11-07: `shadow-report.yml` runs `purpose_audit.py --gate` against the locked baseline in
+  `watcher/knowledge/depth-baseline.json`; a finding that regresses turns the run red.
 - **Progress (2026-11-03): the loop now covers all 9 roles.** `brain/company/openhands_role.py`
   gives every non-developer specialist the same OpenHands SDK loop the developer has; the audit
-  reports "9 of 9 roles (0 run single-shot)". Still open under W3: the patch contract (deletions,
-  unplanned files), the temp-dir vs repo checkout, and the live-run proof.
+  reports "9 of 9 roles (0 run single-shot)".
+- **Progress (2026-11-09): the patch contract is lifted.** The developer collects edits, new files,
+  and deletions (`openhands_developer.py` `_collect_change_set`), the engine validator accepts
+  deletion markers, and the write gateway commits a deletion as a `sha: null` tree entry. The
+  audit's patch-contract depth finding now reports OK. Still open under W3: the temp-dir vs repo
+  checkout.
+- **Progress (2026-11-08): the live-run proof is real, and the check now refuses a false pass.**
+  The scheduled run of 2026-11-08 05:00 UTC *did* start a conversation
+  (`e166ab9ce3864fa89ded6f01dd480097`), then crashed inside `wait_for_ready` —
+  `scripts/start_session_loop.py` called `.get("items")` on the JSON *list* that
+  `GET /api/v1/app-conversations/start-tasks?ids=` returns — and the crash was masked by
+  `| tee` in the workflow, so no evidence file was written. The depth check had passed on a
+  **DRY RUN** file with no link: a false pass. `purpose_audit.py` now requires a real
+  conversation link (`evidence_link`), `start_session_loop.py` accepts the list response and
+  writes evidence even when the poll fails, and the workflow sets `pipefail` so a crashed run
+  is red. Evidence: `watcher/knowledge/evidence/session-loop-20261108-114844.md`.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
@@ -60,6 +78,10 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   (`shadow-audit.yml`), and the session agent (`session-agent-loop.yml`) all have a cron loop.
   `scripts/agent_status.py` reports `[x]` for all three and exits 0. Re-opens if any loses its
   schedule.
+- **Correction (2026-11-07 audit):** "scheduled" was read as "runs". `session-agent-loop.yml` and
+  `shadow-report.yml` only reached `main` on 2026-11-07 (merge of #272); as of the audit both had
+  **0 runs ever** — their first cron had not been due. `agent_status.py` proves a loop is
+  *registered*, not that it *ran*. Watch the run history, not just the file.
 
 ## W5 — We self-diagnose accurately, then do not close
 - **Evidence:** Shadow's `RESPONSIBILITIES_AND_GAPS.md` names G1-G7 precisely; they are still
@@ -105,3 +127,8 @@ the thing that is checked.
 - This ledger makes W1-W6 checkable instead of forgotten.
 - `scripts/skill_check.py` makes W7 checkable: it fails when the OS stops requiring a skill check,
   or when a role loses its skill file. Run it before starting work.
+- **The daily gate (2026-11-07).** `shadow-report.yml` runs `shadow/report.py --gate` every
+  morning: the purpose-depth gate (W2/W3) and the report-only ratchet (W1) in one job. A regression
+  turns the run red, so the check bites instead of printing. The gate reports into Ahmed's 09:00
+  report too. Floor: `watcher/knowledge/depth-baseline.json`; move it only with
+  `purpose_audit.py --update-baseline` and only for an intended change.
