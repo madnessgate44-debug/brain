@@ -44,8 +44,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # One bounded pass: reads the newest counterpart comment on hub #240 and, if
-          # it is new, posts the canonical ticket envelope. Writes state only on success.
+          # One bounded pass: reads the newest counterpart comment on the canonical
+          # hub #292 (watcher/bridge/loop.py) and, if it is new, posts the canonical
+          # ticket envelope. Writes state only on success.
           # Fail loudly: a broken loop must turn the job red, not warn.
           python3 watcher/bridge/loop.py --once
 

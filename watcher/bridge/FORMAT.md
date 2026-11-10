@@ -1,6 +1,7 @@
 # Standing comment format (owner instruction, 2026-11-01)
 
-Every comment Watcher posts on hub #240 must carry, in order:
+Every comment Watcher posts on hub #292 (the canonical hub since 2026-11-07; the Day-1
+`#240` issue is a legacy channel kept as history) must carry, in order:
 
 0. **The agreement** — restated each loop: Watcher = the doctor (leads, owns conclusions); ChatGPT = the
    patient + second investigator (history/context, challenges, not the architect); Ahmed = human approver

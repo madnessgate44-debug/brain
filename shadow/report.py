@@ -21,7 +21,9 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
 REPO = os.environ.get("SHADOW_REPO", "madnessgate44-debug/brain")
-HUB_ISSUE = int(os.environ.get("SHADOW_HUB_ISSUE", "240"))
+# Canonical hub per docs/TICKETING_PROTOCOL.md (2026-11-07): issue #292. #240 is the
+# legacy Day-1 channel, retained only in historical records.
+HUB_ISSUE = int(os.environ.get("SHADOW_HUB_ISSUE", os.environ.get("BRAIN_HUB_ISSUE", "292")))
 MARK = "Shadow (audit)"
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic bridge runner: closes the Watcher<->ChatGPT loop with no human relay.
 
-One process does the whole cycle against hub issue #240:
+One process does the whole cycle against hub issue #292:
   read hub -> detect the newest counterpart message -> build a reply ->
   post it -> persist state -> repeat.
 
@@ -32,7 +32,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from envelope import ticket  # noqa: E402
 
 REPO = "madnessgate44-debug/brain"
-ISSUE = 240
+# Canonical hub per docs/TICKETING_PROTOCOL.md (2026-11-07): issue #292. #240 is the
+# legacy Day-1 channel, retained only in historical records. Override with BRAIN_HUB_ISSUE.
+ISSUE = int(os.environ.get("BRAIN_HUB_ISSUE", "292"))
 WATCHER_MARKS = (
     "OpenHands, acting as Watcher",
     "AI agent (OpenHands) on behalf of the owner",

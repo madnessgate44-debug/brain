@@ -228,6 +228,7 @@ def _prepare_prompt_evidence(
                 {
                     "path": item.get("path"),
                     "content_chars": len(item.get("content", "")) if isinstance(item, dict) and isinstance(item.get("content"), str) else None,
+                    "deleted": item.get("deleted") is True,
                 }
                 for item in files
                 if isinstance(files, list) and isinstance(item, dict)
@@ -314,8 +315,9 @@ class SpecialistAgentRunner:
             role_contract = (
                 "\nImplementation contract: deliverables.change_set must be an object with "
                 "a short 'summary' string and a 'files' array. Each array item must contain "
-                "a safe repository-relative 'path' and complete UTF-8 text 'content'. "
-                "Return 1–30 files, each at most 200 KB. Do not claim to have applied changes; "
+                "a safe repository-relative 'path' and complete UTF-8 text 'content', or "
+                "'deleted': true (with no 'content') to remove a file the change makes obsolete. "
+                "Return 1–30 entries, each file at most 200 KB. Do not claim to have applied changes; "
                 "the repository tool will commit them on an isolated branch. Only replace an existing "
                 "file when its complete original contents are present in repository_snapshot.source_contents. "
                 "If a requested existing file is omitted from that context, return BLOCKED and request its "

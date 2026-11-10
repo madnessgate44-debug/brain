@@ -112,3 +112,92 @@ def test_main_export_is_deterministic(tmp_path, monkeypatch):
     assert md1 == md2
     assert man1 == man2
     assert json.loads(man1)["conversations"][0]["log_sha256"] == json.loads(man2)["conversations"][0]["log_sha256"]
+
+
+def test_check_leaks_flags_each_secret_shape():
+    for sample, kind in [
+        ("gAAAAA" + "A" * 30, "fernet"),
+        ("sk-" + "a" * 30, "openai-sk"),
+        ("ghp_" + "b" * 30, "github-token"),
+        ("AIza" + "c" * 35, "google-key"),
+        ("AQ." + "d" * 45, "google-oauth"),
+        ("-----BEGIN RSA PRIVATE KEY-----\n" + "M" * 40 + "\n-----END RSA PRIVATE KEY-----", "private-key"),
+    ]:
+        hits = ex.check_leaks(sample)
+        assert hits and hits[0][0] == kind, (sample, hits)
+
+
+def test_check_leaks_ignores_a_lone_pem_header_in_prose():
+    # A doc line that names the pattern without a real key body is not a secret.
+    assert ex.check_leaks("literal `-----BEGIN PRIVATE KEY-----` in prose") == []
+
+
+def test_check_leaks_clean_on_ordinary_text():
+    assert ex.check_leaks("see docs/WORKFLOW.md and brain#292 comment 6712989336") == []
+    # The doc line that merely names the pattern must not trip the scanner.
+    assert ex.check_leaks("starts with `gAAAAA`") == []
+
+
+def test_main_fails_closed_when_a_secret_survives(tmp_path, monkeypatch):
+    """If a secret-shaped value reaches the rendered output, the run aborts with exit 2.
+
+    redact() is neutralised so the secret survives on purpose; the leak scan must catch it.
+    """
+    convo = {"id": "leaky", "title": "Watcher", "created_at": "2026-11-01T03:22:19Z",
+             "sandbox_status": "PAUSED"}
+    events = [_user_event("token ghp_" + "e" * 30)]
+    monkeypatch.setattr(ex, "KEY", "test-key")
+    monkeypatch.setattr(ex, "list_conversations", lambda: [convo])
+    monkeypatch.setattr(ex, "pull_events", lambda cid: (events, 1))
+    monkeypatch.setattr(ex, "redact", lambda t: t)  # sabotage: let the secret through
+    monkeypatch.setattr("sys.argv", ["export_conversations.py", "--date", "2026-11-01",
+                                     "--out", str(tmp_path / "o"), "--raw-dir", str(tmp_path / "r")])
+    assert ex.main() == 2
+
+
+def test_main_exit_zero_is_leak_clean(tmp_path, monkeypatch):
+    convo = {"id": "ok", "title": "Watcher", "created_at": "2026-11-01T03:22:19Z",
+             "sandbox_status": "PAUSED"}
+    events = [_user_event("carry on"), _user_event("token ghp_" + "f" * 30)]
+    monkeypatch.setattr(ex, "KEY", "test-key")
+    monkeypatch.setattr(ex, "list_conversations", lambda: [convo])
+    monkeypatch.setattr(ex, "pull_events", lambda cid: (events, 1))
+    monkeypatch.setattr("sys.argv", ["export_conversations.py", "--date", "2026-11-01",
+                                     "--out", str(tmp_path / "o"), "--raw-dir", str(tmp_path / "r")])
+    assert ex.main() == 0
+    text = (tmp_path / "o" / "2026-11-01.md").read_text()
+    assert "ghp_" not in text and "[REDACTED-GITHUB]" in text
+
+
+def test_scan_mode_reports_and_exits_nonzero(tmp_path, monkeypatch, capsys):
+    bad = tmp_path / "leak.md"
+    bad.write_text("oops sk-" + "z" * 30)
+    monkeypatch.setattr("sys.argv", ["export_conversations.py", "--scan", str(bad)])
+    assert ex.main() == 2
+    assert "FAIL" in capsys.readouterr().out
+
+
+def test_scan_mode_clean_exits_zero(tmp_path, monkeypatch, capsys):
+    ok = tmp_path / "clean.md"
+    ok.write_text("nothing secret here")
+    monkeypatch.setattr("sys.argv", ["export_conversations.py", "--scan", str(ok)])
+    assert ex.main() == 0
+
+
+def test_verify_canary_passes(capsys):
+    assert ex.verify_canary() == 0
+    assert "canary ok" in capsys.readouterr().out
+
+
+def test_verify_canary_fails_when_redaction_is_sabotaged(monkeypatch):
+    monkeypatch.setattr(ex, "redact", lambda t: t)
+    assert ex.verify_canary() == 2
+
+
+def test_cursor_roundtrip(tmp_path):
+    p = str(tmp_path / "cursor.json")
+    assert ex.read_cursor(p) == {}
+    ex.write_cursor(p, "2026-11-07", [{"id": "a", "log_sha256": "h1"}])
+    cur = ex.read_cursor(p)
+    assert cur["last_date"] == "2026-11-07" and cur["conversations"] == {"a": "h1"}
+    assert cur["last_run_utc"].endswith("Z")

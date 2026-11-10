@@ -1,0 +1,46 @@
+name: Archive leak scan
+
+# Fail-closed gate: the conversation archive (docs/sessions) must never carry a secret shape.
+# Runs on any change to the archive or the exporter; the exporter returns exit 2 on a hit.
+# Read-only, no secrets, no writes.
+
+on:
+  push:
+    paths:
+      - "docs/sessions/**"
+      - "scripts/export_conversations.py"
+      - "tests/test_export_conversations.py"
+      - ".github/workflows/archive-leak-scan.yml"
+  pull_request:
+    paths:
+      - "docs/sessions/**"
+      - "scripts/export_conversations.py"
+      - "tests/test_export_conversations.py"
+      - ".github/workflows/archive-leak-scan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Scan the archive for residual secret shapes
+        run: python3 scripts/export_conversations.py --scan docs/sessions
+
+      - name: Prove the redaction gate with a synthetic canary
+        run: python3 scripts/export_conversations.py --verify-canary
+
+      - name: Install pytest
+        run: python3 -m pip install --quiet pytest
+
+      - name: Prove the redaction gate fails closed
+        run: python3 -m pytest tests/test_export_conversations.py -q --noconftest

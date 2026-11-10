@@ -80,7 +80,7 @@ def test_review_and_quality_roles_do_not_receive_duplicate_full_change_set_conte
     qa = _prepare_prompt_evidence("qa_engineer", "Verify the change.", evidence)
 
     assert reviewer["change_set"]["files"] == [
-        {"path": "docs/report.md", "content_chars": 100000}
+        {"path": "docs/report.md", "content_chars": 100000, "deleted": False}
     ]
     assert len(reviewer["actual_diff"]) < 61000
     assert reviewer["actual_diff_truncated"] is True

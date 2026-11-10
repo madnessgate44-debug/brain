@@ -1,12 +1,12 @@
-"""Regression tests for the OpenHands developer adapter's path boundary."""
+"""Regression tests for the OpenHands developer adapter's patch contract."""
 
 import pytest
 
 from brain.company.agent_runner import AgentOutputError
 from brain.company.openhands_developer import (
+    _collect_change_set,
     _developer_tools,
     _safe_relative_path,
-    _safe_request_paths,
     _sdk_llm_kwargs,
     _sdk_model_name,
     _task_prompt,
@@ -20,6 +20,12 @@ def test_developer_task_prompt_includes_the_role_skill():
     assert "Implementation Engineer" in prompt
 
 
+def test_developer_task_prompt_allows_new_files_and_deletions():
+    prompt = _task_prompt("Do the work", {"repository_snapshot": {"source_contents": {}}})
+    assert "add new files" in prompt
+    assert "delete files" in prompt
+
+
 @pytest.mark.parametrize("path", ["../outside.py", "/tmp/outside.py", "src/../../outside.py", "brain\\unsafe.py"])
 def test_openhands_adapter_rejects_unsafe_output_paths(path):
     with pytest.raises(AgentOutputError, match="unsafe repository path"):
@@ -30,14 +36,63 @@ def test_safe_relative_path_accepts_github_workflows_ci_yml():
     assert _safe_relative_path(".github/workflows/ci.yml") == ".github/workflows/ci.yml"
 
 
-def test_unsafe_path_examples_in_task_text_are_not_output_path_hints():
-    assert _safe_request_paths(
-        "Add a regression test for rejecting ../outside.py and /tmp/outside.py."
-    ) == set()
+def _seed(root, files):
+    for rel, text in files.items():
+        target = root / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
 
 
-def test_safe_explicit_path_in_task_text_is_preserved():
-    assert _safe_request_paths("Update tests/test_feature.py") == {"tests/test_feature.py"}
+def test_collect_change_set_reports_edits(tmp_path):
+    original = {"pkg/mod.py": "old\n"}
+    _seed(tmp_path, original)
+    (tmp_path / "pkg" / "mod.py").write_text("new\n", encoding="utf-8")
+    changed = _collect_change_set(tmp_path, original)
+    assert changed == [{"path": "pkg/mod.py", "content": "new\n"}]
+
+
+def test_collect_change_set_accepts_an_unplanned_new_file(tmp_path):
+    original = {"pkg/mod.py": "same\n"}
+    _seed(tmp_path, original)
+    _seed(tmp_path, {"pkg/brand_new.py": "print('hi')\n"})
+    changed = _collect_change_set(tmp_path, original)
+    assert {"path": "pkg/brand_new.py", "content": "print('hi')\n"} in changed
+
+
+def test_collect_change_set_reports_a_deletion_as_a_marker(tmp_path):
+    original = {"pkg/old.py": "dead\n", "pkg/keep.py": "same\n"}
+    _seed(tmp_path, original)
+    (tmp_path / "pkg" / "old.py").unlink()
+    changed = _collect_change_set(tmp_path, original)
+    assert changed == [{"path": "pkg/old.py", "deleted": True}]
+
+
+def test_collect_change_set_carries_edits_additions_and_deletions_together(tmp_path):
+    original = {"pkg/keep.py": "same\n", "pkg/dead.py": "gone\n"}
+    _seed(tmp_path, original)
+    (tmp_path / "pkg" / "keep.py").write_text("changed\n", encoding="utf-8")
+    (tmp_path / "pkg" / "dead.py").unlink()
+    _seed(tmp_path, {"pkg/added.py": "fresh\n"})
+    by_path = {item["path"]: item for item in _collect_change_set(tmp_path, original)}
+    assert by_path["pkg/keep.py"] == {"path": "pkg/keep.py", "content": "changed\n"}
+    assert by_path["pkg/dead.py"] == {"path": "pkg/dead.py", "deleted": True}
+    assert by_path["pkg/added.py"] == {"path": "pkg/added.py", "content": "fresh\n"}
+
+
+def test_collect_change_set_raises_when_nothing_changed(tmp_path):
+    original = {"pkg/mod.py": "same\n"}
+    _seed(tmp_path, original)
+    with pytest.raises(AgentOutputError, match="without producing any repository file changes"):
+        _collect_change_set(tmp_path, original)
+
+
+def test_collect_change_set_ignores_agent_state_directories(tmp_path):
+    original = {"pkg/mod.py": "old\n"}
+    _seed(tmp_path, original)
+    (tmp_path / "pkg" / "mod.py").write_text("new\n", encoding="utf-8")
+    _seed(tmp_path, {".openhands/state.json": "{}\n", ".git/HEAD": "ref\n"})
+    changed = _collect_change_set(tmp_path, original)
+    assert [item["path"] for item in changed] == ["pkg/mod.py"]
 
 
 def test_developer_tools_grant_file_editor_and_local_shell():

@@ -93,6 +93,21 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
     return False
 
 
+def evidence_link(path: Path) -> str:
+    """Return the conversation link recorded in an evidence file, or "" if there is none.
+
+    A DRY RUN records no conversation, so it is not proof the loop ran. Only a real URL under
+    the writer's `- link:` field counts; the placeholder it writes when it has no link does not.
+    """
+    for line in _read(path).splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- link:"):
+            value = stripped.split(":", 1)[1].strip()
+            if value.startswith(("http://", "https://")):
+                return value
+    return ""
+
+
 def depth_findings(root: Path) -> list[dict]:
     """Find depth gaps a presence check misses: does the feature cover the whole app?
 
@@ -134,14 +149,21 @@ def depth_findings(root: Path) -> list[dict]:
 
     max_files = (re.findall(r"_MAX_FILES = (\d+)", dev_txt) or ["?"])[0]
     max_file = (re.findall(r"_MAX_FILE_BYTES = (\d+)", dev_txt) or ["?"])[0]
+    # W3: the contract bounds size, but no longer forbids deletions or unplanned new files.
+    # A bound is present only if the developer still rejects a whole class of change.
     forbids_del = "does not support deletions" in dev_txt
     constrains_new = "unplanned file" in dev_txt
+    lifts_del = '"deleted": True' in dev_txt or "'deleted': True" in dev_txt
     if dev_txt:
         ev = [f"limits: {max_files} files, {max_file} bytes/file"]
         if forbids_del:
             ev.append("deletions forbidden (openhands_developer.py)")
+        elif lifts_del:
+            ev.append("deletions allowed and collected as {path, deleted: true} (openhands_developer.py)")
         if constrains_new:
             ev.append("unplanned new files rejected (openhands_developer.py)")
+        else:
+            ev.append("unplanned new files allowed (openhands_developer.py)")
         out.append({
             "id": "patch-contract",
             "finding": "Patch contract bounds what the agent may change",
@@ -159,11 +181,14 @@ def depth_findings(root: Path) -> list[dict]:
 
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
     proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
+    links = {p.name: link for p in proof if (link := evidence_link(p))}
     out.append({
         "id": "live-run-evidence",
         "finding": "Committed evidence of a live issue -> PR run",
-        "status": "OK" if proof else "MISSING",
-        "evidence": [p.as_posix() for p in proof] or ["no live-run evidence committed"],
+        "status": "OK" if links else "MISSING",
+        "evidence": [f"{name} -> {link}" for name, link in links.items()]
+                    or ["no live-run evidence committed (a DRY RUN or an evidence file with no "
+                        "conversation link does not prove the loop ran)"],
     })
 
     # W7: a role with no skill file runs on its bare contract. A missing skill is the Watcher's

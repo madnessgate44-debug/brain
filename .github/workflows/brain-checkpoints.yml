@@ -1,0 +1,51 @@
+name: Brain checkpoints
+
+# Two complementary daily repository checkpoints owned by OpenHands, complementing
+# ChatGPT's 09:00 / 14:00 / 20:00 Africa/Cairo checkpoints.
+#
+# Cairo is UTC+2 (no DST in November):
+#   06:00 Cairo = 04:00 UTC  -> CONFLICT with watcher-daily.yml (cron 0 4 * * *),
+#   so the nearest supported time is used: 04:30 UTC (06:30 Cairo).
+#   17:00 Cairo = 15:00 UTC  -> no conflict, used as requested.
+#
+# Deterministic and free: no model, no spend. It reads #292 + PRs + runs and posts
+# an evidence-based checkpoint (or a "no material change" note) via scripts/checkpoint.py.
+
+on:
+  schedule:
+    - cron: "30 4 * * *"
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    inputs:
+      label:
+        description: "Checkpoint label (e.g. 06:30 or 17:00)"
+        required: false
+        default: "manual"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  actions: read
+
+jobs:
+  checkpoint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Post checkpoint to #292
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ github.event.inputs.label }}" ] && [ "${{ github.event.inputs.label }}" != "manual" ]; then
+            label="${{ github.event.inputs.label }}"
+          elif [ "$(date -u +%H)" -lt 12 ]; then
+            label="06:30"
+          else
+            label="17:00"
+          fi
+          echo "checkpoint label: $label"
+          python3 scripts/checkpoint.py --label "$label"
