@@ -73,7 +73,9 @@ Active scope is exactly these five. Do not reactivate the wider fleet.
 ## 7. Last successful sync / health
 
 - Hub cursor: #292 `6713102895` `[V]`.
-- MCP connector health: `POST /mcp` without a key → **401** (up, auth enforced) `[V]`.
+- MCP connector health: `POST /mcp` without a key → **401** (up, auth enforced) `[V]`. **PARKED**: the
+  ChatGPT↔Brain MCP integration is not applicable for now (Owner direction 2026-11-08); GitHub #292 is
+  the durable channel.
 - Archive last success: `Watcher session log` 2026-11-07T06:23:25Z `[V]`.
 
 ## 6. Daily checkpoint cadence (who checks what)

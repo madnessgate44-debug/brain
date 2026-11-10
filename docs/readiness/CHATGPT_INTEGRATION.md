@@ -1,5 +1,11 @@
 # CHATGPT_INTEGRATION — making ChatGPT a first-class participant (Phase 1)
 
+> **PARKED (Owner direction, 2026-11-08).** The Brain↔ChatGPT **MCP connector** workstream is parked.
+> It is **not applicable for now** and must not be treated as a blocker or a standing Owner action.
+> GitHub issue #292 remains the durable coordination channel. Do not re-raise "mount the connector"
+> as a task. Resume only if the Owner explicitly un-parks it. The rest of this document is kept as the
+> prior analysis; read it as history, not as an active workstream.
+
 Owner requirement (this session): "all agents should be working on automation … brain has to be the
 brain, he has to learn patterns, find problems, and resolve it, search online to resolve it — that's
 phase one." ChatGPT ticket `6713088768` makes "ChatGPT as a first-class participant" an explicit
