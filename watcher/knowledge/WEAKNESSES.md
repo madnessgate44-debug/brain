@@ -46,7 +46,17 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
 - **Progress (2026-11-03): the loop now covers all 9 roles.** `brain/company/openhands_role.py`
   gives every non-developer specialist the same OpenHands SDK loop the developer has; the audit
   reports "9 of 9 roles (0 run single-shot)". Still open under W3: the patch contract (deletions,
-  unplanned files), the temp-dir vs repo checkout, and the live-run proof.
+  unplanned files), and the temp-dir vs repo checkout.
+- **Progress (2026-11-08): the live-run proof is real, and the check now refuses a false pass.**
+  The scheduled run of 2026-11-08 05:00 UTC *did* start a conversation
+  (`e166ab9ce3864fa89ded6f01dd480097`), then crashed inside `wait_for_ready` —
+  `scripts/start_session_loop.py` called `.get("items")` on the JSON *list* that
+  `GET /api/v1/app-conversations/start-tasks?ids=` returns — and the crash was masked by
+  `| tee` in the workflow, so no evidence file was written. The depth check had passed on a
+  **DRY RUN** file with no link: a false pass. `purpose_audit.py` now requires a real
+  conversation link (`evidence_link`), `start_session_loop.py` accepts the list response and
+  writes evidence even when the poll fails, and the workflow sets `pipefail` so a crashed run
+  is red. Evidence: `watcher/knowledge/evidence/session-loop-20261108-114844.md`.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps

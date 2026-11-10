@@ -43,6 +43,9 @@ jobs:
         env:
           OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
         run: |
+          # pipefail: without it, `python3 ... | tee` returns tee's status and a crashed run
+          # looks green — exactly how the 2026-11-08 run hid its own failure.
+          set -o pipefail
           if [ -z "$OPENHANDS_API_KEY" ]; then
             echo "OPENHANDS_API_KEY is not set; recording a dry run." | tee -a /tmp/loop.log
             python3 scripts/start_session_loop.py --dry-run 2>&1 | tee -a /tmp/loop.log
