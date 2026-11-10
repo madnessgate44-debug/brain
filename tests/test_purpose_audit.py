@@ -173,6 +173,52 @@ def test_depth_flags_missing_skill_router(pa, tmp_path):
     assert f["status"] == "MISSING"
 
 
+# --- gate: the fit-for-purpose floor (fix #1 of the 2026-11-07 audit) ----------------
+
+def test_every_depth_finding_has_a_stable_id(pa, tmp_path):
+    _company_tree(tmp_path)
+    ids = [d.get("id") for d in pa.depth_findings(tmp_path / "brain")]
+    assert all(ids), "every depth finding needs an id, or the gate cannot track it"
+    assert len(ids) == len(set(ids)), "depth finding ids must be unique"
+
+
+def test_gate_passes_when_nothing_regressed(pa, tmp_path):
+    _company_tree(tmp_path)
+    report = pa.audit(tmp_path / "brain", _purpose(tmp_path), tmp_path / "tests")
+    baseline = pa.baseline_from(report)
+    assert pa.gate_findings(report, baseline) == []
+
+
+def test_gate_fails_on_a_regression(pa, tmp_path):
+    _company_tree(tmp_path)
+    report = pa.audit(tmp_path / "brain", _purpose(tmp_path), tmp_path / "tests")
+    baseline = pa.baseline_from(report)
+    baseline["depth"]["patch-contract"] = "OK"  # pretend it used to be OK
+    failed = pa.gate_findings(report, baseline)
+    assert [f["id"] for f in failed] == ["patch-contract"]
+    assert "OK -> PARTIAL" in failed[0]["why"]
+
+
+def test_gate_treats_new_findings_as_non_regressions(pa, tmp_path):
+    _company_tree(tmp_path)
+    report = pa.audit(tmp_path / "brain", _purpose(tmp_path), tmp_path / "tests")
+    assert pa.gate_findings(report, {"depth": {}}) == []
+
+
+def test_gate_reports_a_finding_with_no_id(pa):
+    report = {"depth": [{"finding": "mystery", "status": "OK"}]}
+    failed = pa.gate_findings(report, {"depth": {}})
+    assert failed and failed[0]["why"] == "no stable id"
+
+
+def test_render_gate_says_ok_when_clean(pa):
+    assert pa.render_gate([], {"depth": {"a": "OK"}}).startswith("purpose gate: OK")
+
+
+def test_render_gate_names_each_regression(pa):
+    text = pa.render_gate([{"id": "x", "finding": "X broke", "why": "OK -> MISSING"}], {"depth": {}})
+    assert "FAIL" in text and "x: X broke (OK -> MISSING)" in text
+
 def _evidence(tmp_path: Path, name: str, body: str) -> None:
     d = tmp_path / "watcher" / "knowledge" / "evidence"
     d.mkdir(parents=True, exist_ok=True)
