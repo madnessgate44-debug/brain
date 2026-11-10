@@ -11,7 +11,7 @@ One register: every blocker, dependency-ordered, with an owner and a safe verifi
 | C2 | Merge authority | `docs/LOOP.md:6` (Shadow+Watcher merge) vs the directive (Shadow = reviewer; OpenHands = execution lead) | keep Shadow's merge right **or** move it; one line in `LOOP.md` | Owner | `[V]` |
 | C3 | Execution posture | `ENGINEERING_EXECUTION_OS.md:118` (read-only default) vs bounded repairs | add a bounded PR-only grant paragraph, scoped to the 5 products | Owner | `[V]` |
 | C4 | Key ownership | `WATCHER.md §14` (Shadow writes keys) vs PR #293 Shadow BLOCKED | add the pool, or accept Shadow-blocked for the Amina exercise | Owner | `[V]` |
-| C5 | Hub identity | `watcher/bridge/hub.py:17` (#240) vs the live channel (#292) | point the hub helper at #292 | OpenHands (with approval) | `[V]` |
+| C5 | Hub identity | `watcher/bridge/hub.py` (#240) vs the live channel (#292) | **RESOLVED** — hub helper, bridge loop, channel core, and Shadow report now default to #292 (`BRAIN_HUB_ISSUE`/`SHADOW_HUB_ISSUE` override); historical `#240` records untouched | OpenHands | `[V]` |
 
 ## B. Capability blockers
 
@@ -49,7 +49,7 @@ One register: every blocker, dependency-ordered, with an owner and a safe verifi
 2. Keep Shadow's merge right (`LOOP.md`) or move it to OpenHands — which?
 3. Approve a bounded PR-only execution grant scoped to the 5 products — yes / no?
 4. Merge the two docs/infra PRs #293 and #294 (non-behavioural) — yes / no?
-5. Point the ticket hub helper at #292 (`C5`) — yes / no?
+5. ~~Point the ticket hub helper at #292 (`C5`) — yes / no?~~ **DONE** — reconciled to #292 (see C5).
 
 ## F. ChatGPT-integration blockers (workstream `6713088768`)
 
