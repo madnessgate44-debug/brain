@@ -76,13 +76,24 @@ jobs:
           } > /tmp/comment.md
           gh pr comment "$PR_NUMBER" --body-file /tmp/comment.md
 
-      - name: Gate the merge on an explicit rejection
-        if: steps.shadow.outputs.verdict == 'REJECTED'
+      - name: Gate the merge — only a VERIFIED verdict passes (docs/LOOP.md)
+        if: always()
+        env:
+          VERDICT: ${{ steps.shadow.outputs.verdict }}
         run: |
-          echo "Shadow REJECTED this pull request; the merge gate fails."
-          exit 1
-
-      - name: Warn when no verdict was produced
-        if: steps.shadow.outputs.verdict == ''
-        run: |
-          echo "::warning::Shadow produced no verdict (all model routes failed). The gate is inconclusive; a human or Shadow must still approve the merge."
+          # docs/LOOP.md grants a merge only when the Shadow audit returns Verified. Anything
+          # else must fail this gate. A green check on a BLOCKED audit is a lie: it reads as
+          # "audited" while nothing was audited. Fail closed, loudly.
+          case "$VERDICT" in
+            VERIFIED)
+              echo "Shadow verdict: VERIFIED — the merge gate passes."
+              ;;
+            "")
+              echo "::error::Shadow produced no verdict (no model route configured). Treat as BLOCKED; the merge gate fails. See docs/LOOP.md and BLOCKER_REGISTER B1."
+              exit 1
+              ;;
+            *)
+              echo "::error::Shadow verdict: ${VERDICT} — docs/LOOP.md grants a merge only on VERIFIED. The merge gate fails."
+              exit 1
+              ;;
+          esac
