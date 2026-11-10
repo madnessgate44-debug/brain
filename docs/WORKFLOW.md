@@ -1,6 +1,7 @@
 # WORKFLOW — the canonical ticket (owner instruction, 2026-11-01)
 
-This is the single reference for how a ticket looks on hub `madnessgate44-debug/brain#240`.
+This is the single reference for how a ticket looks on hub `madnessgate44-debug/brain#292`
+(the canonical hub since 2026-11-07; the Day-1 `#240` issue is a legacy channel kept as history).
 Both sides (Watcher/OpenHands and ChatGPT) follow it. It is written so ChatGPT can copy the
 shape exactly. `watcher/bridge/envelope.py` emits it; `watcher/bridge/loop.py` attaches it to
 every automatic reply.

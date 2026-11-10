@@ -117,3 +117,22 @@ async def test_mutating_plan_is_returned_for_review_without_starting_browser(mon
     assert result["status"] == "requires_owner_approval"
     report = (tmp_path / "browser-execution-report.json").read_text(encoding="utf-8")
     assert '"completed_actions": 0' in report
+
+
+def test_browser_runner_command_does_not_trigger_research():
+    """`/brain browser` (the deterministic runner) must not fire the research route.
+
+    Regression: `/brain browse` is a prefix of `/brain browser`, so a browser
+    issue previously ran both workflows; the research job then failed with
+    "Unsupported research fields were supplied." (issue #301, run 42472719225).
+    """
+    fence = chr(96) * 3
+    body = (
+        "/brain browser\n"
+        + fence + "json\n"
+        + '{"title":"t","objective":"o","allowed_domains":["example.com"],'
+        + '"actions":[{"op":"navigate","url":"https://example.com/"}],"owner_approved":true}\n'
+        + fence
+    )
+    with pytest.raises(ValueError, match="must include /brain browse"):
+        parse_research_payload(event_for(body), "madnessgate44-debug")

@@ -68,6 +68,8 @@ the product architect.
 C2 — `docs/LOOP.md:6` grants Shadow the merge right; the directive makes Shadow the reviewer.
 C3 — `ENGINEERING_EXECUTION_OS.md:118` is read-only by default; the directive wants bounded repairs.
 C4 — `WATCHER.md §14` has Shadow write keys; PR #293's Shadow run is BLOCKED for absent secrets.
-C5 — the ticket tool `watcher/bridge/hub.py:17` points at issue **#240**; the live channel is **#292**.
+C5 — **RESOLVED**: the ticket tool `watcher/bridge/hub.py` now points at issue **#292** (the live
+channel), as do `watcher/bridge/loop.py`, `scripts/watcher_channel.py`, and `shadow/report.py`;
+historical `#240` records are retained. See `docs/readiness/BLOCKER_REGISTER.md` C5.
 
 _Phase 1 deliverable 2 of 4. Read-only._

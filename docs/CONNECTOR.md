@@ -1,5 +1,10 @@
 # Brain Connector (MCP)
 
+> **PARKED (Owner direction, 2026-11-08).** The ChatGPT↔Brain MCP connector integration is parked and
+> **not applicable for now**. Do not treat mounting this connector in ChatGPT as a task or a blocker.
+> GitHub issue #292 is the durable coordination channel. The server below stays live and documented;
+> integration is deferred until the Owner un-parks it.
+
 One URL and one key that adds Brain to any chat client that supports a custom
 connector: ChatGPT, Claude, Gemini, OpenHands, and any other MCP client.
 

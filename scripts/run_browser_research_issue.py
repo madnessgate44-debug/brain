@@ -38,7 +38,10 @@ def parse_research_payload(event: dict[str, Any], repository_owner: str) -> dict
         raise ValueError("Only the repository owner may trigger or edit a browser research request.")
 
     body = issue.get("body") or ""
-    if "/brain browse" not in body:
+    # `/brain browse` must be its own command, not the prefix of `/brain browser`
+    # (the deterministic browser runner uses `/brain browser`). A negative
+    # lookahead keeps the two routes from both firing on one issue.
+    if not re.search(r"/brain browse(?![\w-])", body):
         raise ValueError("Issue body must include /brain browse.")
     fence = chr(96) * 3
     blocks = re.findall(re.escape(fence) + r"json\s*(.*?)\s*" + re.escape(fence), body, flags=re.DOTALL | re.IGNORECASE)
