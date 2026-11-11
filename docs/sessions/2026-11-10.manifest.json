@@ -1,0 +1,204 @@
+{
+ "date": "2026-11-10",
+ "count": 18,
+ "conversations": [
+  {
+   "id": "b68dd70e4e124d02914c63802eca535d",
+   "title": "Openhands loop \u2014 2026-11-10 00:01:55 UTC",
+   "events": 226,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "b32b8e30bdcae2af1080ca8f1541cacdf675c24213f332bac004a502da8198c7"
+  },
+  {
+   "id": "9f6e22e973e4461c992331e026b6a430",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-11-10 00:06:36 UTC",
+   "events": 629,
+   "pages": 7,
+   "owner_messages": 1,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "9d441fdbeaec4c4bbbea99aceb48ef4ebf7eb473339c740a94f31832c1c45fc4"
+  },
+  {
+   "id": "6c11048924be438984ea9705396f579f",
+   "title": "GitHub Issue #292: Brain daily reports",
+   "events": 874,
+   "pages": 9,
+   "owner_messages": 0,
+   "agent_messages": 3,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "72ed8ea40efb953d06f7efcced21dd6cfa75e59eea91c7952c16114bba577f1b"
+  },
+  {
+   "id": "5d4cb60f07b44e73a6021d75ef0671fb",
+   "title": "GitHub Issue #20: OpenHands handoff: answer all completion blockers and verify the execution path",
+   "events": 491,
+   "pages": 5,
+   "owner_messages": 0,
+   "agent_messages": 3,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "e20185a34a6fabb019188dc7f91952efebb0dac9f47c71f589848a9d1d32fe4d"
+  },
+  {
+   "id": "572abdef30d349eeb1fe657830a863f6",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-11-10 02:01:15 UTC",
+   "events": 570,
+   "pages": 6,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "78a3425517b0a6672193a2c97103bc41261b19c4ac7ab3fc8813f4978cabff11"
+  },
+  {
+   "id": "3f94d22d46534d0b8f7d2af17ca16f0d",
+   "title": "Openhands loop \u2014 2026-11-10 02:01:49 UTC",
+   "events": 148,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 2,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "c8bda0cfbba4c1848cdc98c45e70290c2031f5b16348d74da94a0b98225132dd"
+  },
+  {
+   "id": "fd17cb45fe8f486d9f365c8605ab1161",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-11-10 04:01:28 UTC",
+   "events": 773,
+   "pages": 8,
+   "owner_messages": 1,
+   "agent_messages": 0,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "eb37c63c6936d6db12801dddba858fa858a34ac28342d884f07a9c972d559062"
+  },
+  {
+   "id": "025c6394611244dcac63564971682285",
+   "title": "Openhands loop \u2014 2026-11-10 04:03:20 UTC",
+   "events": 251,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 3,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "294d7dd187efd35940dbc613d791b20e19e9e39b9ca865357f8e2ec163e95fa8"
+  },
+  {
+   "id": "8829cea04a424ec188455e6bd01de4be",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-11-10 06:02:14 UTC",
+   "events": 644,
+   "pages": 7,
+   "owner_messages": 1,
+   "agent_messages": 2,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "754ecf44c338f3bbd3c39a8bddfa7eeb0bdfd2c18e7f2bee02f27251256d5f90"
+  },
+  {
+   "id": "f50cebc4bdd449dd9df8014e64c6bcd2",
+   "title": "Openhands loop \u2014 2026-11-10 06:04:35 UTC",
+   "events": 101,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "638515cbd496141130f31b7951b38f9aa463ab267a1602bb04c18119bbda51b9"
+  },
+  {
+   "id": "b03a9c9c624042bbbe7c8577d6d3bb8a",
+   "title": "Openhands loop \u2014 2026-11-10 08:01:28 UTC",
+   "events": 278,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 3,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "787e2dfc767dad428c7c19954f9e9916a25abd5b2010ff8b7ddd2a880454f0ea"
+  },
+  {
+   "id": "9e0ccfd2b89c4a9eba1f52da4d464d50",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-11-10 08:02:27 UTC",
+   "events": 607,
+   "pages": 7,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "237a0dc85100724e0cbf8520a66809ca9ae56e03ecb660e338c787089449bf27"
+  },
+  {
+   "id": "40fc7921a41042eb97d29d25688c407f",
+   "title": "Openhands loop \u2014 2026-11-10 10:01:49 UTC",
+   "events": 201,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 2,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "4dad0aa38c1b3520d1ff64a5da05512a592725086973cb9081af4b7e17282f6d"
+  },
+  {
+   "id": "7916950097214644ac2767cc561eb6d3",
+   "title": "Miss Noor - autonomous owner window (9h) \u2014 2026-11-10 10:02:07 UTC",
+   "events": 595,
+   "pages": 6,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "MISSING",
+   "log_sha256": "9f15e8ed4130ddd1edba8eef3f807325b4f586e8a8ddb3bc1370550cc35d2f77"
+  },
+  {
+   "id": "1217fbee83504484a953af6b913e7f18",
+   "title": "GitHub Issue #46: P0: Implement autonomous model agents, durable workers, OpenHands and Forge adapters",
+   "events": 1427,
+   "pages": 15,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "51e28e76592fc25e36d8b80479c979727cdcf39ac99275281ecf1555f8b7d009"
+  },
+  {
+   "id": "7dae5408b49b4b5ba449d44332e2faac",
+   "title": "GitHub Issue #46: P0: Implement autonomous model agents, durable workers, OpenHands and Forge adapters",
+   "events": 600,
+   "pages": 6,
+   "owner_messages": 0,
+   "agent_messages": 2,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "32326af9d4b267040ea8de6b1f06947fbae40dae9b94ffbead1e57206ed9244b"
+  },
+  {
+   "id": "3c65067797f941f0a7a93b4d3f783cbf",
+   "title": "GitHub Issue #46: P0: Implement autonomous model agents, durable workers, OpenHands and Forge adapters",
+   "events": 586,
+   "pages": 6,
+   "owner_messages": 0,
+   "agent_messages": 3,
+   "automation": true,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "ac4e0adfb0b4701d249e119e86ce6dcc15d95d085ff263c3bc78f1c2163060e1"
+  },
+  {
+   "id": "14c48f547a264ecda71c203c0468ae25",
+   "title": "okay so where are the daily reports from brain ...",
+   "events": 1861,
+   "pages": 19,
+   "owner_messages": 4,
+   "agent_messages": 5,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "5619dcf4218732e074e44d12c8bd6ce5b8c85c51b686fd07916c746b67b5c5d9"
+  }
+ ]
+}
