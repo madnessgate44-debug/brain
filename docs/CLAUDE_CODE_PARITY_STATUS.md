@@ -51,6 +51,14 @@ The loops are real but **hemmed in**:
   proven by a single shell command through the SDK (`echo HELLO_AUDIT_123`), not a code change.
 - **Distance:** Claude Code's whole value is that it demonstrably does the work. Here the loop
   is built, wired, and unit-tested but **not proven to land a real change**. **~2/10**.
+- **Correction (2026-11-11): the proof exists and is now committed.** The company workflow did
+  run live and land a real change: issue #208 (`/brain simulate`, owner-authored) triggered run
+  `38148411690` (`brain-chat-company-workflow.yml`, event `issues`, conclusion `success`), which
+  opened PR #218 on branch `brain/mission-523096880e41` (author `github-actions[bot]`, merged
+  2026-11-07). That chain is now committed at
+  `watcher/knowledge/evidence/company-loop-20261011-issue208-pr218.md`, and `purpose_audit.py`
+  requires such a **pull-request** link (not a conversation link) before the live-run finding
+  reports OK. The proof gap is closed; the reach gap (a full repo checkout) is not.
 
 ### Capability table (present / partial / absent), with evidence
 
@@ -95,8 +103,10 @@ The Watcher's job is not to report this table. It is to **act on it**, in this o
 
 1. **Prove the loop once, for real.** Dispatch the company workflow on a trivial issue against
    a real repo and commit the resulting PR link as evidence. (Closes "the proof" gap.)
-   *Status 2026-11-09: an open PR (#307) makes the audit require a real conversation link and
-   commits one; not merged.*
+   *Status 2026-11-11: **Done.** The company workflow landed PR #218 from issue #208; the chain
+   is committed at `watcher/knowledge/evidence/company-loop-20261011-issue208-pr218.md`, and the
+   audit's live-run finding now requires a pull-request link. (The earlier #307 attempt only made
+   the audit accept a conversation link; this one requires the PR itself.)*
 2. **Lift the patch contract.** Allow deletions and unplanned new files inside the sandbox,
    with the existing review gates as the guard. (Closes most of "the reach" gap.)
    *Done 2026-11-09 — see "Lifted the patch contract" above.*

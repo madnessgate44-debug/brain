@@ -93,19 +93,42 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
     return False
 
 
+# A pull-request URL is the proof the live-run finding names. Anything else (a conversation
+# link, a run URL) does not show that the loop produced a change a human can merge.
+_PULL_REQUEST_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/\d+$")
+
+
+def _field_url(path: Path, field: str) -> str:
+    """Return the first `http(s)` URL recorded under `field` in an evidence file, or ""."""
+    for line in _read(path).splitlines():
+        stripped = line.strip()
+        if stripped.startswith(field):
+            value = stripped.split(":", 1)[1].strip()
+            if value.startswith(("http://", "https://")):
+                return value
+    return ""
+
+
 def evidence_link(path: Path) -> str:
     """Return the conversation link recorded in an evidence file, or "" if there is none.
 
     A DRY RUN records no conversation, so it is not proof the loop ran. Only a real URL under
     the writer's `- link:` field counts; the placeholder it writes when it has no link does not.
     """
-    for line in _read(path).splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- link:"):
-            value = stripped.split(":", 1)[1].strip()
-            if value.startswith(("http://", "https://")):
-                return value
-    return ""
+    return _field_url(path, "- link:")
+
+
+def pull_request_link(path: Path) -> str:
+    """Return the pull-request link recorded in an evidence file, or "" if there is none.
+
+    The live-run finding claims an issue -> PR run, so a conversation link alone is not proof:
+    the run must name the pull request it produced. Only a real
+    `https://github.com/<owner>/<repo>/pull/<n>` URL under the writer's `- pr:` field counts.
+    This is what stops the finding passing on a conversation-only file (W3: a check must fail
+    when the thing it names is absent).
+    """
+    value = _field_url(path, "- pr:")
+    return value if _PULL_REQUEST_RE.match(value) else ""
 
 
 def depth_findings(root: Path) -> list[dict]:
@@ -181,14 +204,29 @@ def depth_findings(root: Path) -> list[dict]:
 
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
     proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
-    links = {p.name: link for p in proof if (link := evidence_link(p))}
+    # W3: the finding names an issue -> PR run, so the evidence must name the pull request the
+    # run produced. A conversation link only proves the loop started; requiring the PR stops
+    # the finding passing on a conversation-only file (the 2026-11-08 false pass).
+    pr_links = {p.name: link for p in proof if (link := pull_request_link(p))}
+    conv_links = {p.name: link for p in proof if (link := evidence_link(p))}
+    if pr_links:
+        live_status = "OK"
+        live_evidence = [f"{name} -> {link}" for name, link in pr_links.items()]
+    elif conv_links:
+        live_status = "PARTIAL"
+        live_evidence = [
+            f"{name} -> {link} (conversation only; no pull request recorded)"
+            for name, link in conv_links.items()
+        ]
+    else:
+        live_status = "MISSING"
+        live_evidence = ["no live-run evidence committed (a DRY RUN or an evidence file with no "
+                         "conversation link does not prove the loop ran)"]
     out.append({
         "id": "live-run-evidence",
         "finding": "Committed evidence of a live issue -> PR run",
-        "status": "OK" if links else "MISSING",
-        "evidence": [f"{name} -> {link}" for name, link in links.items()]
-                    or ["no live-run evidence committed (a DRY RUN or an evidence file with no "
-                        "conversation link does not prove the loop ran)"],
+        "status": live_status,
+        "evidence": live_evidence,
     })
 
     # W7: a role with no skill file runs on its bare contract. A missing skill is the Watcher's

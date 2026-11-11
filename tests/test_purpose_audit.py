@@ -245,6 +245,35 @@ def test_evidence_link_is_empty_for_a_dry_run(pa, tmp_path):
     assert pa.evidence_link(p) == ""
 
 
+def test_pull_request_link_reads_a_github_pr(pa, tmp_path):
+    p = tmp_path / "e.md"
+    p.write_text(
+        "# Company workflow loop\n\n- pr: https://github.com/owner/repo/pull/218\n",
+        encoding="utf-8",
+    )
+    assert pa.pull_request_link(p) == "https://github.com/owner/repo/pull/218"
+
+
+def test_pull_request_link_rejects_a_conversation_link(pa, tmp_path):
+    """A conversation link proves the loop started, not that it produced a PR."""
+    p = tmp_path / "e.md"
+    p.write_text(
+        "# Session agent loop\n\n"
+        "- link: https://app.all-hands.dev/canvas/conversations/abc\n",
+        encoding="utf-8",
+    )
+    assert pa.pull_request_link(p) == ""
+
+
+def test_pull_request_link_rejects_a_non_pull_github_url(pa, tmp_path):
+    p = tmp_path / "e.md"
+    p.write_text(
+        "# x\n\n- pr: https://github.com/owner/repo/actions/runs/1\n",
+        encoding="utf-8",
+    )
+    assert pa.pull_request_link(p) == ""
+
+
 def test_depth_rejects_a_dry_run_as_live_evidence(pa, tmp_path):
     """W3: a dry run in the evidence dir is a presence, not a proof."""
     _company_tree(tmp_path)
@@ -255,12 +284,26 @@ def test_depth_rejects_a_dry_run_as_live_evidence(pa, tmp_path):
     assert f["status"] == "MISSING"
 
 
-def test_depth_passes_with_a_real_live_run_link(pa, tmp_path):
+def test_depth_is_partial_when_only_a_conversation_link_is_committed(pa, tmp_path):
+    """W3: the finding names an issue -> PR run; a conversation link alone is not that."""
     _company_tree(tmp_path)
     _evidence(tmp_path, "session-loop-2.md",
               "# Session agent loop\n\nStatus: LIVE — conversation started\n\n"
               "- app_conversation_id: conv-9\n"
               "- link: https://app.all-hands.dev/canvas/conversations/conv-9\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("conversation only" in e for e in f["evidence"])
+    # the evidence must name the conversation URL, not a blank link
+    assert any("conversations/conv-9" in e for e in f["evidence"])
+
+
+def test_depth_passes_with_a_committed_pull_request_link(pa, tmp_path):
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "company-loop.md",
+              "# Company workflow loop\n\n"
+              "- issue: https://github.com/owner/repo/issues/208\n"
+              "- pr: https://github.com/owner/repo/pull/218\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
-    assert any("conv-9" in e for e in f["evidence"])
+    assert any("pull/218" in e for e in f["evidence"])

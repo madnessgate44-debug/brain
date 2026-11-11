@@ -65,6 +65,16 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   conversation link (`evidence_link`), `start_session_loop.py` accepts the list response and
   writes evidence even when the poll fails, and the workflow sets `pipefail` so a crashed run
   is red. Evidence: `watcher/knowledge/evidence/session-loop-20261108-114844.md`.
+- **Progress (2026-11-11): the live-run check now requires a pull request, not a conversation.**
+  The finding is worded "live issue -> **PR** run", but `evidence_link` accepted *any* URL, and
+  the committed file named a **conversation** (`…/canvas/conversations/e166…`) with no pull
+  request — so the finding still reported OK on a file that did not prove a PR was produced: a
+  second false pass. `purpose_audit.py` now adds `pull_request_link`, which accepts only a
+  `https://github.com/<owner>/<repo>/pull/<n>` URL under a `- pr:` field; the finding is OK only
+  with such a link, PARTIAL with a conversation link alone, MISSING with neither. Committed the
+  real proof: `watcher/knowledge/evidence/company-loop-20261011-issue208-pr218.md` (issue #208
+  -> run 38148411690 -> PR #218, verified against the GitHub API), and backfilled the `- pr:`
+  link for the 2026-11-08 conversation. Tests: `tests/test_purpose_audit.py`.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
