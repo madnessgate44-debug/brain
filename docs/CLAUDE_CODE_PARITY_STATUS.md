@@ -59,6 +59,10 @@ The loops are real but **hemmed in**:
   `watcher/knowledge/evidence/company-loop-20261011-issue208-pr218.md`, and `purpose_audit.py`
   requires such a **pull-request** link (not a conversation link) before the live-run finding
   reports OK. The proof gap is closed; the reach gap (a full repo checkout) is not.
+- **Correction (2026-11-12): the check now requires the issue half too.** The finding names a
+  *live issue* -> PR run, but the check above accepted a pull request with no issue. The audit
+  now requires **both** an issue link (`- issue:`) and a pull-request link (`- pr:`); a bare PR
+  is PARTIAL, not OK. Negative control: PR-only -> PARTIAL, issue+PR -> OK.
 
 ### Capability table (present / partial / absent), with evidence
 

@@ -93,8 +93,10 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
     return False
 
 
-# A pull-request URL is the proof the live-run finding names. Anything else (a conversation
-# link, a run URL) does not show that the loop produced a change a human can merge.
+# The live-run finding names an issue -> PR run, so its proof is two links: the issue that
+# triggered the run and the pull request the run produced. Anything else (a conversation link,
+# a run URL) shows only part of the path.
+_ISSUE_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/\d+$")
 _PULL_REQUEST_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/\d+$")
 
 
@@ -129,6 +131,19 @@ def pull_request_link(path: Path) -> str:
     """
     value = _field_url(path, "- pr:")
     return value if _PULL_REQUEST_RE.match(value) else ""
+
+
+def issue_link(path: Path) -> str:
+    """Return the issue link recorded in an evidence file, or "" if there is none.
+
+    The finding names an **issue** -> PR run, so the pull request alone is not the whole proof:
+    the record must also name the issue that triggered the run. Only a real
+    `https://github.com/<owner>/<repo>/issues/<n>` URL under the writer's `- issue:` field
+    counts. Without this, a bare PR link passes a claim about an issue -> PR run (the same W3
+    shape, one level deeper).
+    """
+    value = _field_url(path, "- issue:")
+    return value if _ISSUE_RE.match(value) else ""
 
 
 def depth_findings(root: Path) -> list[dict]:
@@ -204,14 +219,23 @@ def depth_findings(root: Path) -> list[dict]:
 
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
     proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
-    # W3: the finding names an issue -> PR run, so the evidence must name the pull request the
-    # run produced. A conversation link only proves the loop started; requiring the PR stops
-    # the finding passing on a conversation-only file (the 2026-11-08 false pass).
+    # W3: the finding names an issue -> PR run, so the evidence must name both links: the issue
+    # that triggered the run and the pull request the run produced. A conversation link only
+    # proves the loop started; a bare PR proves a change but not what triggered it. OK requires
+    # both, so the finding fails when either half of the path is absent.
+    issue_links = {p.name: link for p in proof if (link := issue_link(p))}
     pr_links = {p.name: link for p in proof if (link := pull_request_link(p))}
     conv_links = {p.name: link for p in proof if (link := evidence_link(p))}
-    if pr_links:
+    if issue_links and pr_links:
         live_status = "OK"
-        live_evidence = [f"{name} -> {link}" for name, link in pr_links.items()]
+        live_evidence = [f"issue {name} -> {link}" for name, link in issue_links.items()]
+        live_evidence += [f"pull request {name} -> {link}" for name, link in pr_links.items()]
+    elif pr_links:
+        live_status = "PARTIAL"
+        live_evidence = [
+            f"{name} -> {link} (pull request only; no issue recorded)"
+            for name, link in pr_links.items()
+        ]
     elif conv_links:
         live_status = "PARTIAL"
         live_evidence = [

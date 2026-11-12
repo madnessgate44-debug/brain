@@ -75,6 +75,21 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   real proof: `watcher/knowledge/evidence/company-loop-20261011-issue208-pr218.md` (issue #208
   -> run 38148411690 -> PR #218, verified against the GitHub API), and backfilled the `- pr:`
   link for the 2026-11-08 conversation. Tests: `tests/test_purpose_audit.py`.
+- **Correction (2026-11-12): the pull-request check was still half the claim.** The finding is
+  worded "live **issue** -> PR run", but the check above accepted a pull request with no issue —
+  a file holding only `- pr: …/pull/9` reported OK. So the finding passed while the *issue* half
+  of the path it names was absent: the same W3 shape, one level deeper. `purpose_audit.py` now
+  adds `issue_link` (only a `…/issues/<n>` URL under `- issue:`) and the finding is OK **only**
+  when both an issue link and a pull-request link are committed; a bare PR is PARTIAL. Verified
+  by the negative control below and `python3 -m pytest -q` (546 passed, 2 skipped).
+
+  ```
+  $ python3 -c "…depth_findings on a throwaway evidence dir…"
+  PR only, no issue        -> PARTIAL
+  issue only, no PR        -> MISSING
+  conversation only        -> PARTIAL
+  issue + PR               -> OK
+  ```
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
