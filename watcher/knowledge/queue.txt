@@ -3,4 +3,4 @@
 # skips any URL whose transcript already exists (--skip-existing).
 # Keep this to material not yet transcribed; an empty queue means nothing to do.
 # On-demand: Actions -> "Watcher learning loop" -> Run workflow -> paste a URL.
-https://www.youtube.com/watch?v=GYKhPG6vHBc
+https://www.youtube.com/watch?v=8cmwK4Yz0bc
