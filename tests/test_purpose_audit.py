@@ -333,3 +333,38 @@ def test_depth_passes_with_an_issue_and_a_pull_request(pa, tmp_path):
     assert f["status"] == "OK"
     assert any("issues/208" in e for e in f["evidence"])
     assert any("pull/218" in e for e in f["evidence"])
+
+
+def test_depth_does_not_pass_on_an_issue_and_a_pr_in_separate_files(pa, tmp_path):
+    """W3: the finding names *a* run; a proof split across two files is not one run's path.
+
+    An issue named by one evidence file and a pull request named by an unrelated file must
+    not add up to OK — that would pass while no single run is proven to have gone issue -> PR.
+    """
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "a-issue.md", "- issue: https://github.com/owner/repo/issues/1\n")
+    _evidence(tmp_path, "b-pr.md", "- pr: https://github.com/owner/repo/pull/9\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("issue only" in e for e in f["evidence"])
+    assert any("pull request only" in e for e in f["evidence"])
+
+
+def test_depth_is_partial_when_only_an_issue_link_is_committed(pa, tmp_path):
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "issue-only.md", "- issue: https://github.com/owner/repo/issues/1\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("issue only" in e for e in f["evidence"])
+
+
+def test_depth_still_ok_when_a_complete_file_coexists_with_partial_ones(pa, tmp_path):
+    """A complete run's file passes even if other evidence files hold only one half."""
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "conversation-only.md", "- link: https://app.all-hands.dev/canvas/conversations/x\n")
+    _evidence(tmp_path, "company-loop.md",
+              "- issue: https://github.com/owner/repo/issues/208\n"
+              "- pr: https://github.com/owner/repo/pull/218\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "OK"
+    assert any("issues/208" in e and "pull/218" in e for e in f["evidence"])

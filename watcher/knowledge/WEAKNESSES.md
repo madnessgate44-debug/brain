@@ -82,13 +82,25 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   adds `issue_link` (only a `…/issues/<n>` URL under `- issue:`) and the finding is OK **only**
   when both an issue link and a pull-request link are committed; a bare PR is PARTIAL. Verified
   by the negative control below and `python3 -m pytest -q` (546 passed, 2 skipped).
+- **Correction (2026-11-13): the two links were summed across *different* files.** The check
+  above asked whether *any* file held an issue and *any* file held a pull request — so an issue
+  named by one evidence file and a pull request named by an unrelated file reported OK, though
+  no single run was proven to have gone issue -> PR: the same W3 shape, one level deeper again.
+  `purpose_audit.py` now groups each file's links with `_run_proof` and reports OK **only** when
+  one file (one run) holds both the issue and the pull request; partial files keep the finding
+  at PARTIAL. Negative control: `issue in A, PR in B` -> PARTIAL (was OK); `issue+PR, one file`
+  -> OK. Verified by `python3 -m pytest -q` (549 passed, 2 skipped) and the audit's live-run
+  finding, which now reads `company-loop-20261011-issue208-pr218.md -> issue …/issues/208;
+  pull request …/pull/218`.
 
   ```
   $ python3 -c "…depth_findings on a throwaway evidence dir…"
+  issue + PR, one file     -> OK
+  issue in A, PR in B      -> PARTIAL
   PR only, no issue        -> PARTIAL
-  issue only, no PR        -> MISSING
+  issue only, no PR        -> PARTIAL
   conversation only        -> PARTIAL
-  issue + PR               -> OK
+  neither                  -> MISSING
   ```
 
 ## W4 — The loop is never scheduled, so it does not run

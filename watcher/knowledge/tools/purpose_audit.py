@@ -146,6 +146,28 @@ def issue_link(path: Path) -> str:
     return value if _ISSUE_RE.match(value) else ""
 
 
+def _run_proof(path: Path) -> dict[str, str]:
+    """The live-run links one evidence file records: issue, pull request, conversation.
+
+    One file is one run. The finding names *a* live issue -> PR run, so the two links that
+    prove it must come from the same file; see `depth_findings`.
+    """
+    return {
+        "issue": issue_link(path),
+        "pr": pull_request_link(path),
+        "conversation": evidence_link(path),
+    }
+
+
+def _describe_fragment(name: str, r: dict[str, str]) -> str:
+    """Name which half of the issue -> PR path a single evidence file holds."""
+    if r["pr"]:
+        return f"{name} -> {r['pr']} (pull request only; no issue recorded)"
+    if r["issue"]:
+        return f"{name} -> {r['issue']} (issue only; no pull request recorded)"
+    return f"{name} -> {r['conversation']} (conversation only; no pull request recorded)"
+
+
 def depth_findings(root: Path) -> list[dict]:
     """Find depth gaps a presence check misses: does the feature cover the whole app?
 
@@ -219,29 +241,22 @@ def depth_findings(root: Path) -> list[dict]:
 
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
     proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
-    # W3: the finding names an issue -> PR run, so the evidence must name both links: the issue
-    # that triggered the run and the pull request the run produced. A conversation link only
-    # proves the loop started; a bare PR proves a change but not what triggered it. OK requires
-    # both, so the finding fails when either half of the path is absent.
-    issue_links = {p.name: link for p in proof if (link := issue_link(p))}
-    pr_links = {p.name: link for p in proof if (link := pull_request_link(p))}
-    conv_links = {p.name: link for p in proof if (link := evidence_link(p))}
-    if issue_links and pr_links:
+    # W3: the finding names a live issue -> PR run, so a single evidence file — one run — must
+    # name both the issue that triggered the run and the pull request it produced. Aggregating
+    # the two links across separate files would pass on an issue from one run and a PR from
+    # another (or none), which is exactly the false pass this check exists to catch. OK
+    # therefore requires both links in the SAME file; any partial file keeps the finding below OK.
+    proofs = {p.name: _run_proof(p) for p in proof}
+    complete = {name: r for name, r in proofs.items() if r["issue"] and r["pr"]}
+    partial = {name: r for name, r in proofs.items() if not (r["issue"] and r["pr"])
+               and (r["issue"] or r["pr"] or r["conversation"])}
+    if complete:
         live_status = "OK"
-        live_evidence = [f"issue {name} -> {link}" for name, link in issue_links.items()]
-        live_evidence += [f"pull request {name} -> {link}" for name, link in pr_links.items()]
-    elif pr_links:
+        live_evidence = [f"{name} -> issue {r['issue']}; pull request {r['pr']}"
+                         for name, r in complete.items()]
+    elif partial:
         live_status = "PARTIAL"
-        live_evidence = [
-            f"{name} -> {link} (pull request only; no issue recorded)"
-            for name, link in pr_links.items()
-        ]
-    elif conv_links:
-        live_status = "PARTIAL"
-        live_evidence = [
-            f"{name} -> {link} (conversation only; no pull request recorded)"
-            for name, link in conv_links.items()
-        ]
+        live_evidence = [_describe_fragment(name, r) for name, r in partial.items()]
     else:
         live_status = "MISSING"
         live_evidence = ["no live-run evidence committed (a DRY RUN or an evidence file with no "

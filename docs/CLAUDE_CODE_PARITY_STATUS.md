@@ -63,6 +63,11 @@ The loops are real but **hemmed in**:
   *live issue* -> PR run, but the check above accepted a pull request with no issue. The audit
   now requires **both** an issue link (`- issue:`) and a pull-request link (`- pr:`); a bare PR
   is PARTIAL, not OK. Negative control: PR-only -> PARTIAL, issue+PR -> OK.
+- **Correction (2026-11-13): both links must come from the same run (one evidence file).** The
+  check above asked whether *any* file held an issue and *any* file held a PR, so two unrelated
+  files added up to OK though no single run was proven. The audit now groups each file's links
+  (`_run_proof`) and reports OK only when one file holds both; `issue in A, PR in B` is PARTIAL.
+  Negative control: `issue in A, PR in B` -> PARTIAL; `issue+PR, one file` -> OK.
 
 ### Capability table (present / partial / absent), with evidence
 
