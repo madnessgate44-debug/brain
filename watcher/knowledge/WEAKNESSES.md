@@ -65,6 +65,43 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   conversation link (`evidence_link`), `start_session_loop.py` accepts the list response and
   writes evidence even when the poll fails, and the workflow sets `pipefail` so a crashed run
   is red. Evidence: `watcher/knowledge/evidence/session-loop-20261108-114844.md`.
+- **Progress (2026-11-11): the live-run check now requires a pull request, not a conversation.**
+  The finding is worded "live issue -> **PR** run", but `evidence_link` accepted *any* URL, and
+  the committed file named a **conversation** (`…/canvas/conversations/e166…`) with no pull
+  request — so the finding still reported OK on a file that did not prove a PR was produced: a
+  second false pass. `purpose_audit.py` now adds `pull_request_link`, which accepts only a
+  `https://github.com/<owner>/<repo>/pull/<n>` URL under a `- pr:` field; the finding is OK only
+  with such a link, PARTIAL with a conversation link alone, MISSING with neither. Committed the
+  real proof: `watcher/knowledge/evidence/company-loop-20261011-issue208-pr218.md` (issue #208
+  -> run 38148411690 -> PR #218, verified against the GitHub API), and backfilled the `- pr:`
+  link for the 2026-11-08 conversation. Tests: `tests/test_purpose_audit.py`.
+- **Correction (2026-11-12): the pull-request check was still half the claim.** The finding is
+  worded "live **issue** -> PR run", but the check above accepted a pull request with no issue —
+  a file holding only `- pr: …/pull/9` reported OK. So the finding passed while the *issue* half
+  of the path it names was absent: the same W3 shape, one level deeper. `purpose_audit.py` now
+  adds `issue_link` (only a `…/issues/<n>` URL under `- issue:`) and the finding is OK **only**
+  when both an issue link and a pull-request link are committed; a bare PR is PARTIAL. Verified
+  by the negative control below and `python3 -m pytest -q` (546 passed, 2 skipped).
+- **Correction (2026-11-13): the two links were summed across *different* files.** The check
+  above asked whether *any* file held an issue and *any* file held a pull request — so an issue
+  named by one evidence file and a pull request named by an unrelated file reported OK, though
+  no single run was proven to have gone issue -> PR: the same W3 shape, one level deeper again.
+  `purpose_audit.py` now groups each file's links with `_run_proof` and reports OK **only** when
+  one file (one run) holds both the issue and the pull request; partial files keep the finding
+  at PARTIAL. Negative control: `issue in A, PR in B` -> PARTIAL (was OK); `issue+PR, one file`
+  -> OK. Verified by `python3 -m pytest -q` (549 passed, 2 skipped) and the audit's live-run
+  finding, which now reads `company-loop-20261011-issue208-pr218.md -> issue …/issues/208;
+  pull request …/pull/218`.
+
+  ```
+  $ python3 -c "…depth_findings on a throwaway evidence dir…"
+  issue + PR, one file     -> OK
+  issue in A, PR in B      -> PARTIAL
+  PR only, no issue        -> PARTIAL
+  issue only, no PR        -> PARTIAL
+  conversation only        -> PARTIAL
+  neither                  -> MISSING
+  ```
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
