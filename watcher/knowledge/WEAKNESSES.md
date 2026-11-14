@@ -102,6 +102,16 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   conversation only        -> PARTIAL
   neither                  -> MISSING
   ```
+- **Correction (2026-11-14): the issue and the PR could be in *different* repositories.** The
+  check above required both links in one file, but not in one repository — so an issue in repo A
+  with a pull request in repo B reported OK, though no single run had gone issue -> PR. The
+  gateway allowlists one owner (`brain/company/github_gateway.py:33`) and the run reports one
+  target repository that must match (`brain/company/tools.py:225`), so a real run's issue and PR
+  always share an `owner/repo`. `purpose_audit.py` now adds `_repo_of` (line 106) and
+  `_same_repository` (line 171); the finding is OK **only** when one file holds both links in one
+  repository, and a cross-repository pair is named as such by `_describe_fragment` (line 184) and
+  kept at PARTIAL. Negative control: `issue A, PR B` -> PARTIAL (was OK); same-repo pair -> OK.
+  Verified by `python3 -m pytest -q` (552 passed, 2 skipped) and the audit's live-run finding.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps

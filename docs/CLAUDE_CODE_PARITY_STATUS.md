@@ -68,6 +68,12 @@ The loops are real but **hemmed in**:
   files added up to OK though no single run was proven. The audit now groups each file's links
   (`_run_proof`) and reports OK only when one file holds both; `issue in A, PR in B` is PARTIAL.
   Negative control: `issue in A, PR in B` -> PARTIAL; `issue+PR, one file` -> OK.
+- **Correction (2026-11-14): the issue and the PR must be in the same repository.** The check
+  above required both links in one file but not in one repository, so an issue in repo A with a
+  PR in repo B reported OK though no single run had gone issue -> PR. A real run triggers and
+  writes in one allowlisted repository (`github_gateway.py:33`, `tools.py:225`), so the audit
+  now adds `_repo_of`/`_same_repository` and keeps a cross-repository pair at PARTIAL. Negative
+  control: `issue A, PR B` -> PARTIAL; same-repo pair -> OK.
 
 ### Capability table (present / partial / absent), with evidence
 

@@ -98,6 +98,15 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
 # a run URL) shows only part of the path.
 _ISSUE_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/\d+$")
 _PULL_REQUEST_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/\d+$")
+_GITHUB_ITEM_RE = re.compile(
+    r"^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(?:issues|pull)/\d+$"
+)
+
+
+def _repo_of(url: str) -> str:
+    """The `owner/repo` slug of a GitHub issue or pull-request URL, or "" if it is not one."""
+    match = _GITHUB_ITEM_RE.match(url)
+    return match.group(1) if match else ""
 
 
 def _field_url(path: Path, field: str) -> str:
@@ -159,8 +168,24 @@ def _run_proof(path: Path) -> dict[str, str]:
     }
 
 
+def _same_repository(r: dict[str, str]) -> bool:
+    """True when the file's issue and pull request are both GitHub items in one repository.
+
+    A run triggers on an issue and produces a pull request in the repository it is allowed to
+    write (the gateway allowlists one owner, and `brain/company/tools.py:225` requires the run's
+    reported target repository to match). So the two links must name the *same* `owner/repo`;
+    an issue in one repository and a pull request in another is not one run's issue -> PR path.
+    """
+    issue_repo = _repo_of(r["issue"])
+    pr_repo = _repo_of(r["pr"])
+    return bool(issue_repo) and issue_repo.casefold() == pr_repo.casefold()
+
+
 def _describe_fragment(name: str, r: dict[str, str]) -> str:
     """Name which half of the issue -> PR path a single evidence file holds."""
+    if r["issue"] and r["pr"]:
+        return (f"{name} -> issue {r['issue']}; pull request {r['pr']} "
+                "(issue and pull request are in different repositories)")
     if r["pr"]:
         return f"{name} -> {r['pr']} (pull request only; no issue recorded)"
     if r["issue"]:
@@ -247,8 +272,11 @@ def depth_findings(root: Path) -> list[dict]:
     # another (or none), which is exactly the false pass this check exists to catch. OK
     # therefore requires both links in the SAME file; any partial file keeps the finding below OK.
     proofs = {p.name: _run_proof(p) for p in proof}
-    complete = {name: r for name, r in proofs.items() if r["issue"] and r["pr"]}
-    partial = {name: r for name, r in proofs.items() if not (r["issue"] and r["pr"])
+    # OK needs both links in one file AND in one repository: an issue in repo A with a pull
+    # request in repo B is two unrelated runs, not the issue -> PR path this finding names.
+    complete = {name: r for name, r in proofs.items()
+                if r["issue"] and r["pr"] and _same_repository(r)}
+    partial = {name: r for name, r in proofs.items() if name not in complete
                and (r["issue"] or r["pr"] or r["conversation"])}
     if complete:
         live_status = "OK"

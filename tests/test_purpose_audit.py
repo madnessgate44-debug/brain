@@ -368,3 +368,36 @@ def test_depth_still_ok_when_a_complete_file_coexists_with_partial_ones(pa, tmp_
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
     assert any("issues/208" in e and "pull/218" in e for e in f["evidence"])
+
+
+def test_repo_of_reads_the_slug_of_a_github_issue_or_pr(pa):
+    assert pa._repo_of("https://github.com/owner/repo/issues/208") == "owner/repo"
+    assert pa._repo_of("https://github.com/owner/repo/pull/218") == "owner/repo"
+    assert pa._repo_of("https://github.com/owner/repo/actions/runs/1") == ""
+    assert pa._repo_of("") == ""
+
+
+def test_depth_does_not_pass_on_an_issue_and_a_pr_in_different_repositories(pa, tmp_path):
+    """W3: one run is one repository. An issue in repo A and a PR in repo B is not a path.
+
+    The gateway allowlists a single owner and the run reports one target repository, so an
+    issue and the pull request it produced always share an `owner/repo`. Two links from
+    different repositories are two unrelated items and must not report OK.
+    """
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "mixed.md",
+              "- issue: https://github.com/owner/repo/issues/1\n"
+              "- pr: https://github.com/other/repo/pull/2\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("different repositories" in e for e in f["evidence"])
+
+
+def test_depth_passes_on_an_issue_and_a_pr_in_one_repository(pa, tmp_path):
+    """The same two links in one repository is the proof the finding names."""
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "company-loop.md",
+              "- issue: https://github.com/owner/repo/issues/208\n"
+              "- pr: https://github.com/owner/repo/pull/218\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "OK"
