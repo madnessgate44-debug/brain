@@ -46,6 +46,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # agent_status.py reads the last 60 commits for the W1 ratio; a shallow clone reads 0%
 
       - uses: actions/setup-python@v5
         with:

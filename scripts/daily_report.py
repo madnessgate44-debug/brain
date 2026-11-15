@@ -87,6 +87,7 @@ def self_audit(root: Path) -> dict:
             if a.get("expected_scheduled") and not a.get("has_scheduled_loop")
         ]
         audit["report_only_pct"] = status.get("report_only_pct")
+        audit["report_only_unavailable"] = status.get("report_only_unavailable", False)
         audit["open_gaps"] = status.get("open_gaps", [])
     return audit
 
@@ -282,7 +283,13 @@ def compose(
         lines.append(
             f"- scheduled loops: {'all agents scheduled' if not unsched else 'unscheduled: ' + ', '.join(unsched)} [V]"
         )
-        lines.append(f"- report-only commit share: {audit.get('report_only_pct')}% [V]")
+        if audit.get("report_only_unavailable"):
+            lines.append(
+                "- report-only commit share: [B] unavailable — the checkout is a shallow clone, "
+                "so the W1 ratio cannot be measured (fix: `fetch-depth: 0`)"
+            )
+        else:
+            lines.append(f"- report-only commit share: {audit.get('report_only_pct')}% [V]")
     forge_plan = load_plan(root, "Firstborn")
     if forge_plan is None:
         lines.append("- Forge (Firstborn): [U] no production plan yet")

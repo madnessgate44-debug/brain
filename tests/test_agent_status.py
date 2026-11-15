@@ -113,3 +113,40 @@ def test_render_shows_the_fail_line(status, tmp_path):
     repo = _git_repo(tmp_path, docs_only=8, code=2)
     text = status.render(status.build(repo, commits=60))
     assert "FAIL" in text and "ratchet" in text
+
+
+def test_shallow_clone_reports_the_ratio_as_unavailable(status, tmp_path):
+    # actions/checkout@v4's default is a shallow clone (one commit). The W1 ratio is then
+    # 0% by construction, which looks like a perfect score. It must be reported as
+    # unavailable, not as a number the checkout cannot support.
+    import subprocess
+
+    repo = _repo(tmp_path)
+    def git(*a):
+        subprocess.run(["git", *a], cwd=repo, capture_output=True, text=True, check=True,
+                       env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                            "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin"})
+    git("init", "-q")
+    for i in range(3):
+        (repo / f"d{i}.md").write_text("x\n", encoding="utf-8")
+        git("add", "-A"); git("commit", "-qm", f"doc {i}")
+    # Shallow-clone into a second repo so --is-shallow-repository is true.
+    shallow = tmp_path / "shallow"
+    subprocess.run(["git", "clone", "-q", "--depth", "1", f"file://{repo}", str(shallow)],
+                   capture_output=True, text=True, check=True,
+                   env={"PATH": "/usr/bin:/bin"})
+    report = status.build(shallow, commits=60)
+    assert report["shallow_clone"] is True
+    assert report["report_only_unavailable"] is True
+    assert report["report_only_pct"] is None            # never a fabricated 0%
+    assert report["report_only_over_limit"] is True     # the gate fails closed
+    text = status.render(report)
+    assert "UNAVAILABLE" in text and "fetch-depth: 0" in text
+
+
+def test_full_clone_is_not_flagged_shallow(status, tmp_path):
+    repo = _git_repo(tmp_path, docs_only=1, code=9)
+    report = status.build(repo, commits=60)
+    assert report["shallow_clone"] is False
+    assert report["report_only_unavailable"] is False
+    assert report["report_only_pct"] == 10.0

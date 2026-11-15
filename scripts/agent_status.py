@@ -67,6 +67,16 @@ def scheduled_workflows(repo: Path) -> set[str]:
     return scheduled
 
 
+def is_shallow(repo: Path) -> bool:
+    """True when the clone has no full history (``actions/checkout@v4``'s default).
+
+    A shallow clone holds one commit, so the W1 ratio reads 0% — a false pass that
+    looks like an improvement. The check must name the gap, not print a number it
+    cannot support.
+    """
+    return _run(["git", "rev-parse", "--is-shallow-repository"], repo).strip() == "true"
+
+
 def report_only_ratio(repo: Path, commits: int) -> tuple[int, int]:
     """Return (report_only, total) over the last N commits that change at least one file."""
     hashes = _run(["git", "log", "--format=%H", f"-{commits}"], repo).split()
@@ -96,13 +106,19 @@ def build(repo: Path, commits: int) -> dict:
             "has_scheduled_loop": bool(sched),
             "expected_scheduled": expected,
         })
-    pct = (100.0 * report_only / total) if total else 0.0
-    over = pct > MAX_REPORT_ONLY_PCT
+    shallow = is_shallow(repo)
+    # A shallow clone cannot measure W1: it holds one commit, so the ratio is 0% by
+    # construction. Report it as unavailable (never a fabricated number) and fail the
+    # gate closed, so a checkout that cannot prove W1 turns the run red instead of green.
+    pct = None if shallow else ((100.0 * report_only / total) if total else 0.0)
+    over = shallow or pct > MAX_REPORT_ONLY_PCT
     return {
         "agents": agents,
         "report_only": report_only,
         "commits_with_files": total,
         "report_only_pct": pct,
+        "report_only_unavailable": shallow,
+        "shallow_clone": shallow,
         "max_report_only_pct": MAX_REPORT_ONLY_PCT,
         "report_only_over_limit": over,
         "missing_expected": [a["agent"] for a in agents if a["expected_scheduled"] and not a["has_scheduled_loop"]],
@@ -117,14 +133,26 @@ def render(report: dict) -> str:
         loop = "scheduled loop" if a["has_scheduled_loop"] else "NO scheduled loop"
         lines.append(f"{mark} **{a['agent']}** — {loop} ({len(a['workflows'])} workflow(s))")
     total = report["commits_with_files"]
-    pct = report.get("report_only_pct", (100 * report["report_only"] / total) if total else 0.0)
     limit = report.get("max_report_only_pct", MAX_REPORT_ONLY_PCT)
-    lines += ["", f"Report-only commits: {report['report_only']}/{total} ({pct:.0f}%) — W1 (limit {limit:.0f}%)"]
-    if report.get("report_only_over_limit"):
+    if report.get("report_only_unavailable"):
+        lines += [
+            "",
+            f"Report-only commits: UNAVAILABLE — this is a shallow clone "
+            f"({total} commit(s) of history). Set `fetch-depth: 0` on the checkout so W1 can be "
+            f"measured. A shallow clone always reads 0%.",
+        ]
         lines.append(
-            f"FAIL — report-only {pct:.0f}% is above the {limit:.0f}% ratchet. "
-            "Ship code, tests, or workflows, not only docs."
+            "FAIL — the W1 ratio cannot be measured from a shallow clone. "
+            "Fix the checkout depth, do not trust the 0%."
         )
+    else:
+        pct = report.get("report_only_pct", (100 * report["report_only"] / total) if total else 0.0)
+        lines += ["", f"Report-only commits: {report['report_only']}/{total} ({pct:.0f}%) — W1 (limit {limit:.0f}%)"]
+        if report.get("report_only_over_limit"):
+            lines.append(
+                f"FAIL — report-only {pct:.0f}% is above the {limit:.0f}% ratchet. "
+                "Ship code, tests, or workflows, not only docs."
+            )
     if report["missing_expected"]:
         lines.append(f"REGRESSION — agents expected to be scheduled but are not: {', '.join(report['missing_expected'])}")
     if report["open_gaps"]:
