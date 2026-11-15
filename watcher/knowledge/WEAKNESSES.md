@@ -112,6 +112,18 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   repository, and a cross-repository pair is named as such by `_describe_fragment` (line 184) and
   kept at PARTIAL. Negative control: `issue A, PR B` -> PARTIAL (was OK); same-repo pair -> OK.
   Verified by `python3 -m pytest -q` (552 passed, 2 skipped) and the audit's live-run finding.
+- **Correction (2026-11-15): the check never required the *run* the finding names.** The check
+  above required an issue and a pull request in one file and one repository — but not the
+  workflow run that connects them, though the finding is worded "live issue -> PR **run**". A
+  file holding only `- issue:` and `- pr:` (two URLs typed into one file, possibly unrelated)
+  reported OK, and so did a fabricated pair (`issues/99999` + `pull/99999`) for a run that never
+  happened. `purpose_audit.py` now adds `run_link` (only a `…/actions/runs/<n>` URL under
+  `- workflow run:`) and `_same_repository` requires all three links in one repository; the
+  finding is OK **only** when one file holds the issue, the run, and the pull request in one
+  repository. Negative control (throwaway evidence dir): `issue + pr, no run` -> PARTIAL (was
+  OK); `issue + run + pr` -> OK. The committed proof already carries the run link
+  (`company-loop-20261011-issue208-pr218.md`, line 7), so the real tree stays OK. Verified by
+  `python3 -m pytest -q` and the audit's live-run finding.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps

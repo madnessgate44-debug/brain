@@ -74,6 +74,14 @@ The loops are real but **hemmed in**:
   writes in one allowlisted repository (`github_gateway.py:33`, `tools.py:225`), so the audit
   now adds `_repo_of`/`_same_repository` and keeps a cross-repository pair at PARTIAL. Negative
   control: `issue A, PR B` -> PARTIAL; same-repo pair -> OK.
+- **Correction (2026-11-15): the check must also require the *run* the finding names.** The
+  check above required an issue and a PR in one file and one repository, but not the workflow
+  run between them, though the finding is worded "live issue -> PR **run**". A file holding only
+  `- issue:` and `- pr:` — two URLs, possibly unrelated, or a fabricated pair — reported OK for a
+  run that never happened. The audit now adds `run_link` (`- workflow run:` ->
+  `…/actions/runs/<n>`) and `_same_repository` requires the issue, the run, and the PR in one
+  repository; `issue + pr, no run` is PARTIAL. The committed proof already records the run
+  (`company-loop-20261011-issue208-pr218.md`, line 7), so the finding stays OK on the real tree.
 
 ### Capability table (present / partial / absent), with evidence
 

@@ -93,13 +93,15 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
     return False
 
 
-# The live-run finding names an issue -> PR run, so its proof is two links: the issue that
-# triggered the run and the pull request the run produced. Anything else (a conversation link,
-# a run URL) shows only part of the path.
+# The live-run finding names an issue -> PR run, so its proof is three links: the issue that
+# triggered the run, the workflow run itself, and the pull request the run produced. Anything
+# less (a conversation link; an issue and a pull request with no run between them) shows only
+# part of the path.
 _ISSUE_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/\d+$")
 _PULL_REQUEST_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/\d+$")
+_RUN_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/\d+$")
 _GITHUB_ITEM_RE = re.compile(
-    r"^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(?:issues|pull)/\d+$"
+    r"^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(?:issues|pull|actions/runs)/\d+$"
 )
 
 
@@ -155,41 +157,59 @@ def issue_link(path: Path) -> str:
     return value if _ISSUE_RE.match(value) else ""
 
 
-def _run_proof(path: Path) -> dict[str, str]:
-    """The live-run links one evidence file records: issue, pull request, conversation.
+def run_link(path: Path) -> str:
+    """Return the workflow-run link recorded in an evidence file, or "" if there is none.
 
-    One file is one run. The finding names *a* live issue -> PR run, so the two links that
-    prove it must come from the same file; see `depth_findings`.
+    The finding names an issue -> PR **run**, so the issue and the pull request alone are not
+    the whole proof: the record must also name the run that connected them. Without it, two
+    URLs typed into one file pass a claim about a run that took the issue to the pull request.
+    Only a real `https://github.com/<owner>/<repo>/actions/runs/<n>` URL under the writer's
+    `- workflow run:` field counts.
+    """
+    value = _field_url(path, "- workflow run:")
+    return value if _RUN_RE.match(value) else ""
+
+
+def _run_proof(path: Path) -> dict[str, str]:
+    """The live-run links one evidence file records: issue, run, pull request, conversation.
+
+    One file is one run. The finding names *a* live issue -> PR run, so the links that prove it
+    must come from the same file; see `depth_findings`.
     """
     return {
         "issue": issue_link(path),
+        "run": run_link(path),
         "pr": pull_request_link(path),
         "conversation": evidence_link(path),
     }
 
 
 def _same_repository(r: dict[str, str]) -> bool:
-    """True when the file's issue and pull request are both GitHub items in one repository.
+    """True when the file's issue, run, and pull request are all GitHub items in one repository.
 
-    A run triggers on an issue and produces a pull request in the repository it is allowed to
-    write (the gateway allowlists one owner, and `brain/company/tools.py:225` requires the run's
-    reported target repository to match). So the two links must name the *same* `owner/repo`;
-    an issue in one repository and a pull request in another is not one run's issue -> PR path.
+    A run triggers on an issue, runs in the repository that hosts it, and produces a pull
+    request in the repository it is allowed to write (the gateway allowlists one owner, and
+    `brain/company/tools.py:225` requires the run's reported target repository to match). So
+    the three links that prove one run must name the *same* `owner/repo`; links from different
+    repositories are unrelated items, not one run's issue -> PR path.
     """
-    issue_repo = _repo_of(r["issue"])
-    pr_repo = _repo_of(r["pr"])
-    return bool(issue_repo) and issue_repo.casefold() == pr_repo.casefold()
+    repos = [_repo_of(r[key]) for key in ("issue", "run", "pr")]
+    return "" not in repos and len({repo.casefold() for repo in repos}) == 1
+
+
+_ITEM_FIELDS = (("issue", "issue"), ("run", "workflow run"), ("pr", "pull request"))
 
 
 def _describe_fragment(name: str, r: dict[str, str]) -> str:
-    """Name which half of the issue -> PR path a single evidence file holds."""
-    if r["issue"] and r["pr"]:
-        return (f"{name} -> issue {r['issue']}; pull request {r['pr']} "
-                "(issue and pull request are in different repositories)")
-    if r["pr"]:
-        return f"{name} -> {r['pr']} (pull request only; no issue recorded)"
-    if r["issue"]:
-        return f"{name} -> {r['issue']} (issue only; no pull request recorded)"
+    """Name which part of the issue -> run -> PR path a single evidence file holds."""
+    present = [(label, r[key]) for key, label in _ITEM_FIELDS if r[key]]
+    if len(present) == 1:
+        label, url = present[0]
+        return f"{name} -> {url} ({label} only; no complete issue -> run -> PR path recorded)"
+    if present:
+        return (f"{name} -> " + "; ".join(f"{label} {url}" for label, url in present)
+                + " (incomplete issue -> run -> pull request path: links are in different "
+                  "repositories, or a step is missing)")
     return f"{name} -> {r['conversation']} (conversation only; no pull request recorded)"
 
 
@@ -267,20 +287,21 @@ def depth_findings(root: Path) -> list[dict]:
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
     proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
     # W3: the finding names a live issue -> PR run, so a single evidence file — one run — must
-    # name both the issue that triggered the run and the pull request it produced. Aggregating
-    # the two links across separate files would pass on an issue from one run and a PR from
-    # another (or none), which is exactly the false pass this check exists to catch. OK
-    # therefore requires both links in the SAME file; any partial file keeps the finding below OK.
+    # name all three steps: the issue that triggered the run, the workflow run, and the pull
+    # request the run produced. Aggregating the links across separate files, or accepting an
+    # issue and a pull request with no run between them, would pass on a path no single run
+    # took — exactly the false pass this check exists to catch. OK therefore requires all three
+    # links in the SAME file; any partial file keeps the finding below OK.
     proofs = {p.name: _run_proof(p) for p in proof}
-    # OK needs both links in one file AND in one repository: an issue in repo A with a pull
-    # request in repo B is two unrelated runs, not the issue -> PR path this finding names.
+    # OK needs all three links in one file AND in one repository: an issue in repo A with a
+    # run or pull request in repo B is not the issue -> PR path this finding names.
     complete = {name: r for name, r in proofs.items()
-                if r["issue"] and r["pr"] and _same_repository(r)}
+                if r["issue"] and r["run"] and r["pr"] and _same_repository(r)}
     partial = {name: r for name, r in proofs.items() if name not in complete
-               and (r["issue"] or r["pr"] or r["conversation"])}
+               and (r["issue"] or r["run"] or r["pr"] or r["conversation"])}
     if complete:
         live_status = "OK"
-        live_evidence = [f"{name} -> issue {r['issue']}; pull request {r['pr']}"
+        live_evidence = [f"{name} -> issue {r['issue']}; run {r['run']}; pull request {r['pr']}"
                          for name, r in complete.items()]
     elif partial:
         live_status = "PARTIAL"

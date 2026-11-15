@@ -290,6 +290,25 @@ def test_issue_link_rejects_a_pull_request_url(pa, tmp_path):
     assert pa.issue_link(p) == ""
 
 
+def test_run_link_reads_a_workflow_run(pa, tmp_path):
+    p = tmp_path / "e.md"
+    p.write_text(
+        "# Company workflow loop\n\n"
+        "- workflow run: https://github.com/owner/repo/actions/runs/38148411690\n",
+        encoding="utf-8",
+    )
+    assert pa.run_link(p) == "https://github.com/owner/repo/actions/runs/38148411690"
+
+
+def test_run_link_rejects_an_issue_or_pull_request_url(pa, tmp_path):
+    """The run field must name the run, not the issue or the pull request it connects."""
+    p = tmp_path / "e.md"
+    p.write_text("- workflow run: https://github.com/owner/repo/issues/208\n", encoding="utf-8")
+    assert pa.run_link(p) == ""
+    p.write_text("- workflow run: https://github.com/owner/repo/pull/218\n", encoding="utf-8")
+    assert pa.run_link(p) == ""
+
+
 def test_depth_rejects_a_dry_run_as_live_evidence(pa, tmp_path):
     """W3: a dry run in the evidence dir is a presence, not a proof."""
     _company_tree(tmp_path)
@@ -315,7 +334,7 @@ def test_depth_is_partial_when_only_a_conversation_link_is_committed(pa, tmp_pat
 
 
 def test_depth_is_partial_when_only_a_pull_request_link_is_committed(pa, tmp_path):
-    """W3: the finding names an *issue* -> PR run, so a bare PR link is only half the proof."""
+    """W3: the finding names an *issue* -> PR run, so a bare PR link is only one step."""
     _company_tree(tmp_path)
     _evidence(tmp_path, "pr-only.md", "- pr: https://github.com/owner/repo/pull/218\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
@@ -323,15 +342,32 @@ def test_depth_is_partial_when_only_a_pull_request_link_is_committed(pa, tmp_pat
     assert any("pull request only" in e for e in f["evidence"])
 
 
-def test_depth_passes_with_an_issue_and_a_pull_request(pa, tmp_path):
+def test_depth_is_partial_when_issue_and_pr_have_no_run_between_them(pa, tmp_path):
+    """W3: the finding names an issue -> PR *run*; issue+PR with no run is not that path.
+
+    A file holding only an issue and a pull request proves two URLs, not a run that took one
+    to the other. This is the false pass the earlier `issue + pr -> OK` rule left open.
+    """
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "no-run.md",
+              "- issue: https://github.com/owner/repo/issues/208\n"
+              "- pr: https://github.com/owner/repo/pull/218\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("incomplete issue -> run -> pull request path" in e for e in f["evidence"])
+
+
+def test_depth_passes_with_an_issue_a_run_and_a_pull_request(pa, tmp_path):
     _company_tree(tmp_path)
     _evidence(tmp_path, "company-loop.md",
               "# Company workflow loop\n\n"
               "- issue: https://github.com/owner/repo/issues/208\n"
+              "- workflow run: https://github.com/owner/repo/actions/runs/38148411690\n"
               "- pr: https://github.com/owner/repo/pull/218\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
     assert any("issues/208" in e for e in f["evidence"])
+    assert any("actions/runs/38148411690" in e for e in f["evidence"])
     assert any("pull/218" in e for e in f["evidence"])
 
 
@@ -359,21 +395,23 @@ def test_depth_is_partial_when_only_an_issue_link_is_committed(pa, tmp_path):
 
 
 def test_depth_still_ok_when_a_complete_file_coexists_with_partial_ones(pa, tmp_path):
-    """A complete run's file passes even if other evidence files hold only one half."""
+    """A complete run's file passes even if other evidence files hold only one step."""
     _company_tree(tmp_path)
     _evidence(tmp_path, "conversation-only.md", "- link: https://app.all-hands.dev/canvas/conversations/x\n")
     _evidence(tmp_path, "company-loop.md",
               "- issue: https://github.com/owner/repo/issues/208\n"
+              "- workflow run: https://github.com/owner/repo/actions/runs/38148411690\n"
               "- pr: https://github.com/owner/repo/pull/218\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
     assert any("issues/208" in e and "pull/218" in e for e in f["evidence"])
 
 
-def test_repo_of_reads_the_slug_of_a_github_issue_or_pr(pa):
+def test_repo_of_reads_the_slug_of_a_github_issue_run_or_pr(pa):
     assert pa._repo_of("https://github.com/owner/repo/issues/208") == "owner/repo"
     assert pa._repo_of("https://github.com/owner/repo/pull/218") == "owner/repo"
-    assert pa._repo_of("https://github.com/owner/repo/actions/runs/1") == ""
+    assert pa._repo_of("https://github.com/owner/repo/actions/runs/1") == "owner/repo"
+    assert pa._repo_of("https://app.all-hands.dev/canvas/conversations/x") == ""
     assert pa._repo_of("") == ""
 
 
@@ -381,23 +419,25 @@ def test_depth_does_not_pass_on_an_issue_and_a_pr_in_different_repositories(pa, 
     """W3: one run is one repository. An issue in repo A and a PR in repo B is not a path.
 
     The gateway allowlists a single owner and the run reports one target repository, so an
-    issue and the pull request it produced always share an `owner/repo`. Two links from
-    different repositories are two unrelated items and must not report OK.
+    issue, the run, and the pull request it produced always share an `owner/repo`. Links from
+    different repositories are unrelated items and must not report OK.
     """
     _company_tree(tmp_path)
     _evidence(tmp_path, "mixed.md",
               "- issue: https://github.com/owner/repo/issues/1\n"
+              "- workflow run: https://github.com/owner/repo/actions/runs/5\n"
               "- pr: https://github.com/other/repo/pull/2\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "PARTIAL"
     assert any("different repositories" in e for e in f["evidence"])
 
 
-def test_depth_passes_on_an_issue_and_a_pr_in_one_repository(pa, tmp_path):
-    """The same two links in one repository is the proof the finding names."""
+def test_depth_passes_on_an_issue_a_run_and_a_pr_in_one_repository(pa, tmp_path):
+    """The same three links in one repository is the proof the finding names."""
     _company_tree(tmp_path)
     _evidence(tmp_path, "company-loop.md",
               "- issue: https://github.com/owner/repo/issues/208\n"
+              "- workflow run: https://github.com/owner/repo/actions/runs/38148411690\n"
               "- pr: https://github.com/owner/repo/pull/218\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
