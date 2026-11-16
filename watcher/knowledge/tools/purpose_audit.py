@@ -19,8 +19,10 @@ reports per claim:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import re
+import tokenize
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -120,6 +122,30 @@ def _field_url(path: Path, field: str) -> str:
             if value.startswith(("http://", "https://")):
                 return value
     return ""
+
+
+def _call_offsets(text: str) -> dict[str, list[int]]:
+    """Map each called name to the character offsets it is *called* at (`name(`), or {} if unparsable.
+
+    W3: a raw `"run_openhands_role" in text` match is satisfied by a comment or a docstring, so
+    the audit could report the loop "wired" while no role reaches it. Tokenizing drops comments
+    and strings, and requiring a following `(` distinguishes a call from a mere import or a
+    mention in a string, so the check reads code, not text. (Reachability inside dead code is
+    beyond a tokenizer; a call is credited wherever it textually appears as a call.)
+    """
+    calls: dict[str, list[int]] = {}
+    line_start = [0]
+    for line in text.splitlines(keepends=True):
+        line_start.append(line_start[-1] + len(line))
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return {}
+    for first, second in zip(tokens, tokens[1:]):
+        if first.type == tokenize.NAME and second.type == tokenize.OP and second.string == "(":
+            row, col = first.start
+            calls.setdefault(first.string, []).append(line_start[row - 1] + col)
+    return calls
 
 
 def evidence_link(path: Path) -> str:
@@ -227,16 +253,21 @@ def depth_findings(root: Path) -> list[dict]:
 
     total_roles = len(re.findall(r"SpecialistRole\(", roles_txt))
     role_keys = re.findall(r'key="([a-z_]+)"', roles_txt)
-    # A role reaches the agentic loop if its branch wraps a call to an OpenHands SDK runner:
-    # the developer's file-editing loop, or the investigative loop every other role now uses.
+    # A role reaches the agentic loop only if the runner *calls* an OpenHands SDK runner on its
+    # branch. W3: match the tokenized call, not the bare name — a comment or a docstring mention
+    # satisfied a substring check and reported the loop wired when it was not.
+    calls = _call_offsets(runner_txt)
+    dev_calls = calls.get("run_openhands_developer", [])
     loop_roles = sorted({
         m.group(1)
         for m in re.finditer(r'role_key == "([a-z_]+)"', runner_txt)
-        if "run_openhands_developer" in runner_txt[m.start(): m.start() + 400]
+        if any(m.start() <= offset <= m.start() + 400 for offset in dev_calls)
     })
-    # If the runner wires the general investigative loop, every non-developer role is covered.
-    if "run_openhands_role" in runner_txt:
-        loop_roles = sorted(set(loop_roles) | set(role_keys))
+    # The general investigative loop (run_openhands_role) covers every non-developer role; the
+    # developer keeps its own file-editing loop above. A real call here must not be credited to
+    # the developer, or deleting the developer branch still reads as full coverage (W3).
+    if calls.get("run_openhands_role"):
+        loop_roles = sorted(set(loop_roles) | (set(role_keys) - {"developer"}))
     if total_roles:
         status = "OK" if len(loop_roles) >= total_roles else "PARTIAL"
         rest = total_roles - len(loop_roles)

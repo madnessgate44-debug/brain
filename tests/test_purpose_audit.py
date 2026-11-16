@@ -147,6 +147,91 @@ def test_depth_stays_partial_without_the_general_loop(pa, tmp_path):
     assert "1 of 9" in f["finding"]
 
 
+def _runner_tree(pa, tmp_path: Path, runner_text: str, total: int = 9) -> dict:
+    """A company tree whose agent_runner.py is exactly `runner_text`, then run the depth check."""
+    company = tmp_path / "brain" / "company"
+    company.mkdir(parents=True)
+    keys = ["developer"] + [f"role_{c}" for c in "abcdefgh"[: total - 1]]
+    (company / "roles.py").write_text(
+        "".join(f'    SpecialistRole(\n        key="{k}",\n    ),\n' for k in keys),
+        encoding="utf-8",
+    )
+    (company / "agent_runner.py").write_text(runner_text, encoding="utf-8")
+    return next(d for d in pa.depth_findings(tmp_path / "brain") if "loop covers" in d["finding"])
+
+
+def test_depth_ignores_a_comment_mention_of_the_general_loop(pa, tmp_path):
+    """W3: the old check used `"run_openhands_role" in text`, so a *comment* about the loop
+    reported 9 of 9 roles looping while no role reached it. The check must read code, not text.
+    """
+    f = _runner_tree(pa, tmp_path, "# run_openhands_role was deleted; roles now run single-shot\npass\n")
+    assert f["status"] == "PARTIAL"
+    assert "0 of 9" in f["finding"]
+
+
+def test_depth_ignores_a_docstring_mention_of_the_general_loop(pa, tmp_path):
+    """W3: a docstring naming the loop is a string, not a call — it must not count as coverage."""
+    f = _runner_tree(pa, tmp_path, '"""Roles reach run_openhands_role in the wired branch."""\npass\n')
+    assert f["status"] == "PARTIAL"
+    assert "0 of 9" in f["finding"]
+
+
+def test_depth_ignores_a_comment_mention_of_the_developer_loop(pa, tmp_path):
+    """W3: the developer branch is credited only when `run_openhands_developer` is *called*."""
+    f = _runner_tree(
+        pa,
+        tmp_path,
+        'if role_key == "developer":\n'
+        "    # run_openhands_developer was removed; this role is single-shot now\n"
+        "    await self.provider.complete(s, u)\n",
+    )
+    assert f["status"] == "PARTIAL"
+    assert "0 of 9" in f["finding"]
+
+
+def test_depth_ignores_a_bare_import_of_the_general_loop(pa, tmp_path):
+    """W3: an import names the symbol but never calls it — coverage requires the call."""
+    f = _runner_tree(pa, tmp_path, "from brain.company.openhands_role import run_openhands_role\n")
+    assert f["status"] == "PARTIAL"
+    assert "0 of 9" in f["finding"]
+
+
+def test_depth_general_loop_covers_every_role_except_the_developer(pa, tmp_path):
+    """The general loop covers the eight non-developer roles; the developer needs its own call.
+
+    Crediting the developer to the general loop would let deleting the developer branch still
+    read as full coverage (W3).
+    """
+    f = _runner_tree(pa, tmp_path, 'if role_key != "developer":\n    await run_openhands_role(x)\n')
+    assert f["status"] == "PARTIAL"
+    assert "8 of 9" in f["finding"]
+    assert "developer" not in f["evidence"][0]
+
+
+def test_depth_counts_all_roles_when_both_loops_are_called(pa, tmp_path):
+    f = _runner_tree(
+        pa,
+        tmp_path,
+        'if role_key == "developer":\n    await run_openhands_developer(x)\n'
+        'if role_key != "developer":\n    await run_openhands_role(x)\n',
+    )
+    assert f["status"] == "OK"
+    assert "9 of 9" in f["finding"]
+
+
+def test_call_offsets_reads_calls_not_mentions(pa):
+    """The tokenizer is the fix's core: it sees `f(` and drops comments and strings."""
+    text = (
+        "# run_openhands_role() in a comment\n"
+        'x = "run_openhands_role() in a string"\n'
+        "from m import run_openhands_role\n"
+        "run_openhands_role(1)\n"
+    )
+    offsets = pa._call_offsets(text)
+    assert len(offsets["run_openhands_role"]) == 1
+    assert pa._call_offsets("def broken(:\n") == {}
+
+
 def test_depth_flags_a_role_with_no_skill(pa, tmp_path):
     """Finding a missing skill is the Watcher's job (W7)."""
     _company_tree(tmp_path, total=3)
