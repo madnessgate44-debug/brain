@@ -124,6 +124,21 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   OK); `issue + run + pr` -> OK. The committed proof already carries the run link
   (`company-loop-20261011-issue208-pr218.md`, line 7), so the real tree stays OK. Verified by
   `python3 -m pytest -q` and the audit's live-run finding.
+- **Correction (2026-11-17): the check never required the proof to be *this* repository's run.**
+  The check above required an issue, a run, and a pull request in one file and one repository —
+  but not the repository Brain is allowed to write. So a well-formed proof naming a *foreign*
+  owner (`someone-else/other`) reported OK: three links that agree with each other, for a run this
+  app never performed. Brain writes to one owner only — the gateway allowlists it
+  (`brain/company/github_gateway.py:47`) and the task runner accepts issues "owned by the Brain
+  repository owner" (`.github/workflows/brain-task-runner.yml:50`) — so the proof must name that
+  owner. `purpose_audit.py` now reads the owner from the environment the audit runs in
+  (`_owner_scope`, `GITHUB_REPOSITORY` under Actions; `BRAIN_GITHUB_OWNER` as a fallback) and
+  `_proof_in_scope` requires every link in the file to name it; a foreign proof is named as such
+  by `_describe_fragment` and kept at PARTIAL. With no owner in the environment (a local run) the
+  check stays lenient and only requires the three links to agree, so this is strictly narrower.
+  Negative control: a crafted foreign proof -> OK before, PARTIAL after; the same proof naming
+  `madnessgate44-debug/brain` -> OK. Verified by `python3 -m pytest -q` (567 passed, 2 skipped)
+  and the audit's live-run finding.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps

@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import re
 import tokenize
 from datetime import datetime, timezone
@@ -223,12 +224,61 @@ def _same_repository(r: dict[str, str]) -> bool:
     return "" not in repos and len({repo.casefold() for repo in repos}) == 1
 
 
+def _repo_owner(repo: str) -> str:
+    """The owner part of an `owner/repo` slug, or ""."""
+    return repo.split("/", 1)[0].casefold() if "/" in repo else ""
+
+
+def _owner_scope() -> str:
+    """The owner this repository is, so a proof from a foreign repository cannot pass.
+
+    The finding names the app's own live run: an issue dispatched through Brain's company
+    workflow that produced a pull request. Brain writes to one owner only — the gateway
+    allowlists it (`github_gateway.py:47`) and the task runner accepts issues "owned by the
+    Brain repository owner" (`brain-task-runner.yml:50`) — so a proof whose links name a
+    different owner is not this app's run, however well-formed it looks. The owner comes from
+    the environment the audit runs in (`GITHUB_REPOSITORY` under Actions); with none set (a
+    local run) the check stays lenient and only requires the three links to agree with each
+    other. Never guessed from the working tree, so a test tree cannot silence it.
+    """
+    slug = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if slug and "/" in slug:
+        return _repo_owner(slug)
+    owner = os.environ.get("BRAIN_GITHUB_OWNER", "").strip()
+    return owner.casefold()
+
+
+
+def _proof_owners(r: dict[str, str]) -> set[str]:
+    """The owners named by the links a proof file holds (only the fields it records)."""
+    return {_repo_owner(repo) for key in ("issue", "run", "pr") if (repo := _repo_of(r[key]))}
+
+
+def _proof_in_scope(r: dict[str, str], owner: str) -> bool:
+    """True when every link a proof holds names this repository's owner (or no scope is known).
+
+    With no `owner` (a local run) every repository is in scope; the three links still have to
+    agree with each other, so this is strictly narrower, never looser.
+    """
+    if not owner:
+        return True
+    owners = _proof_owners(r)
+    return bool(owners) and owners == {owner}
+
+
 _ITEM_FIELDS = (("issue", "issue"), ("run", "workflow run"), ("pr", "pull request"))
 
 
-def _describe_fragment(name: str, r: dict[str, str]) -> str:
+def _describe_fragment(name: str, r: dict[str, str], owner: str = "") -> str:
     """Name which part of the issue -> run -> PR path a single evidence file holds."""
     present = [(label, r[key]) for key, label in _ITEM_FIELDS if r[key]]
+    owners = _proof_owners(r)
+    # A foreign proof only reads as "foreign" when its links agree on one repository; a mixed
+    # file is reported as the incomplete path it is, below.
+    if owner and len(owners) == 1 and next(iter(owners)) != owner:
+        repo = next(repo for key in ("issue", "run", "pr") if (repo := _repo_of(r[key])))
+        return (f"{name} -> {repo} (not this repository's owner {owner!r}; a run this app did "
+                "not perform)")
     if len(present) == 1:
         label, url = present[0]
         return f"{name} -> {url} ({label} only; no complete issue -> run -> PR path recorded)"
@@ -325,9 +375,14 @@ def depth_findings(root: Path) -> list[dict]:
     # links in the SAME file; any partial file keeps the finding below OK.
     proofs = {p.name: _run_proof(p) for p in proof}
     # OK needs all three links in one file AND in one repository: an issue in repo A with a
-    # run or pull request in repo B is not the issue -> PR path this finding names.
+    # run or pull request in repo B is not the issue -> PR path this finding names. It must
+    # also be THIS repository's owner: a well-formed proof from a foreign repository is a run
+    # this app did not perform (W3, one level deeper — "same repository" let a foreign repo
+    # through as long as its own three links agreed).
+    owner = _owner_scope()
     complete = {name: r for name, r in proofs.items()
-                if r["issue"] and r["run"] and r["pr"] and _same_repository(r)}
+                if r["issue"] and r["run"] and r["pr"] and _same_repository(r)
+                and _proof_in_scope(r, owner)}
     partial = {name: r for name, r in proofs.items() if name not in complete
                and (r["issue"] or r["run"] or r["pr"] or r["conversation"])}
     if complete:
@@ -336,7 +391,7 @@ def depth_findings(root: Path) -> list[dict]:
                          for name, r in complete.items()]
     elif partial:
         live_status = "PARTIAL"
-        live_evidence = [_describe_fragment(name, r) for name, r in partial.items()]
+        live_evidence = [_describe_fragment(name, r, owner) for name, r in partial.items()]
     else:
         live_status = "MISSING"
         live_evidence = ["no live-run evidence committed (a DRY RUN or an evidence file with no "

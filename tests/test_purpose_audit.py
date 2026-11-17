@@ -20,6 +20,18 @@ def pa():
     return module
 
 
+@pytest.fixture(autouse=True)
+def _no_owner_scope(monkeypatch):
+    """Run the audit with no owner scope unless a test sets one.
+
+    Under Actions the audit sees `GITHUB_REPOSITORY`; these tests are about reading the evidence
+    files, so they pin the local (no-scope) behaviour and the owner-scope tests opt in by
+    setting the variable themselves.
+    """
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.delenv("BRAIN_GITHUB_OWNER", raising=False)
+
+
 def _tree(tmp_path: Path):
     (tmp_path / "brain").mkdir()
     (tmp_path / "brain" / "real.py").write_text("WORKFLOW_ORDER = ()\n", encoding="utf-8")
@@ -526,3 +538,67 @@ def test_depth_passes_on_an_issue_a_run_and_a_pr_in_one_repository(pa, tmp_path)
               "- pr: https://github.com/owner/repo/pull/218\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
+
+
+# --- owner scope: the proof must be a run THIS repository performed (W3) -------------
+#
+# A file whose issue, run, and pull request all name one repository passes `_same_repository`,
+# but nothing required that repository to be the one Brain writes to. Brain writes to a single
+# owner (`github_gateway.py:47`; `brain-task-runner.yml:50`), so a well-formed proof naming a
+# foreign owner is a run this app did not perform — the same W3 shape one level deeper.
+
+def _company_proof(tmp_path: Path, repo: str) -> None:
+    _evidence(tmp_path, "company-loop.md",
+              f"- issue: https://github.com/{repo}/issues/208\n"
+              f"- workflow run: https://github.com/{repo}/actions/runs/38148411690\n"
+              f"- pr: https://github.com/{repo}/pull/218\n")
+
+
+def test_owner_scope_is_read_from_github_repository(pa, monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    assert pa._owner_scope() == "owner"
+    monkeypatch.delenv("GITHUB_REPOSITORY")
+    monkeypatch.setenv("BRAIN_GITHUB_OWNER", "brain-owner")
+    assert pa._owner_scope() == "brain-owner"
+    monkeypatch.delenv("BRAIN_GITHUB_OWNER")
+    assert pa._owner_scope() == ""
+
+
+def test_depth_passes_when_the_proof_is_this_repository(pa, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    _company_tree(tmp_path)
+    _company_proof(tmp_path, "owner/repo")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "OK"
+
+
+def test_depth_rejects_a_well_formed_proof_from_a_foreign_repository(pa, tmp_path, monkeypatch):
+    """W3: the residual false pass — three links that agree, but name someone else's repo."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    _company_tree(tmp_path)
+    _company_proof(tmp_path, "someone-else/other")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("not this repository's owner" in e for e in f["evidence"])
+    assert any("someone-else/other" in e for e in f["evidence"])
+
+
+def test_depth_stays_lenient_without_an_owner_scope(pa, tmp_path):
+    """A local run has no owner scope, so a self-consistent proof still passes."""
+    _company_tree(tmp_path)
+    _company_proof(tmp_path, "someone-else/other")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "OK"
+
+
+def test_depth_ignores_a_foreign_proof_when_a_real_one_exists(pa, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    _company_tree(tmp_path)
+    _company_proof(tmp_path, "someone-else/other")
+    _evidence(tmp_path, "real-loop.md",
+              "- issue: https://github.com/owner/repo/issues/208\n"
+              "- workflow run: https://github.com/owner/repo/actions/runs/38148411690\n"
+              "- pr: https://github.com/owner/repo/pull/218\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "OK"
+    assert any("real-loop.md" in e for e in f["evidence"])
