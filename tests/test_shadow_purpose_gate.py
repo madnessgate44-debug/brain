@@ -68,3 +68,15 @@ def test_workflow_checks_out_full_history_for_the_ratio(report):
     """A shallow clone would make the W1 ratio read a 1-commit history and go falsely red."""
     wf = (_ROOT / ".github" / "workflows" / "shadow-report.yml").read_text(encoding="utf-8")
     assert wf.count("fetch-depth: 0") >= 2, "both the gate and report jobs read git history"
+
+
+def test_gate_gives_the_live_run_check_a_token_and_actions_read(report):
+    """The live-run finding verifies its proof against the API; without these it cannot.
+
+    The gate step must pass GITHUB_TOKEN (or the check skips verification) and the workflow
+    must grant `actions: read` (or reading a workflow run returns 403). Either omission makes
+    the check silently weaker, which is the W3 shape it exists to catch.
+    """
+    wf = (_ROOT / ".github" / "workflows" / "shadow-report.yml").read_text(encoding="utf-8")
+    assert "secrets.GITHUB_TOKEN" in wf, "the gate needs a token to verify the live-run proof"
+    assert "actions: read" in wf, "reading a workflow run needs the actions scope"

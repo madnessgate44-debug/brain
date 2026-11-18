@@ -139,6 +139,24 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   Negative control: a crafted foreign proof -> OK before, PARTIAL after; the same proof naming
   `madnessgate44-debug/brain` -> OK. Verified by `python3 -m pytest -q` (567 passed, 2 skipped)
   and the audit's live-run finding.
+- **Correction (2026-11-18): the check never confirmed the proof against GitHub — a fabricated
+  triple passed.** Every check above read the evidence *file*: it proved the three links were
+  well-formed, in one file, in one repository, in this owner — but never that the run existed or
+  connected the issue to the pull request. So a hand-typed `- issue: …/issues/1`,
+  `- workflow run: …/actions/runs/1`, `- pr: …/pull/1` reported OK while nothing had run — the
+  W3 false-pass shape one level deeper, and the one the codebase's own verification already
+  guards against (`brain/company/tools.py:239-244` re-fetches the run and requires
+  `event == "issues"`, `status == "completed"` before trusting its comment).
+  `purpose_audit.py` now adds `_gh_get` (reads the API, returning the HTTP status so a 404 is a
+  *definitive* absence and an unreadable response is *inconclusive*) and `_verified_connection`
+  (the run must exist, have run the company workflow on an `issues` event, and have posted the
+  result comment that names the pull request). The finding is OK only when the proof is
+  confirmed; a proof the API rejects is PARTIAL. With no `GITHUB_TOKEN` (a local run) the check
+  skips verification rather than fabricating a failure, and `.github/workflows/shadow-report.yml`
+  now gives the gate the token and the `actions: read` scope so the check bites in production.
+  Negative control (throwaway evidence dir, live API): a fabricated `1/1/1` triple -> OK before,
+  PARTIAL after; the real `208/38148411690/218` proof -> OK. Verified by `python3 -m pytest -q`
+  (576 passed, 2 skipped).
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps

@@ -22,14 +22,15 @@ def pa():
 
 @pytest.fixture(autouse=True)
 def _no_owner_scope(monkeypatch):
-    """Run the audit with no owner scope unless a test sets one.
+    """Run the audit with no owner scope and no token unless a test sets one.
 
-    Under Actions the audit sees `GITHUB_REPOSITORY`; these tests are about reading the evidence
-    files, so they pin the local (no-scope) behaviour and the owner-scope tests opt in by
-    setting the variable themselves.
+    Under Actions the audit sees `GITHUB_REPOSITORY` and `GITHUB_TOKEN`; these tests are about
+    reading the evidence files, so they pin the local (no-scope, no-verification) behaviour and
+    the owner-scope and verification tests opt in by setting the variables themselves.
     """
     monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
     monkeypatch.delenv("BRAIN_GITHUB_OWNER", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
 
 def _tree(tmp_path: Path):
@@ -602,3 +603,136 @@ def test_depth_ignores_a_foreign_proof_when_a_real_one_exists(pa, tmp_path, monk
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
     assert any("real-loop.md" in e for e in f["evidence"])
+
+
+# --- the proof must be verified against GitHub, not merely well-formed (W3) -----------
+#
+# A fabricated `issues/1` + `runs/1` + `pull/1` triple is well-formed and in scope, so every
+# earlier check passes it. These tests fake the API (`pa._gh_get`) so they are hermetic and
+# never touch the network, and assert the finding rejects a proof the API does not confirm.
+
+def _with_token(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+
+def test_gh_get_returns_status_and_none_on_http_error(pa, monkeypatch):
+    """A 404 is a definitive absence; a request that cannot be made is status 0."""
+    def fake_urlopen(req, timeout=20):
+        raise pa.urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+    monkeypatch.setattr(pa.urllib.request, "urlopen", fake_urlopen)
+    body, status = pa._gh_get("/repos/o/r/issues/1")
+    assert body is None and status == 404
+
+    def boom(req, timeout=20):
+        raise OSError("network down")
+    monkeypatch.setattr(pa.urllib.request, "urlopen", boom)
+    body, status = pa._gh_get("/repos/o/r/issues/1")
+    assert body is None and status == 0
+
+
+def test_verified_connection_accepts_the_run_whose_comment_names_the_pr(pa, monkeypatch):
+    def fake(path):
+        if "actions/runs" in path:
+            return {"event": "issues", "status": "completed"}, 200
+        return [{"body": "Pull request: https://github.com/o/r/pull/218"}], 200
+    monkeypatch.setattr(pa, "_gh_get", fake)
+    assert pa._verified_connection(
+        "https://github.com/o/r/issues/208",
+        "https://github.com/o/r/actions/runs/38148411690",
+        "https://github.com/o/r/pull/218",
+    )
+
+
+def test_verified_connection_rejects_a_run_that_did_not_execute_the_company_workflow(pa, monkeypatch):
+    def fake(path):
+        if "actions/runs" in path:
+            return {"event": "push", "status": "completed"}, 200
+        return [{"body": "Pull request: https://github.com/o/r/pull/218"}], 200
+    monkeypatch.setattr(pa, "_gh_get", fake)
+    assert not pa._verified_connection(
+        "https://github.com/o/r/issues/208",
+        "https://github.com/o/r/actions/runs/1",
+        "https://github.com/o/r/pull/218",
+    )
+
+
+def test_verified_connection_rejects_a_missing_run(pa, monkeypatch):
+    monkeypatch.setattr(pa, "_gh_get", lambda path: (None, 404))
+    assert not pa._verified_connection(
+        "https://github.com/o/r/issues/208",
+        "https://github.com/o/r/actions/runs/1",
+        "https://github.com/o/r/pull/218",
+    )
+
+
+def test_verified_connection_rejects_a_comment_that_names_a_different_pr(pa, monkeypatch):
+    def fake(path):
+        if "actions/runs" in path:
+            return {"event": "issues", "status": "completed"}, 200
+        return [{"body": "Pull request: https://github.com/o/r/pull/999"}], 200
+    monkeypatch.setattr(pa, "_gh_get", fake)
+    assert not pa._verified_connection(
+        "https://github.com/o/r/issues/208",
+        "https://github.com/o/r/actions/runs/38148411690",
+        "https://github.com/o/r/pull/218",
+    )
+
+
+def test_verified_connection_is_lenient_when_the_comments_cannot_be_read(pa, monkeypatch):
+    """An unreadable comment list is inconclusive, not a rejection (status 0)."""
+    def fake(path):
+        if "actions/runs" in path:
+            return {"event": "issues", "status": "completed"}, 200
+        return None, 0
+    monkeypatch.setattr(pa, "_gh_get", fake)
+    assert pa._verified_connection(
+        "https://github.com/o/r/issues/208",
+        "https://github.com/o/r/actions/runs/38148411690",
+        "https://github.com/o/r/pull/218",
+    )
+
+
+def test_depth_rejects_a_fabricated_triple_when_verifying(pa, tmp_path, monkeypatch):
+    """W3: the residual false pass — a well-formed, in-scope triple for a run that never ran."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    _with_token(monkeypatch)
+    monkeypatch.setattr(pa, "_gh_get", lambda path: (None, 404))
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "fake.md",
+              "- issue: https://github.com/madnessgate44-debug/brain/issues/1\n"
+              "- workflow run: https://github.com/madnessgate44-debug/brain/actions/runs/1\n"
+              "- pr: https://github.com/madnessgate44-debug/brain/pull/1\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("does not confirm the run connects" in e for e in f["evidence"])
+
+
+def test_depth_passes_a_proof_the_api_confirms(pa, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    _with_token(monkeypatch)
+
+    def fake(path):
+        if "actions/runs" in path:
+            return {"event": "issues", "status": "completed"}, 200
+        return [{"body": "Pull request: https://github.com/madnessgate44-debug/brain/pull/218"}], 200
+    monkeypatch.setattr(pa, "_gh_get", fake)
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "real.md",
+              "- issue: https://github.com/madnessgate44-debug/brain/issues/208\n"
+              "- workflow run: https://github.com/madnessgate44-debug/brain/actions/runs/38148411690\n"
+              "- pr: https://github.com/madnessgate44-debug/brain/pull/218\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "OK"
+
+
+def test_depth_skips_verification_without_a_token(pa, tmp_path, monkeypatch):
+    """No token (a local run) must not fabricate a failure: the finding stays OK."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    calls = []
+    monkeypatch.setattr(pa, "_gh_get", lambda path: calls.append(path) or (None, 404))
+    _company_tree(tmp_path)
+    _company_proof(tmp_path, "madnessgate44-debug/brain")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "OK"
+    assert calls == [], "without a token the check must not call the API"

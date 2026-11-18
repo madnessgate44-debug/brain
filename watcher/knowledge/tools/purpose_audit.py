@@ -24,6 +24,8 @@ import json
 import os
 import re
 import tokenize
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -269,6 +271,71 @@ def _proof_in_scope(r: dict[str, str], owner: str) -> bool:
 _ITEM_FIELDS = (("issue", "issue"), ("run", "workflow run"), ("pr", "pull request"))
 
 
+def _gh_get(path: str) -> tuple[dict | list | None, int]:
+    """GET `https://api.github.com<path>`; return (parsed body, HTTP status).
+
+    Status is the HTTP code on a response (200, 404, …) and 0 when the request could not be
+    made at all (no network, a timeout, a DNS failure). The caller uses the distinction to tell
+    a *definitive* absence (404: the item does not exist) from an *inconclusive* read (0: cannot
+    verify), so a transient API gap never turns a real proof into a false negative. Never raises.
+    """
+    req = urllib.request.Request(f"https://api.github.com{path}", method="GET")
+    req.add_header("Accept", "application/vnd.github+json")
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.loads(r.read() or b"{}"), r.status
+    except urllib.error.HTTPError as e:
+        return None, e.code
+    except Exception:  # noqa: BLE001 - network failure: inconclusive, not absent
+        return None, 0
+
+
+def _verified_connection(issue: str, run: str, pr: str) -> bool:
+    """True when the GitHub API confirms the run connects this issue to this pull request.
+
+    The check requires the run to have executed the company workflow on an `issues` event and
+    to have posted the result comment that links that pull request — the same connection the
+    codebase's own verification makes (`brain/company/tools.py:239-244`: the run must have
+    `event == "issues"` and `status == "completed"` before its comment is trusted). A run that
+    never ran the company workflow, or whose result comment does not name this pull request,
+    is not the issue -> PR path this finding names.
+
+    A link that the API answers with 404 is a *definitive* absence and rejects the proof: a
+    fabricated `issues/1` + `runs/1` + `pull/1` triple names items that do not exist. A link
+    that could not be read at all (status 0: no network, a timeout) is *inconclusive* and does
+    not reject, so a transient gap never turns a real proof into a false negative — the finding
+    has already proved the links agree and are in scope; this only rejects a *proven* mismatch.
+    """
+    run_id = _last_int(run)
+    issue_id = _last_int(issue)
+    if not run_id or not issue_id:
+        return False
+    run_data, run_status = _gh_get(f"/repos/{_repo_of(run)}/actions/runs/{run_id}")
+    if run_status == 404:
+        return False  # the run the proof names does not exist
+    if isinstance(run_data, dict) and (
+        run_data.get("event") != "issues" or run_data.get("status") != "completed"
+    ):
+        return False  # the run did not execute the company workflow
+    comments, comments_status = _gh_get(
+        f"/repos/{_repo_of(issue)}/issues/{issue_id}/comments?per_page=100"
+    )
+    if comments_status == 404:
+        return False  # the issue the proof names does not exist
+    if not isinstance(comments, list):
+        return True  # cannot read the comments: inconclusive, do not reject a real proof
+    return any(pr in (c.get("body") or "") for c in comments if isinstance(c, dict))
+
+
+def _last_int(url: str) -> int:
+    """The trailing integer of a GitHub item URL, or 0."""
+    match = re.search(r"/(\d+)$", url)
+    return int(match.group(1)) if match else 0
+
+
 def _describe_fragment(name: str, r: dict[str, str], owner: str = "") -> str:
     """Name which part of the issue -> run -> PR path a single evidence file holds."""
     present = [(label, r[key]) for key, label in _ITEM_FIELDS if r[key]]
@@ -380,9 +447,18 @@ def depth_findings(root: Path) -> list[dict]:
     # this app did not perform (W3, one level deeper — "same repository" let a foreign repo
     # through as long as its own three links agreed).
     owner = _owner_scope()
-    complete = {name: r for name, r in proofs.items()
-                if r["issue"] and r["run"] and r["pr"] and _same_repository(r)
-                and _proof_in_scope(r, owner)}
+    # A proof that is well-formed and in scope is then *confirmed against GitHub*: the run must
+    # exist, have run the company workflow on an `issues` event, and its result comment must name
+    # the pull request. A fabricated triple (issues/1 + runs/1 + pull/1) is well-formed and in
+    # scope, so without this it reads as OK while nothing ran (W3, one level deeper). Verification
+    # is skipped when no token is available (a local run), so the check never fabricates a failure.
+    verify = bool(os.environ.get("GITHUB_TOKEN", "").strip())
+    well_formed = {name: r for name, r in proofs.items()
+                   if r["issue"] and r["run"] and r["pr"] and _same_repository(r)
+                   and _proof_in_scope(r, owner)}
+    complete = {name: r for name, r in well_formed.items()
+                if not verify or _verified_connection(r["issue"], r["run"], r["pr"])}
+    unverified = {name: r for name, r in well_formed.items() if name not in complete}
     partial = {name: r for name, r in proofs.items() if name not in complete
                and (r["issue"] or r["run"] or r["pr"] or r["conversation"])}
     if complete:
@@ -391,7 +467,14 @@ def depth_findings(root: Path) -> list[dict]:
                          for name, r in complete.items()]
     elif partial:
         live_status = "PARTIAL"
-        live_evidence = [_describe_fragment(name, r, owner) for name, r in partial.items()]
+        live_evidence = [
+            (f"{name} -> issue {r['issue']}; run {r['run']}; pull request {r['pr']} "
+             "(links agree, but the GitHub API does not confirm the run connects this issue to "
+             "this pull request — a run that did not execute the company workflow, or whose "
+             "result comment does not name the pull request)")
+            if name in unverified else _describe_fragment(name, r, owner)
+            for name, r in partial.items()
+        ]
     else:
         live_status = "MISSING"
         live_evidence = ["no live-run evidence committed (a DRY RUN or an evidence file with no "

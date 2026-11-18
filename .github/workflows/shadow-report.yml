@@ -23,6 +23,10 @@ permissions:
   contents: read
   issues: write
   pull-requests: write
+  # The gate's live-run check reads a workflow run (GET /actions/runs/{id}) to confirm it
+  # executed the company workflow on an `issues` event. Without this the token gets 403 and
+  # the check silently falls back to the comment connection alone.
+  actions: read
 
 jobs:
   report:
@@ -57,6 +61,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Run the fit-for-purpose gate
+        env:
+          # The live-run depth finding verifies its committed proof against the GitHub API
+          # (a well-formed proof is not necessarily a real run). Without a token the check
+          # skips verification, so the gate would not bite on a fabricated proof.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 shadow/report.py --gate
 
   sweep:
