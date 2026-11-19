@@ -969,3 +969,19 @@ browser. Details + QA recipes: `.openhands/memory/2026-10-22.md`. Owner retains 
   `scripts/skills.py declaration "<task>"` = repo skill router (mandatory per ENGINEERING_EXECUTION_OS.md).
 - **Env:** lint tools not preinstalled → `pip install ruff==0.8.4 mypy==1.14.0 black==24.10.0
   pytest-cov==6.0.0`. `openhands` SDK present, `playwright` absent.
+
+## Session-agent loop: live-run evidence (2026-11-19)
+- The W3 `live-run-evidence` false pass on `main` is that the check is
+  `OK if links else MISSING` over `evidence_link()` — a **conversation** URL satisfies it
+  (`watcher/knowledge/tools/purpose_audit.py:187-193` @ main 9708023). Fixed by adding the missing
+  **producer** `scripts/write_loop_evidence.py` (validates with the checker's own regexes, re-reads
+  with `_run_proof`, deletes+exits 1 if rejected) and calling it from
+  `brain-chat-company-workflow.yml`. PR #320.
+- `_run_proof(path)` takes a **Path**, not text (`AttributeError: 'str' object has no attribute
+  'read_text'`). `session-loop-20261108-114844.md` has `- pr:` and `- workflow run:` but **no
+  `- issue:`** → rejected. Read an evidence file before describing what it lacks.
+- **The `audit` CI job is red repo-wide for an environmental reason:** `shadow-audit.yml`'s
+  "Run Shadow audit" prints `VERDICT: BLOCKED … no Gemini route is configured in Actions` with
+  `OHGeminiAPI:` / `GEMINI_POOL_1..7:` **empty** in the step env. Names are right
+  (`shadow/shadow.py:309`), values are absent. Fails identically on docs-only branches; last green
+  2026-11-10. Only the owner can add the secrets. Do not treat it as a diff regression.
