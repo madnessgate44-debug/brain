@@ -158,6 +158,22 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   PARTIAL after; the real `208/38148411690/218` proof -> OK. Verified by `python3 -m pytest -q`
   (576 passed, 2 skipped).
 
+- **Progress (2026-11-19): the proof is now produced, not typed.** Every correction above made
+  the *check* stricter, and each time the only conforming file was written by hand — an
+  artifact, not a producer. The one script that wrote evidence,
+  `scripts/start_session_loop.py`, emits a conversation link
+  (`- link: …/canvas/conversations/<id>`), which the check rejects, so a real company run left
+  no committable proof. Measured: `write_evidence(...)` -> `issue_link=''`, `run_link=''`,
+  `pull_request_link=''`. New `scripts/write_loop_evidence.py` is the producer: it takes the
+  three links, validates them with the checker's own `_ISSUE_RE` / `_RUN_RE` /
+  `_PULL_REQUEST_RE` and `_same_repository`, re-reads the file with `_run_proof` before
+  returning, and deletes it rather than emit something the check would reject — so writer and
+  check cannot drift. `brain-chat-company-workflow.yml` calls it with the issue, its own
+  `run_id`, and `pull_request.url` from `brain-company-result.json`, then publishes the file on
+  a branch and opens a PR (never the default branch). Negative control: with the writer forced
+  back to the old conversation-only shape, the three substantive tests fail and the writer's own
+  guard raises `the written evidence file is not accepted by the check`.
+
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
   4.2-4.4 were **MISSING**. The session agent had no loop at all — no workflow ran it; the owner
