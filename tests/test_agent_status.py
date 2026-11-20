@@ -209,3 +209,41 @@ def test_zero_commits_means_not_measured_not_truncated(status, tmp_path):
     report = status.build(_repo(tmp_path), commits=0)
     assert report["history_truncated"] is False
     assert report["commits_with_files"] == 0
+
+
+def test_every_ci_job_that_reads_the_ratio_checks_out_full_history():
+    """The gate is only as good as the history it reads.
+
+    Three loops ran it on a 1-commit checkout and the ratio read `0/1 (0%)`. Scoped to CI jobs
+    that gate this repository (push/pull_request) and read the ratio: `agent_status.py` directly,
+    or the full suite, which includes `test_shadow_purpose_gate.py`'s assertion that the real
+    repo passes its own ratio. Jobs that run pytest inside a throwaway clone of another repo, or
+    a single test file, do not read this history and are not covered.
+    """
+    import re
+
+    import yaml
+
+    root = Path(__file__).resolve().parents[1]
+    full_suite = re.compile(r"^\s*(?:python3? -m )?pytest(?:\s+-[a-zA-Z]+)*\s*$")
+    shallow = []
+    for wf in sorted((root / ".github" / "workflows").glob("*.yml")):
+        doc = yaml.safe_load(wf.read_text(encoding="utf-8")) or {}
+        triggers = doc.get("on") or doc.get(True) or {}
+        if not {"push", "pull_request"} & set(triggers if isinstance(triggers, dict) else []):
+            continue
+        for job, spec in (doc.get("jobs") or {}).items():
+            steps = spec.get("steps") or []
+            lines = [ln for s in steps for ln in str(s.get("run", "")).splitlines()]
+            reads_ratio = any("agent_status.py" in ln or full_suite.match(ln) for ln in lines)
+            if not reads_ratio:
+                continue
+            depths = [
+                (s.get("with") or {}).get("fetch-depth")
+                for s in steps
+                if str(s.get("uses", "")).startswith("actions/checkout")
+            ]
+            if not depths or any(d != 0 for d in depths):
+                shallow.append(f"{wf.name}:{job} checkout={depths}")
+
+    assert not shallow, "these CI jobs read the W1 ratio without full history: " + "; ".join(shallow)
