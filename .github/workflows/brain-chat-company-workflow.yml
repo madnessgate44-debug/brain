@@ -560,6 +560,58 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      # W3: the depth finding "Committed evidence of a live issue -> PR run" is only OK when one
+      # committed file names the issue, this run, and the pull request. Nothing produced that
+      # file, so a real run left no proof and the only conforming file was typed by hand. Write
+      # it from the links this run already knows. The script validates with the checker's own
+      # rules and refuses a file the check would reject, so the writer cannot drift from it.
+      - name: Record the live-run proof
+        id: loop_evidence
+        if: always()
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          pr_url="$(python3 -c "
+          import json, sys
+          try:
+              result = json.load(open('brain-company-result.json', encoding='utf-8'))
+          except (OSError, ValueError):
+              sys.exit(0)
+          print(((result.get('pull_request') or {}).get('url') or '').strip())
+          ")"
+          if [ -z "$pr_url" ] || [ -z "$ISSUE_NUMBER" ]; then
+            echo "No pull request and initiating issue on this run; no live-run proof to record."
+            exit 0
+          fi
+          python3 scripts/write_loop_evidence.py \
+            --issue "${{ github.server_url }}/${{ github.repository }}/issues/${ISSUE_NUMBER}" \
+            --run "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --pr "$pr_url"
+
+      # The proof is only committed if a branch carries it. Publish it on a branch and open a PR
+      # so CI and the Shadow audit gate it; this workflow never writes to the default branch.
+      - name: Publish the live-run proof as a pull request
+        if: always() && steps.loop_evidence.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git add watcher/knowledge/evidence
+          if git diff --staged --quiet; then
+            echo "No new live-run proof to publish."
+            exit 0
+          fi
+          git config user.name "brain-company-workflow"
+          git config user.email "brain-company-workflow@users.noreply.github.com"
+          branch="evidence/live-run-${GITHUB_RUN_ID}"
+          git checkout -b "$branch"
+          git commit -m "evidence(loop): live issue -> PR run ${GITHUB_RUN_ID}"
+          # checkout ran with persist-credentials: false, so point git at the workflow token.
+          gh auth setup-git
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "evidence(loop): live issue -> PR run ${GITHUB_RUN_ID}" \
+            --body "Automated proof of a live issue -> PR run, written by scripts/write_loop_evidence.py from the links the company workflow already knows. Closes the W3 depth finding 'Committed evidence of a live issue -> PR run'; CI + Shadow audit gate the merge."
+
       - name: Comment verified outcome on the initiating issue
         if: always()
         uses: actions/github-script@v7
