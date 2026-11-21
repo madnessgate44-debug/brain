@@ -76,6 +76,12 @@ def scan(root: Path, pattern: re.Pattern) -> list[tuple[str, int, bool]]:
     return hits
 
 
+def _line_number(text: str, pattern: str) -> int:
+    """1-based line number of the first match of ``pattern`` in ``text``, or 0."""
+    match = re.search(pattern, text)
+    return text.count("\n", 0, match.start()) + 1 if match else 0
+
+
 def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bool:
     """True if a module is imported by any production file (not tests)."""
     stem = Path(module_path).stem
@@ -171,12 +177,35 @@ def depth_findings(root: Path) -> list[dict]:
             "evidence": ev,
         })
 
-    if "TemporaryDirectory" in dev_txt:
+    clone_line = _line_number(dev_txt, r'["\']clone["\']')
+    status_line = _line_number(dev_txt, r'"--porcelain')
+    if clone_line and status_line:
         out.append({
             "id": "repo-checkout",
-            "finding": "Developer works in a temporary workspace, not the repo checkout",
+            "finding": "Developer works in a repo checkout, not a seeded temporary workspace",
+            "status": "OK",
+            "evidence": [
+                f"clones the repository with git clone (openhands_developer.py:{clone_line})",
+                f"reads the change set from git status (openhands_developer.py:{status_line})",
+                "falls back to the seeded snapshot when a clone is unavailable",
+            ],
+        })
+    elif "TemporaryDirectory" in dev_txt:
+        out.append({
+            "id": "repo-checkout",
+            "finding": "Developer works in a repo checkout, not a seeded temporary workspace",
             "status": "PARTIAL",
-            "evidence": ["openhands_developer.py uses TemporaryDirectory"],
+            "evidence": [
+                "the workspace is seeded from the fetched snapshot; no git checkout "
+                "(openhands_developer.py uses TemporaryDirectory)"
+            ],
+        })
+    else:
+        out.append({
+            "id": "repo-checkout",
+            "finding": "Developer works in a repo checkout, not a seeded temporary workspace",
+            "status": "MISSING",
+            "evidence": ["no isolated workspace for the developer was found"],
         })
 
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"

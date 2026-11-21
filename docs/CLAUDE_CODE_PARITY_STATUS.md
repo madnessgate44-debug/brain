@@ -25,21 +25,29 @@ Think of the gap in three parts: the **loop**, the **reach**, and the **proof**.
 - **Distance now:** Claude Code is one loop for one agent; here all nine company roles loop.
   Remaining gap is the *reach* (below), not the loop. **~5/10** for "the agent can act".
 
-### 2. The reach — the loop cannot use most of a real repo
-The loops are real but **hemmed in**:
-- The developer runs in a throwaway `tempfile.TemporaryDirectory` (`openhands_developer.py:196`),
-  seeded only from `source_contents` the gateway already fetched. No git, no full checkout.
-- The investigative roles are seeded from the same `source_contents`, so a role can only read
-  files the gateway already fetched for it.
+### 2. The reach — the loop now gets a real checkout, not a fetched snapshot
+The loops are real and, since 2026-11-21, the developer gets the whole repository:
+- The developer works in a **real `git clone`** of the repository at its default branch
+  (`openhands_developer.py` `_prepare_workspace` / `_clone_repository`), so it sees the whole
+  tree and can run `git status`, `git diff`, and `git log`. The clone is shallow
+  (`--depth 1 --single-branch`) and the token is passed per invocation as an
+  `http.extraheader`, so no credential is written into `.git/config`.
+- The change set is read from `git status --porcelain` in that checkout
+  (`_collect_git_change_set`). Diffing the checkout against the fetched snapshot would have
+  reported every file Brain did not fetch as new.
+- When a clone is impossible (no repository, no `git`, no network) the adapter falls back to
+  seeding the files Brain already fetched, and says so in `implementation_notes`.
+- The investigative roles are still seeded from the same `source_contents`, so a role can only
+  read files the gateway already fetched for it.
 - **Deletions and new files are allowed (2026-11-09)**: the adapter collects an agent edit, a new
   file, or a deletion (`{"path", "deleted": true}`) and the write gateway commits it — a deletion
   becomes a tree entry with `sha: null`, which removes the path. The engine validator accepts
   deletion markers. See "Lifted the patch contract" below.
 - The patch contract is now "up to 30 files, <=200 KB each, text only; deletions and new files
   allowed, guarded by the independent review gates".
-- **Distance:** Claude Code edits the repo in place with full git and shell. Here the agent
-  works in a sandbox seeded from fetched files (still no full checkout). The change *kinds* are
-  now unbounded, but the *reach* (a real checkout) is not. **~4/10** for "the agent can change a repo".
+- **Distance:** Claude Code edits the repo in place with full git and shell. Here the agent edits
+  a shallow clone in a temp directory — full tree and git, but not the working copy in place.
+  **~6/10** for "the agent can change a repo".
 
 ### 3. The proof — the loop is not proven to run against a live model in CI
 - The loop **is** wired into the running service: `brain/runtime/mission_runtime.py:94` builds
@@ -58,7 +66,7 @@ The loops are real but **hemmed in**:
 |---|---|---|
 | Agentic shell loop | **PARTIAL** — developer role only | `openhands_developer.py:124-126`; `agent_runner.py:401` |
 | File editing | **PARTIAL** — sandboxed; edits, new files, and deletions all allowed | `openhands_developer.py:140-179` (`_collect_change_set`); `github_gateway.py:204-228` |
-| Repo navigation / full checkout | **ABSENT** — temp dir seeded from fetched files | `openhands_developer.py:196` |
+| Repo navigation / full checkout | **PARTIAL** — a shallow `git clone` of the repository at its default branch, with a seeded-snapshot fallback | `openhands_developer.py` `_prepare_workspace`, `_clone_repository`, `_collect_git_change_set` |
 | Skills (SKILL.md) | **PARTIAL** — prompt files, not SDK `Skill` objects | `agent_runner.py:21,36` |
 | Hooks | **PARTIAL** — PreToolUse on the developer conversation | `brain/company/hooks.py:51,68` |
 | Session resume | **PARTIAL** — company session wrapper, not the mission runtime | `brain/company/session.py:41,53` |
@@ -68,11 +76,12 @@ The loops are real but **hemmed in**:
 
 ### Bottom line
 
-**Roughly 4 out of 10** toward a Claude-Code-like experience — up from ~1 of 7 primitives at
+**Roughly 5 out of 10** toward a Claude-Code-like experience — up from ~1 of 7 primitives at
 the start of the parity work, because the loop, skills, hooks, resume, and parallel gates now
-exist, and (2026-11-09) the patch contract allows deletions and new files. The missing 6/10 is
-not more features; it is **depth**: one loop that edits a real repo checkout, runs git, and does
-it against a live model with committed proof.
+exist, the patch contract allows deletions and new files (2026-11-09), and the developer now
+works in a real `git clone` of the repository (2026-11-21). The missing half is
+not more features; it is **depth**: the loop is still not proven to land a real issue -> PR
+change against a live model with committed proof.
 
 ### Lifted the patch contract (2026-11-09)
 
