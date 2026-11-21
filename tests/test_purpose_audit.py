@@ -71,7 +71,7 @@ def test_render_marks_each_status(pa, tmp_path):
 
 
 def _company_tree(tmp_path: Path, *, loop_roles: int = 1, total: int = 3, deletions: bool = True,
-                  general_loop: bool = False, unplanned: bool = False):
+                  general_loop: bool = False, unplanned: bool = False, checkout: bool = False):
     company = tmp_path / "brain" / "company"
     company.mkdir(parents=True)
     roles = "".join(
@@ -87,6 +87,9 @@ def _company_tree(tmp_path: Path, *, loop_roles: int = 1, total: int = 3, deleti
         branches += '    if role_key != "developer":\n        run_openhands_role()\n'
     (company / "agent_runner.py").write_text(branches + "    await self.provider.complete(s, u)\n", encoding="utf-8")
     dev = "TemporaryDirectory()\n_MAX_FILES = 30\n_MAX_FILE_BYTES = 200000\n"
+    if checkout:
+        dev += 'subprocess.run(["git", "clone", url, "."])\n'
+        dev += 'subprocess.run(["git", "status", "--porcelain=v1", "-z"])\n'
     if deletions:
         dev += 'raise AgentOutputError("does not support deletions")\n'
     else:
@@ -117,6 +120,21 @@ def test_depth_passes_when_contract_allows_deletions_and_new_files(pa, tmp_path)
     assert f["status"] == "OK"
     assert any("deletions allowed" in e for e in f["evidence"])
     assert any("unplanned new files allowed" in e for e in f["evidence"])
+
+
+def test_depth_flags_a_seeded_workspace_instead_of_a_checkout(pa, tmp_path):
+    _company_tree(tmp_path, checkout=False)
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "repo checkout" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("no git checkout" in e for e in f["evidence"])
+
+
+def test_depth_passes_when_the_developer_checks_out_the_repository(pa, tmp_path):
+    _company_tree(tmp_path, checkout=True)
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "repo checkout" in d["finding"])
+    assert f["status"] == "OK"
+    assert any("git clone" in e for e in f["evidence"])
+    assert any("git status" in e for e in f["evidence"])
 
 
 def test_depth_flags_missing_live_evidence(pa, tmp_path):
