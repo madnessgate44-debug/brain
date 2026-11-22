@@ -174,6 +174,23 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   back to the old conversation-only shape, the three substantive tests fail and the writer's own
   guard raises `the written evidence file is not accepted by the check`.
 
+- **Correction (2026-11-22): the session loop's own proof was still typed, and read by nothing.**
+  The producer above serves the *company* workflow, which is triggered by an issue. The
+  scheduled session loop is cron-triggered, so it has no issue to name and the `live-run-evidence`
+  finding cannot cover it: its evidence file's `- pr:` line was added by hand (the 2026-11-08
+  file) and **no check read it**, so a wrong or stale number passed silently — a field no check
+  reads is presence, not proof (W3). `purpose_audit.py` now adds a `session-loop-proof` finding:
+  OK only when one evidence file records a conversation, a **completed `Session agent loop` run**
+  and a pull request in this repository's owner, the pull request was created *after* the run
+  started (a pull request older than the run that "produced" it is not its output), and — when
+  `OPENHANDS_API_KEY` answers — the Cloud API's own `pr_number` for the conversation names that
+  pull request. `scripts/start_session_loop.py` now writes the run link from
+  `GITHUB_REPOSITORY`/`GITHUB_RUN_ID` when it creates the file, and `--record-pr` writes the pull
+  request once the conversation has produced one, validating with the checker's own
+  `_PULL_REQUEST_RE`/`_RUN_RE` and re-reading the result with `_run_proof`. Negative control
+  (live API): the committed `42477372401` + `pull/307` proof -> OK; the same file with `pull/307`
+  rewritten to `pull/1` -> PARTIAL. Verified by `python3 -m pytest -q`.
+
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
   4.2-4.4 were **MISSING**. The session agent had no loop at all — no workflow ran it; the owner

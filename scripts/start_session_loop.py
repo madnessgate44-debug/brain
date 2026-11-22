@@ -8,6 +8,11 @@ It starts one self-contained Cloud conversation against the repo, waits for the 
 ready, and records the conversation link as evidence of a live run (the W3 gap — "no committed
 evidence of a live issue -> PR run"). It never starts more than one conversation per run.
 
+Inside Actions the evidence file also records the workflow run (`GITHUB_REPOSITORY` and
+`GITHUB_RUN_ID`), so only the pull request is left to supply. `--record-pr` writes it once the
+conversation has produced one: the proof is produced and validated against the audit's own rules
+rather than typed into the file by hand.
+
 Reads OPENHANDS_API_KEY (Cloud API) from the environment. With no key, or with --dry-run, it
 prints the exact payload and writes the evidence without contacting the API, so the wiring can
 be verified for free.
@@ -15,10 +20,13 @@ be verified for free.
     python3 scripts/start_session_loop.py [--repo owner/name] [--branch main]
                                           [--task-file docs/SESSION_LOOP_TASK.md]
                                           [--out watcher/knowledge/evidence] [--dry-run]
+    python3 scripts/start_session_loop.py --record-pr <evidence.md> --pr <pull request URL>
+                                          [--run-url <workflow run URL>]
 """
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import sys
@@ -30,6 +38,7 @@ from pathlib import Path
 
 API = "https://app.all-hands.dev/api/v1"
 KEY_ENV = "OPENHANDS_API_KEY"
+_CHECKER = Path(__file__).resolve().parents[1] / "watcher" / "knowledge" / "tools" / "purpose_audit.py"
 
 
 def build_payload(task: str, repo: str, branch: str, title: str) -> dict:
@@ -145,8 +154,62 @@ def write_evidence(out_dir: Path, repo: str, branch: str, conv_id: str, url: str
     )
     if note:
         body += f"- note: {note}\n"
+    run_url = run_url_from_env()
+    if run_url and not dry:
+        body += f"- workflow run: {run_url}\n"
     dest.write_text(body, encoding="utf-8")
     return dest
+
+
+def _checker():
+    """Load the audit checker so the recorder reuses its exact URL rules."""
+    spec = importlib.util.spec_from_file_location("purpose_audit", _CHECKER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def run_url_from_env(env: dict[str, str] | None = None) -> str:
+    """The URL of the workflow run this process executes in, or "" outside Actions."""
+    env = os.environ if env is None else env
+    server = env.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
+    repo, run_id = env.get("GITHUB_REPOSITORY", "").strip(), env.get("GITHUB_RUN_ID", "").strip()
+    if not repo or not run_id:
+        return ""
+    return f"{server}/{repo}/actions/runs/{run_id}"
+
+
+def record_pull_request(evidence: Path, pr_url: str, run_url: str = "") -> Path:
+    """Record the pull request a session-loop conversation produced in its evidence file.
+
+    W3: the proof must be produced, not typed. The run URL is derived from the workflow
+    environment and the pull-request URL is validated with the checker's own rule before it is
+    written, so the file cannot hold a link the audit rejects; the file is then re-read with the
+    checker, and a write the checker would not accept is an error rather than a silent artifact.
+    """
+    pa = _checker()
+    if not pa._PULL_REQUEST_RE.match(pr_url or ""):
+        raise ValueError(f"not a GitHub pull request URL: {pr_url!r}")
+    if run_url and not pa._RUN_RE.match(run_url):
+        raise ValueError(f"not a GitHub workflow run URL: {run_url!r}")
+    if not evidence.is_file():
+        raise ValueError(f"no evidence file at {evidence}")
+    if not pa.evidence_link(evidence):
+        raise ValueError(f"{evidence} records no conversation link, so it is not a session-loop "
+                         "evidence file")
+    kept = [line for line in evidence.read_text(encoding="utf-8").splitlines()
+            if not line.strip().startswith(("- pr:", "- workflow run:"))]
+    kept.append(f"- pr: {pr_url}")
+    # Keep a run URL the file already recorded (the workflow writes it at creation) unless the
+    # caller overrides it; dropping it would throw away a link this run did not have to type.
+    effective_run = run_url or pa.run_link(evidence)
+    if effective_run:
+        kept.append(f"- workflow run: {effective_run}")
+    evidence.write_text("\n".join(kept).rstrip() + "\n", encoding="utf-8")
+    proof = pa._run_proof(evidence)
+    if proof["pr"] != pr_url or (effective_run and proof["run"] != effective_run):
+        raise ValueError(f"the written evidence file is not accepted by the check: {evidence}")
+    return evidence
 
 
 def main() -> int:
@@ -157,7 +220,23 @@ def main() -> int:
     ap.add_argument("--title", default="Session agent loop — find and fix a real defect")
     ap.add_argument("--out", default="watcher/knowledge/evidence")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--record-pr", type=Path, default=None,
+                    help="record the pull request the run's conversation produced in an existing "
+                         "evidence file, then exit (the proof is produced, not typed)")
+    ap.add_argument("--pr", default="", help="with --record-pr: the pull request URL")
+    ap.add_argument("--run-url", default="",
+                    help="with --record-pr: override the run URL (default: derived from "
+                         "GITHUB_REPOSITORY and GITHUB_RUN_ID)")
     a = ap.parse_args()
+
+    if a.record_pr:
+        try:
+            dest = record_pull_request(a.record_pr, a.pr, a.run_url or run_url_from_env())
+        except ValueError as exc:
+            print(f"::error::{exc}", file=sys.stderr)
+            return 1
+        print(f"recorded: {dest}")
+        return 0
 
     task = Path(a.task_file).read_text(encoding="utf-8").strip()
     payload = build_payload(task, a.repo, a.branch, a.title)

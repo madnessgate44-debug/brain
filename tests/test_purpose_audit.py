@@ -736,3 +736,160 @@ def test_depth_skips_verification_without_a_token(pa, tmp_path, monkeypatch):
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
     assert calls == [], "without a token the check must not call the API"
+
+
+# --- the scheduled session loop's proof (W3) -----------------------------------------
+#
+# `live-run-evidence` requires an issue, and the session loop is cron-triggered, so its own
+# `- pr:` line was read by nothing. These tests pin the finding that reads it.
+
+_CONV = "https://app.all-hands.dev/canvas/conversations/e166ab9ce3864fa89ded6f01dd480097"
+_SESSION_RUN = "https://github.com/madnessgate44-debug/brain/actions/runs/42477372401"
+_SESSION_PR = "https://github.com/madnessgate44-debug/brain/pull/307"
+
+
+def _session_evidence(tmp_path, body: str) -> None:
+    _evidence(tmp_path, "session-loop.md", body)
+
+
+def _session_finding(pa, tmp_path):
+    return next(d for d in pa.depth_findings(tmp_path / "brain") if "session loop" in d["finding"])
+
+
+def _with_cloud(monkeypatch, pa, numbers=None, conclusive=False):
+    monkeypatch.setattr(pa, "_cloud_pull_requests", lambda conv: (numbers, conclusive))
+
+
+def test_conversation_id_reads_plain_and_dashed_ids(pa):
+    assert pa._conversation_id(_CONV) == "e166ab9ce3864fa89ded6f01dd480097"
+    dashed = "https://app.all-hands.dev/canvas/conversations/e166ab9c-e386-4fa8-9ded-6f01dd480097"
+    assert pa._conversation_id(dashed) == "e166ab9ce3864fa89ded6f01dd480097"
+    assert pa._conversation_id("https://example.com/x") == ""
+
+
+def test_session_finding_is_missing_with_no_evidence(pa, tmp_path):
+    _company_tree(tmp_path)
+    f = _session_finding(pa, tmp_path)
+    assert f["status"] == "MISSING"
+
+
+def test_session_finding_rejects_a_conversation_only_file(pa, tmp_path, monkeypatch):
+    """The false pass this finding exists to catch: a conversation link is not a pull request."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    _with_token(monkeypatch)
+    _with_cloud(monkeypatch, pa)
+    _company_tree(tmp_path)
+    _session_evidence(tmp_path, f"- link: {_CONV}\n")
+    f = _session_finding(pa, tmp_path)
+    assert f["status"] == "PARTIAL"
+    assert any("conversation only" in e for e in f["evidence"])
+
+
+def test_session_finding_passes_a_verified_run_and_pull_request(pa, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    _with_token(monkeypatch)
+    _with_cloud(monkeypatch, pa)
+
+    def fake(path):
+        if path.endswith("/pulls/307"):
+            return {"created_at": "2026-11-09T10:00:00Z"}, 200
+        return {"name": "Session agent loop", "status": "completed",
+                "run_started_at": "2026-11-08T11:48:44Z"}, 200
+    monkeypatch.setattr(pa, "_gh_get", fake)
+    _company_tree(tmp_path)
+    _session_evidence(tmp_path,
+                      f"- link: {_CONV}\n- workflow run: {_SESSION_RUN}\n- pr: {_SESSION_PR}\n")
+    f = _session_finding(pa, tmp_path)
+    assert f["status"] == "OK"
+    assert any("pull request" in e for e in f["evidence"])
+
+
+def test_session_finding_rejects_a_pull_request_older_than_the_run(pa, tmp_path, monkeypatch):
+    """A pull request that existed before the run cannot be that run's output."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    _with_token(monkeypatch)
+    _with_cloud(monkeypatch, pa)
+
+    def fake(path):
+        if path.endswith("/pulls/307"):
+            return {"created_at": "2026-10-01T00:00:00Z"}, 200
+        return {"name": "Session agent loop", "status": "completed",
+                "run_started_at": "2026-11-08T11:48:44Z"}, 200
+    monkeypatch.setattr(pa, "_gh_get", fake)
+    _company_tree(tmp_path)
+    _session_evidence(tmp_path,
+                      f"- link: {_CONV}\n- workflow run: {_SESSION_RUN}\n- pr: {_SESSION_PR}\n")
+    assert _session_finding(pa, tmp_path)["status"] == "PARTIAL"
+
+
+def test_session_finding_rejects_a_run_of_another_workflow(pa, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    _with_token(monkeypatch)
+    _with_cloud(monkeypatch, pa)
+
+    def fake(path):
+        if path.endswith("/pulls/307"):
+            return {"created_at": "2026-11-09T10:00:00Z"}, 200
+        return {"name": "Brain CI", "status": "completed",
+                "run_started_at": "2026-11-08T11:48:44Z"}, 200
+    monkeypatch.setattr(pa, "_gh_get", fake)
+    _company_tree(tmp_path)
+    _session_evidence(tmp_path,
+                      f"- link: {_CONV}\n- workflow run: {_SESSION_RUN}\n- pr: {_SESSION_PR}\n")
+    assert _session_finding(pa, tmp_path)["status"] == "PARTIAL"
+
+
+def test_session_finding_rejects_a_pull_request_the_conversation_did_not_produce(
+        pa, tmp_path, monkeypatch):
+    """The Cloud API is the authority on which pull request a conversation produced."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    _with_token(monkeypatch)
+    _with_cloud(monkeypatch, pa, numbers={999}, conclusive=True)
+
+    def fake(path):
+        if path.endswith("/pulls/307"):
+            return {"created_at": "2026-11-09T10:00:00Z"}, 200
+        return {"name": "Session agent loop", "status": "completed",
+                "run_started_at": "2026-11-08T11:48:44Z"}, 200
+    monkeypatch.setattr(pa, "_gh_get", fake)
+    _company_tree(tmp_path)
+    _session_evidence(tmp_path,
+                      f"- link: {_CONV}\n- workflow run: {_SESSION_RUN}\n- pr: {_SESSION_PR}\n")
+    assert _session_finding(pa, tmp_path)["status"] == "PARTIAL"
+
+
+def test_session_finding_rejects_links_from_different_repositories(pa, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    _with_token(monkeypatch)
+    _with_cloud(monkeypatch, pa)
+    monkeypatch.setattr(pa, "_gh_get", lambda path: (None, 404))
+    _company_tree(tmp_path)
+    _session_evidence(tmp_path,
+                      f"- link: {_CONV}\n- workflow run: {_SESSION_RUN}\n"
+                      "- pr: https://github.com/other/repo/pull/1\n")
+    assert _session_finding(pa, tmp_path)["status"] == "PARTIAL"
+
+
+def test_session_finding_rejects_a_proof_from_a_foreign_owner(pa, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    _with_token(monkeypatch)
+    _with_cloud(monkeypatch, pa)
+    _company_tree(tmp_path)
+    _session_evidence(tmp_path,
+                      f"- link: {_CONV}\n"
+                      "- workflow run: https://github.com/other/repo/actions/runs/1\n"
+                      "- pr: https://github.com/other/repo/pull/1\n")
+    assert _session_finding(pa, tmp_path)["status"] == "PARTIAL"
+
+
+def test_session_finding_does_not_call_the_api_without_a_token(pa, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "madnessgate44-debug/brain")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    _with_cloud(monkeypatch, pa)
+    calls = []
+    monkeypatch.setattr(pa, "_gh_get", lambda path: calls.append(path) or (None, 404))
+    _company_tree(tmp_path)
+    _session_evidence(tmp_path,
+                      f"- link: {_CONV}\n- workflow run: {_SESSION_RUN}\n- pr: {_SESSION_PR}\n")
+    assert _session_finding(pa, tmp_path)["status"] == "OK"
+    assert calls == []

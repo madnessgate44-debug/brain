@@ -336,6 +336,91 @@ def _last_int(url: str) -> int:
     return int(match.group(1)) if match else 0
 
 
+def _parse_iso(value: object) -> datetime | None:
+    """Parse a GitHub ISO-8601 timestamp, or None when it is absent or unparsable."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+# The scheduled session loop's workflow name; its runs are the ones that can produce a
+# conversation, so a run of any other workflow is not the run this finding names.
+_SESSION_WORKFLOW = "Session agent loop"
+
+
+def _conversation_id(url: str) -> str:
+    """The id of an OpenHands Cloud conversation URL, or "" if it is not one."""
+    match = re.search(r"/conversations/([0-9a-fA-F][0-9a-fA-F-]{30,40})/?$", url)
+    return match.group(1).replace("-", "").lower() if match else ""
+
+
+def _cloud_pull_requests(conversation_id: str) -> tuple[set[int] | None, bool]:
+    """(pull request numbers the Cloud API attributes to a conversation, conclusive?).
+
+    The Cloud API is the only authority on which pull request a conversation produced; the
+    evidence file's own `- pr:` line is a claim. A record whose `pr_number` omits the pull
+    request is a definitive mismatch, so it rejects. A missing key, or an API that cannot be
+    read, is inconclusive (None, False) and never rejects a real proof.
+    """
+    key = os.environ.get("OPENHANDS_API_KEY", "").strip()
+    if not key or not conversation_id:
+        return None, False
+    req = urllib.request.Request(
+        f"https://app.all-hands.dev/api/v1/app-conversations?ids={conversation_id}", method="GET"
+    )
+    req.add_header("Authorization", f"Bearer {key}")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            payload = json.loads(r.read() or b"{}")
+    except Exception:  # noqa: BLE001 - unreadable: inconclusive, never a false negative
+        return None, False
+    record = payload[0] if isinstance(payload, list) and payload else payload
+    if not isinstance(record, dict) or not record:
+        return None, False
+    numbers = record.get("pr_number") or []
+    if isinstance(numbers, int):
+        numbers = [numbers]
+    return {int(n) for n in numbers if str(n).isdigit()}, True
+
+
+def _session_run_produced_pr(r: dict[str, str], verify: bool) -> bool:
+    """True when the run is a completed session-loop run that could have produced this PR.
+
+    The evidence file's `- pr:` line is a claim, so three facts are checked: the pull request
+    exists in the run's repository, the run exists and is a *completed* run of the session
+    loop, and the pull request was created after the run started — a pull request older than
+    the run that "produced" it is not that run's output. When the Cloud API answers, its
+    `pr_number` for the conversation must also name the pull request, which is the only
+    authoritative record that this conversation produced it (and the only thing that rejects a
+    typed pair of unrelated links). Every unreadable source is inconclusive, never a rejection.
+    """
+    run_id, pr_id = _last_int(r["run"]), _last_int(r["pr"])
+    repo = _repo_of(r["pr"])
+    if not run_id or not pr_id or not repo:
+        return False
+    if verify:
+        pull, pull_status = _gh_get(f"/repos/{repo}/pulls/{pr_id}")
+        if pull_status == 404:
+            return False
+        run_data, run_status = _gh_get(f"/repos/{_repo_of(r['run'])}/actions/runs/{run_id}")
+        if run_status == 404:
+            return False
+        if isinstance(run_data, dict):
+            if run_data.get("name") != _SESSION_WORKFLOW or run_data.get("status") != "completed":
+                return False
+            started = _parse_iso(run_data.get("run_started_at"))
+            created = _parse_iso((pull or {}).get("created_at") if isinstance(pull, dict) else None)
+            if started and created and created < started:
+                return False
+    numbers, conclusive = _cloud_pull_requests(_conversation_id(r["conversation"]))
+    if conclusive and pr_id not in numbers:
+        return False
+    return True
+
+
 def _describe_fragment(name: str, r: dict[str, str], owner: str = "") -> str:
     """Name which part of the issue -> run -> PR path a single evidence file holds."""
     present = [(label, r[key]) for key, label in _ITEM_FIELDS if r[key]]
@@ -484,6 +569,61 @@ def depth_findings(root: Path) -> list[dict]:
         "finding": "Committed evidence of a live issue -> PR run",
         "status": live_status,
         "evidence": live_evidence,
+    })
+
+    # The scheduled session loop is cron-triggered, so it has no issue to name and the finding
+    # above cannot cover it. Its proof is a conversation, the run that started it, and the pull
+    # request the run produced. Nothing read that file's `- pr:` line, so a typed or stale number
+    # passed silently — a field no check reads is presence, not proof (W3).
+    session_proofs: dict[str, dict[str, str]] = {}
+    for p in proof:
+        conversation = evidence_link(p)
+        if conversation:
+            session_proofs[p.name] = {
+                "conversation": conversation,
+                "run": run_link(p),
+                "pr": pull_request_link(p),
+            }
+    session_well_formed = {
+        name: r for name, r in session_proofs.items()
+        if r["run"] and r["pr"]
+        and _repo_of(r["run"]).casefold() == _repo_of(r["pr"]).casefold()
+        and _proof_in_scope({"issue": "", "run": r["run"], "pr": r["pr"]}, owner)
+    }
+    session_complete = {
+        name: r for name, r in session_well_formed.items()
+        if _session_run_produced_pr(r, verify)
+    }
+    if session_complete:
+        session_status = "OK"
+        session_evidence = [
+            f"{name} -> conversation {r['conversation']}; run {r['run']}; pull request {r['pr']}"
+            for name, r in session_complete.items()
+        ]
+    elif session_well_formed:
+        session_status = "PARTIAL"
+        session_evidence = [
+            (f"{name} -> conversation {r['conversation']}; run {r['run']}; pull request {r['pr']} "
+             "(links agree, but GitHub/the Cloud API do not confirm that this run produced this "
+             "pull request: it predates the run, the run is not a completed session-loop run, or "
+             "the conversation's own record names another pull request)")
+            for name, r in session_well_formed.items()
+        ]
+    elif session_proofs:
+        session_status = "PARTIAL"
+        session_evidence = [
+            f"{name} -> conversation {r['conversation']} (conversation only; no workflow run and "
+            "no pull request recorded, so the loop is not proven to have produced a change)"
+            for name, r in session_proofs.items()
+        ]
+    else:
+        session_status = "MISSING"
+        session_evidence = ["no session-loop evidence committed"]
+    out.append({
+        "id": "session-loop-proof",
+        "finding": "Committed evidence the scheduled session loop produced a pull request",
+        "status": session_status,
+        "evidence": session_evidence,
     })
 
     # W7: a role with no skill file runs on its bare contract. A missing skill is the Watcher's
