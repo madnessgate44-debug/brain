@@ -225,24 +225,49 @@ def _evidence(tmp_path: Path, name: str, body: str) -> None:
     (d / name).write_text(body, encoding="utf-8")
 
 
-def test_evidence_link_reads_a_real_conversation_link(pa, tmp_path):
+def test_evidence_trace_reads_a_real_conversation_link(pa, tmp_path):
     p = tmp_path / "e.md"
     p.write_text(
         "# Session agent loop\n\nStatus: LIVE — conversation started\n\n"
         "- app_conversation_id: abc\n- link: https://app.all-hands.dev/canvas/conversations/abc\n",
         encoding="utf-8",
     )
-    assert pa.evidence_link(p) == "https://app.all-hands.dev/canvas/conversations/abc"
+    assert pa.evidence_trace(p)["link"] == "https://app.all-hands.dev/canvas/conversations/abc"
 
 
-def test_evidence_link_is_empty_for_a_dry_run(pa, tmp_path):
+def test_evidence_trace_is_empty_for_a_dry_run(pa, tmp_path):
     p = tmp_path / "e.md"
     p.write_text(
         "# Session agent loop\n\nStatus: DRY RUN — no conversation started\n\n"
         "- app_conversation_id: (none)\n- link: (none)\n",
         encoding="utf-8",
     )
-    assert pa.evidence_link(p) == ""
+    assert not any(pa.evidence_trace(p).values())
+
+
+def test_evidence_trace_reads_an_issue_and_the_pull_request_that_closes_it(pa, tmp_path):
+    p = tmp_path / "e.md"
+    p.write_text(
+        "# Session agent loop\n\nStatus: LIVE — issue carried to a pull request\n\n"
+        "- issue: https://github.com/o/r/issues/7\n"
+        "- pull_request: https://github.com/o/r/pull/8\n",
+        encoding="utf-8",
+    )
+    trace = pa.evidence_trace(p)
+    assert trace["issue"] == "https://github.com/o/r/issues/7"
+    assert trace["pull_request"] == "https://github.com/o/r/pull/8"
+
+
+def test_evidence_trace_rejects_an_issue_and_pr_on_different_repositories(pa, tmp_path):
+    """A PR on another repo does not close this repo's issue."""
+    p = tmp_path / "e.md"
+    p.write_text(
+        "- issue: https://github.com/o/r/issues/7\n"
+        "- pull_request: https://github.com/other/repo/pull/8\n",
+        encoding="utf-8",
+    )
+    trace = pa.evidence_trace(p)
+    assert trace["issue"] == "" and trace["pull_request"] == ""
 
 
 def test_depth_rejects_a_dry_run_as_live_evidence(pa, tmp_path):
@@ -255,12 +280,26 @@ def test_depth_rejects_a_dry_run_as_live_evidence(pa, tmp_path):
     assert f["status"] == "MISSING"
 
 
-def test_depth_passes_with_a_real_live_run_link(pa, tmp_path):
+def test_depth_refuses_a_started_conversation_as_proof_of_an_issue_to_pr_run(pa, tmp_path):
+    """W3: the old check passed on a conversation link. A started conversation is presence."""
     _company_tree(tmp_path)
     _evidence(tmp_path, "session-loop-2.md",
               "# Session agent loop\n\nStatus: LIVE — conversation started\n\n"
               "- app_conversation_id: conv-9\n"
               "- link: https://app.all-hands.dev/canvas/conversations/conv-9\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("conv-9" in e and "conversation only" in e for e in f["evidence"])
+
+
+def test_depth_passes_with_a_real_issue_to_pr_trace(pa, tmp_path):
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "session-loop-3.md",
+              "# Session agent loop\n\nStatus: LIVE — issue carried to a pull request\n\n"
+              "- app_conversation_id: conv-9\n"
+              "- link: https://app.all-hands.dev/canvas/conversations/conv-9\n"
+              "- issue: https://github.com/o/r/issues/7\n"
+              "- pull_request: https://github.com/o/r/pull/8\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
-    assert any("conv-9" in e for e in f["evidence"])
+    assert any("issues/7" in e and "pull/8" in e for e in f["evidence"])

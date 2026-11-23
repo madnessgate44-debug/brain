@@ -93,19 +93,32 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
     return False
 
 
-def evidence_link(path: Path) -> str:
-    """Return the conversation link recorded in an evidence file, or "" if there is none.
+GITHUB_ISSUE = re.compile(r"^https://github\.com/([^/\s]+/[^/\s]+)/issues/(\d+)$")
+GITHUB_PR = re.compile(r"^https://github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)$")
 
-    A DRY RUN records no conversation, so it is not proof the loop ran. Only a real URL under
-    the writer's `- link:` field counts; the placeholder it writes when it has no link does not.
+
+def evidence_trace(path: Path) -> dict:
+    """Return the links an evidence file records: issue, pull_request, conversation.
+
+    A DRY RUN records no conversation, so it is not proof the loop ran. Neither is a `- link:`
+    to a started conversation: that proves the loop *started*, not that it carried a live issue
+    to a pull request (W3). Only an issue link plus a pull-request link on the same repository
+    count as the trace; anything less leaves both empty.
     """
+    trace = {"issue": "", "pull_request": "", "link": ""}
     for line in _read(path).splitlines():
         stripped = line.strip()
-        if stripped.startswith("- link:"):
-            value = stripped.split(":", 1)[1].strip()
-            if value.startswith(("http://", "https://")):
-                return value
-    return ""
+        for key in trace:
+            prefix = f"- {key}:"
+            if stripped.startswith(prefix):
+                value = stripped[len(prefix):].strip()
+                if value.startswith(("http://", "https://")):
+                    trace[key] = value
+    issue = GITHUB_ISSUE.match(trace["issue"])
+    pull = GITHUB_PR.match(trace["pull_request"])
+    if not (issue and pull and issue.group(1) == pull.group(1)):
+        trace["issue"] = trace["pull_request"] = ""
+    return trace
 
 
 def depth_findings(root: Path) -> list[dict]:
@@ -181,14 +194,29 @@ def depth_findings(root: Path) -> list[dict]:
 
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
     proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
-    links = {p.name: link for p in proof if (link := evidence_link(p))}
+    traces: dict[str, dict] = {}
+    for path in proof:
+        trace = evidence_trace(path)
+        if any(trace.values()):
+            traces[path.name] = trace
+    closed = {n: t for n, t in traces.items() if t["issue"] and t["pull_request"]}
+    started = {n: t for n, t in traces.items() if t["link"]}
+    if closed:
+        status = "OK"
+        ev = [f"{name}: {t['issue']} -> {t['pull_request']}" for name, t in closed.items()]
+    elif started:
+        status = "PARTIAL"
+        ev = [f"{name}: {t['link']} (conversation only — no issue -> pull request recorded)"
+              for name, t in started.items()]
+    else:
+        status = "MISSING"
+        ev = ["no live-run evidence committed (a DRY RUN or an evidence file with no "
+              "conversation link does not prove the loop ran)"]
     out.append({
         "id": "live-run-evidence",
         "finding": "Committed evidence of a live issue -> PR run",
-        "status": "OK" if links else "MISSING",
-        "evidence": [f"{name} -> {link}" for name, link in links.items()]
-                    or ["no live-run evidence committed (a DRY RUN or an evidence file with no "
-                        "conversation link does not prove the loop ran)"],
+        "status": status,
+        "evidence": ev,
     })
 
     # W7: a role with no skill file runs on its bare contract. A missing skill is the Watcher's
