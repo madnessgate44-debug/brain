@@ -65,6 +65,15 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   conversation link (`evidence_link`), `start_session_loop.py` accepts the list response and
   writes evidence even when the poll fails, and the workflow sets `pipefail` so a crashed run
   is red. Evidence: `watcher/knowledge/evidence/session-loop-20261108-114844.md`.
+- **Progress (2026-11-23): the check refuses a conversation link as proof.** A conversation link
+  is written before any work happens, so the 2026-11-08 rule still passed a run that produced
+  nothing. `purpose_audit.py` now reads `- issue:` and `- pull_request:` (`evidence_trace`) and
+  reports OK only for an issue plus the pull request that closes it, on the same repository; a
+  conversation-only file is PARTIAL, and a test fails if it is accepted. The trace for the
+  scheduled run of 2026-11-23 15:48 UTC is committed:
+  `watcher/knowledge/evidence/session-loop-20261123-154852.md` records issue #358 -> PR #359.
+  Still open under W3: the temp-dir vs repo checkout, and the `brain/company` engine path has no
+  issue -> PR proof of its own.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
