@@ -95,8 +95,10 @@ The Watcher's job is not to report this table. It is to **act on it**, in this o
 
 1. **Prove the loop once, for real.** Dispatch the company workflow on a trivial issue against
    a real repo and commit the resulting PR link as evidence. (Closes "the proof" gap.)
-   *Status 2026-11-09: an open PR (#307) makes the audit require a real conversation link and
-   commits one; not merged.*
+   *Status 2026-11-23: the audit no longer accepts a conversation link as proof.
+   `watcher/knowledge/evidence/session-loop-20261123-154852.md` records issue #358 and PR #359,
+   produced by scheduled run 45209420890 (`session-agent-loop.yml`). This proves the
+   session-agent loop; the `brain/company` engine path below is still unproven.*
 2. **Lift the patch contract.** Allow deletions and unplanned new files inside the sandbox,
    with the existing review gates as the guard. (Closes most of "the reach" gap.)
    *Done 2026-11-09 — see "Lifted the patch contract" above.*
