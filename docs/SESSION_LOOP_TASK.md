@@ -28,7 +28,16 @@ Do exactly this, in order, and stop when one item is genuinely closed:
    output must be in the PR body. If you cannot run it, say so plainly — do not claim it passed.
 
 5. **Open a pull request** against `main` with: the gap, the root cause, the change, the exact
-   command you ran, its output, and which weakness (W1-W6) it closes.
+   command you ran, its output, and which weakness (W1-W6) it closes. Then **record the trace**:
+   the depth check does not accept a started conversation as proof (W3), so run
+
+   ```
+   python3 scripts/start_session_loop.py --record <this run's evidence file> \
+     --issue <issue URL you filed or fixed> --pull-request <the PR URL you opened>
+   ```
+
+   and push that commit. The writer validates with the audit's own `evidence_trace` and refuses
+   a trace the check would reject, so do not hand-type `- issue:` / `- pull_request:`.
 
 Rules:
 - Never push to `main`. Open a PR; CI and the Shadow audit gate the merge.

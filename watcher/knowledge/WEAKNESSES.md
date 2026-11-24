@@ -74,6 +74,14 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   `watcher/knowledge/evidence/session-loop-20261123-154852.md` records issue #358 -> PR #359.
   Still open under W3: the temp-dir vs repo checkout, and the `brain/company` engine path has no
   issue -> PR proof of its own.
+- **Progress (2026-11-24): the loop's own writer produces the trace.** A stricter check that only
+  a hand-typed file can satisfy is the same defect one level deeper: `write_evidence` wrote a
+  conversation link and nothing else, so every run landed `PARTIAL`. `record_trace` in
+  `scripts/start_session_loop.py` now records `- issue:` / `- pull_request:` in an existing
+  evidence file and validates the result with `purpose_audit.evidence_trace` — it refuses (and
+  writes nothing) when the pair is on different repositories or is not a pull-request URL.
+  `docs/SESSION_LOOP_TASK.md` tells each run to record it. Evidence for this run: issue #363 ->
+  PR #359 in `watcher/knowledge/evidence/session-loop-20261124-155001.md`.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps

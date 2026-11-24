@@ -17,6 +17,9 @@ ack seq 3
 - Run 2026-11-08: created the ledger; no new inbox seq, no ready backlog item.
 
 Last 5 actions:
+- 2026-11-24: the loop's writer now records the issue -> PR trace itself
+  (`record_trace` in `scripts/start_session_loop.py`, validated by the audit's own
+  `evidence_trace`); evidence: issue #363 -> PR #359.
 - 2026-11-23: closed the W3 live-run gap — issue #358 -> PR #359; the audit now requires an
   issue + PR trace, not a conversation link (`watcher/knowledge/tools/purpose_audit.py`).
 
