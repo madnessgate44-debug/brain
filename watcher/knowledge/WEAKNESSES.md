@@ -82,6 +82,16 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   writes nothing) when the pair is on different repositories or is not a pull-request URL.
   `docs/SESSION_LOOP_TASK.md` tells each run to record it. Evidence for this run: issue #363 ->
   PR #359 in `watcher/knowledge/evidence/session-loop-20261124-155001.md`.
+- **Progress (2026-11-25): the trace is checked against GitHub, not matched as text.** After
+  2026-11-24 the only requirement on the trace was a URL shape: a path typed into the file passed
+  the check even if no such issue or pull request existed — presence read as depth, one level
+  further down. `purpose_audit.verify_trace` now reads the issue and the pull request
+  (`GET /repos/{repo}/issues/{n}`, `/pulls/{n}`) and the finding is OK only when the issue exists
+  and the pull request names it; a 404, a pull request used as the issue, or a pull request that
+  never references the issue all make it PARTIAL. Without a token (offline) the finding says the
+  trace is "not checked" instead of claiming proof. The gate job in `shadow-report.yml` now
+  exports `GITHUB_TOKEN` so the authoritative check verifies. Evidence for this run: issue #363 ->
+  PR #359, verified live: `issue #358 exists; pull request #359 references it`.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps

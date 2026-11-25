@@ -20,7 +20,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -121,11 +124,73 @@ def evidence_trace(path: Path) -> dict:
     return trace
 
 
-def depth_findings(root: Path) -> list[dict]:
+def _gh_get(path: str, timeout: int = 20):
+    """GET a GitHub API path with GITHUB_TOKEN, or None when there is no token.
+
+    Returns the payload, `{"__http__": code}` for an HTTP error, and None when the call could
+    not be made (no token) or failed for another reason. No value is ever printed.
+    """
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if not token:
+        return None
+    base = os.environ.get("GITHUB_API_BASE", "https://api.github.com").rstrip("/")
+    req = urllib.request.Request(f"{base}{path}")
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/vnd.github+json")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        return {"__http__": e.code}
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def verify_trace(trace: dict, fetch) -> tuple[str, str]:
+    """Check the trace against GitHub: does the issue exist, and does the pull request name it?
+
+    A well-formed URL pair is still only text; a path typed into the file passes
+    `evidence_trace` without the loop ever producing it. This reads the real issue and pull
+    request, so the depth finding rests on GitHub state instead of a regex (W3).
+
+    `fetch` reads one API path; it is injected so the check is testable without a network.
+
+    Returns (state, reason), state in {"verified", "missing", "unverified"}:
+      verified    the issue exists and the pull request references it
+      missing     GitHub answered and the trace is not there (404, or the PR never names it)
+      unverified  no token or a transient failure, so the trace is neither proven nor refuted
+    """
+    issue_m = GITHUB_ISSUE.match(trace.get("issue", ""))
+    pull_m = GITHUB_PR.match(trace.get("pull_request", ""))
+    if not (issue_m and pull_m):
+        return "missing", "no issue + pull request pair"
+    repo, num, pull_num = issue_m.group(1), issue_m.group(2), pull_m.group(2)
+    issue = fetch(f"/repos/{repo}/issues/{num}")
+    pull = fetch(f"/repos/{repo}/pulls/{pull_num}")
+    if issue is None or pull is None:
+        return "unverified", "GitHub was not read (no GITHUB_TOKEN), so the trace is not checked"
+    for payload, what in ((issue, f"issue {repo}#{num}"),
+                          (pull, f"pull request {repo}#{pull_num}")):
+        if payload.get("__http__") == 404:
+            return "missing", f"{what} does not exist"
+        if payload.get("__http__"):
+            return "unverified", f"GitHub answered HTTP {payload['__http__']} for {what}"
+        if "number" not in payload:
+            return "unverified", f"GitHub returned no record for {what}"
+    if "pull_request" in issue:
+        return "missing", f"{repo}#{num} is a pull request, not an issue"
+    if f"#{num}" not in f"{pull.get('title', '')}\n{pull.get('body') or ''}":
+        return "missing", f"pull request #{pull_num} does not reference issue #{num}"
+    return "verified", f"issue #{num} exists; pull request #{pull_num} references it"
+
+
+def depth_findings(root: Path, verify=None) -> list[dict]:
     """Find depth gaps a presence check misses: does the feature cover the whole app?
 
     These are the mistakes a claim-by-claim audit passes over. Each finding is derived from
     the code, with file evidence, so the Watcher finds them without a human reading by hand.
+    `verify` reads a trace against GitHub (`verify_trace`); without it a trace is reported as
+    unverified rather than assumed true, so the offline tests stay hermetic.
     """
     company = root / "company"
     roles_txt = _read(company / "roles.py")
@@ -201,9 +266,22 @@ def depth_findings(root: Path) -> list[dict]:
             traces[path.name] = trace
     closed = {n: t for n, t in traces.items() if t["issue"] and t["pull_request"]}
     started = {n: t for n, t in traces.items() if t["link"]}
-    if closed:
+    verified: list[str] = []
+    unverified: list[str] = []
+    absent: list[str] = []
+    for name, t in closed.items():
+        if verify is None:
+            state, why = "unverified", "GitHub was not read, so the trace is not checked"
+        else:
+            state, why = verify_trace(t, verify)
+        line = f"{name}: {t['issue']} -> {t['pull_request']} ({why})"
+        {"verified": verified, "unverified": unverified}.get(state, absent).append(line)
+    if verified or unverified:
         status = "OK"
-        ev = [f"{name}: {t['issue']} -> {t['pull_request']}" for name, t in closed.items()]
+        ev = verified + unverified
+    elif absent:
+        status = "PARTIAL"
+        ev = absent + ["a well-formed link pair is not proof: GitHub has no such issue -> PR"]
     elif started:
         status = "PARTIAL"
         ev = [f"{name}: {t['link']} (conversation only — no issue -> pull request recorded)"
@@ -257,7 +335,8 @@ def depth_findings(root: Path) -> list[dict]:
     return out
 
 
-def audit(root: Path, purpose: Path, tests_root: Path, base: Path | None = None) -> dict:
+def audit(root: Path, purpose: Path, tests_root: Path, base: Path | None = None,
+          verify=None) -> dict:
     base = base or root.parent
     results = []
     for claim, probe, hint in parse_claims(purpose):
@@ -285,7 +364,7 @@ def audit(root: Path, purpose: Path, tests_root: Path, base: Path | None = None)
             "hint": hint, "evidence": evidence,
         })
     ok = sum(1 for r in results if r["status"] == "OK")
-    depth = depth_findings(root)
+    depth = depth_findings(root, verify)
     return {"checked": len(results), "ok": ok, "results": results, "depth": depth}
 
 
@@ -369,7 +448,7 @@ def main() -> int:
     a = ap.parse_args()
 
     root = Path(a.root)
-    report = audit(root / SCAN_DIR, Path(a.purpose), root / "tests")
+    report = audit(root / SCAN_DIR, Path(a.purpose), root / "tests", verify=_gh_get)
 
     if a.update_baseline:
         dest = Path(a.baseline)

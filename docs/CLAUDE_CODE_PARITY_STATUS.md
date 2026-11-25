@@ -47,8 +47,12 @@ The loops are real but **hemmed in**:
   mission whose `metadata.workflow_type == "software_company"`. So it is reachable, not dead.
 - But it only engages with a real provider; **tests inject fakes** (`agent_runner.py:403`
   comment). So the suite proves the *wiring*, not a live end-to-end coding run.
-- There is **no committed evidence of a real issue -> real PR** produced by this path. R2 was
-  proven by a single shell command through the SDK (`echo HELLO_AUDIT_123`), not a code change.
+- There is **no committed evidence of a real issue -> real PR produced by this engine path**. R2
+  was proven by a single shell command through the SDK (`echo HELLO_AUDIT_123`), not a code
+  change. The session-agent loop is a different path (a Cloud conversation, not this engine) and
+  it has landed one: issue #358 -> PR #359
+  (`watcher/knowledge/evidence/session-loop-20261123-154852.md`), checked against GitHub by
+  `purpose_audit.verify_trace`.
 - **Distance:** Claude Code's whole value is that it demonstrably does the work. Here the loop
   is built, wired, and unit-tested but **not proven to land a real change**. **~2/10**.
 

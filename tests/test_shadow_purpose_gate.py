@@ -68,3 +68,11 @@ def test_workflow_checks_out_full_history_for_the_ratio(report):
     """A shallow clone would make the W1 ratio read a 1-commit history and go falsely red."""
     wf = (_ROOT / ".github" / "workflows" / "shadow-report.yml").read_text(encoding="utf-8")
     assert wf.count("fetch-depth: 0") >= 2, "both the gate and report jobs read git history"
+
+
+def test_gate_job_can_read_github_so_the_trace_is_verified(report):
+    """W3: the live-run finding is checked against GitHub, so the gate needs the token."""
+    wf = (_ROOT / ".github" / "workflows" / "shadow-report.yml").read_text(encoding="utf-8")
+    gate = wf.split("  gate:", 1)[1].split("  sweep:", 1)[0]
+    assert "report.py --gate" in gate
+    assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in gate

@@ -303,3 +303,95 @@ def test_depth_passes_with_a_real_issue_to_pr_trace(pa, tmp_path):
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
     assert any("issues/7" in e and "pull/8" in e for e in f["evidence"])
+
+
+# --- the trace is checked against GitHub, not only matched as text (W3) ---------------
+
+TRACE = {"issue": "https://github.com/o/r/issues/7",
+         "pull_request": "https://github.com/o/r/pull/8"}
+
+
+def _gh(issue=None, pull=None):
+    """A fake GitHub: `None` for a path means HTTP 404."""
+    def fetch(path: str):
+        if "/issues/" in path:
+            return issue if issue is not None else {"__http__": 404}
+        return pull if pull is not None else {"__http__": 404}
+    return fetch
+
+
+def test_verify_trace_accepts_an_issue_the_pull_request_references(pa):
+    state, why = pa.verify_trace(
+        TRACE, _gh({"number": 7, "title": "bug"}, {"number": 8, "body": "Closes #7"})
+    )
+    assert state == "verified"
+    assert "#7" in why and "#8" in why
+
+
+def test_verify_trace_rejects_a_missing_issue(pa):
+    state, why = pa.verify_trace(TRACE, _gh(None, {"number": 8, "body": "Closes #7"}))
+    assert state == "missing"
+    assert "issue o/r#7 does not exist" in why
+
+
+def test_verify_trace_rejects_a_missing_pull_request(pa):
+    state, why = pa.verify_trace(TRACE, _gh({"number": 7}, None))
+    assert state == "missing"
+    assert "pull request o/r#8 does not exist" in why
+
+
+def test_verify_trace_rejects_a_pull_request_that_never_names_the_issue(pa):
+    state, why = pa.verify_trace(TRACE, _gh({"number": 7}, {"number": 8, "body": "unrelated"}))
+    assert state == "missing"
+    assert "does not reference issue #7" in why
+
+
+def test_verify_trace_rejects_a_pull_request_used_as_the_issue(pa):
+    state, why = pa.verify_trace(
+        TRACE, _gh({"number": 7, "pull_request": {"url": "u"}}, {"number": 8, "body": "Closes #7"})
+    )
+    assert state == "missing"
+    assert "is a pull request, not an issue" in why
+
+
+def test_verify_trace_is_unverified_when_github_is_not_read(pa):
+    """No token is not a refutation: it stays unverified rather than passing or failing."""
+    state, _ = pa.verify_trace(TRACE, lambda path: None)
+    assert state == "unverified"
+
+
+def test_depth_does_not_count_a_fabricated_trace(pa, tmp_path):
+    """W3: a well-formed pair of URLs is text. If GitHub has no such issue, it is not proof."""
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "session-loop-4.md",
+              "# Session agent loop\n\nStatus: LIVE — issue carried to a pull request\n\n"
+              "- issue: https://github.com/o/r/issues/7\n"
+              "- pull_request: https://github.com/o/r/pull/8\n")
+    found = pa.depth_findings(tmp_path / "brain", _gh())
+    f = next(d for d in found if "live issue" in d["finding"])
+    assert f["status"] == "PARTIAL"
+    assert any("does not exist" in e for e in f["evidence"])
+
+
+def test_depth_counts_a_trace_github_confirms(pa, tmp_path):
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "session-loop-5.md",
+              "# Session agent loop\n\nStatus: LIVE — issue carried to a pull request\n\n"
+              "- issue: https://github.com/o/r/issues/7\n"
+              "- pull_request: https://github.com/o/r/pull/8\n")
+    fetch = _gh({"number": 7, "title": "bug"}, {"number": 8, "body": "Closes #7"})
+    found = pa.depth_findings(tmp_path / "brain", fetch)
+    f = next(d for d in found if "live issue" in d["finding"])
+    assert f["status"] == "OK"
+    assert any("references it" in e for e in f["evidence"])
+
+
+def test_depth_says_so_when_the_trace_is_not_checked(pa, tmp_path):
+    """Offline (no fetcher) the finding still passes, but the evidence line admits it."""
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "session-loop-6.md",
+              "# Session agent loop\n\n- issue: https://github.com/o/r/issues/7\n"
+              "- pull_request: https://github.com/o/r/pull/8\n")
+    f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
+    assert f["status"] == "OK"
+    assert any("not checked" in e for e in f["evidence"])
