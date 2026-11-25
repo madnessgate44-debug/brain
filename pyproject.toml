@@ -16,8 +16,6 @@ dependencies = [
     "greenlet==3.1.1",
     "alembic==1.14.1",
     "pydantic>=2.13.5,<2.14",
-    "openhands-sdk==1.54.0",
-    "openhands-tools==1.54.0",
     "pydantic-settings>=2.15.0",
     "aiosqlite==0.20.0",
     "python-dotenv>=1.2.2",
@@ -29,7 +27,13 @@ dependencies = [
 browser = [
     "playwright==1.52.0",
 ]
+company = [
+    "openhands-sdk==1.54.0",
+    "openhands-tools==1.54.0",
+]
 dev = [
+    "openhands-sdk==1.54.0",
+    "openhands-tools==1.54.0",
     "pytest==8.3.4",
     "pytest-asyncio==0.24.0",
     "pytest-cov==6.0.0",

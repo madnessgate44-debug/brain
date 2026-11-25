@@ -78,7 +78,7 @@ jobs:
         id: install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e .
+          python -m pip install -e ".[company]"
 
       # GitHub's concurrency groups retain only one pending run. Use an atomic
       # Git ref lease instead so distinct missions wait rather than run Gemini
