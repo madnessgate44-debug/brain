@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # agent_status.py --commits 60 needs the window, not one commit
 
       - name: Set up Python
         uses: actions/setup-python@v5

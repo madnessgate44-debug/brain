@@ -28,6 +28,15 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
 - **Check:** the report-only ratio (`scripts/agent_status.py`), which must fall. **Enforced daily
   by Shadow** since 2026-11-07: `shadow-report.yml` runs `shadow/report.py --gate` on the 09:00
   cron, which fails the run when the ratio rises above its ratchet.
+- **Progress (2026-11-20): the W1 check itself was a W3 false pass, and that is fixed.** The
+  ratio was computed over whatever commits the checkout held, so on a shallow clone it read
+  `0/1 (0%)` and passed. Measured: a repo with **12 of 14 report-only commits (86%)** reported
+  `0/1 (0%)`, exit 0, from a `--depth 1` clone; the same tree with full history reports 86% and
+  fails. The check had never measured 60 commits in the three workflows that ran it on a shallow
+  checkout (`session-agent-loop.yml`, `watcher-daily.yml`, `watcher-learning.yml`). Fixed in
+  `scripts/agent_status.py` (`report_only_ratio` now returns `truncated`; `build` carries
+  `history_truncated`; `render` says FAIL and `main` exits 1) and those three workflows now
+  check out with `fetch-depth: 0`. The real ratio on `main` is **16/58 (28%)**.
 
 ## W2 — We answer from memory, not from the code
 - **Evidence:** "how close are we to Claude Code" was answered **without reading the code**
