@@ -162,18 +162,28 @@ def _load_audit():
     return module
 
 
-def record_trace(evidence: Path, issue: str, pull_request: str) -> Path:
+def _run_url() -> str:
+    """The workflow run this process is executing, when it is running inside Actions."""
+    repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    run_id = os.environ.get("GITHUB_RUN_ID", "").strip()
+    return f"https://github.com/{repo}/actions/runs/{run_id}" if repo and run_id else ""
+
+
+def record_trace(evidence: Path, issue: str, pull_request: str, run: str = "") -> Path:
     """Record the issue -> pull request trace in an existing evidence file.
 
     A `- link:` to a started conversation proves the loop started, not that it carried an issue
-    to a pull request (W3). The candidate text is parsed by `purpose_audit.evidence_trace` before
-    it replaces the file, so this writer cannot emit a trace the audit would reject.
+    to a pull request (W3), and an issue plus a pull request proves both exist, not that *this
+    run* produced them. The trace therefore records the run too, taken from `--run` or from the
+    Actions environment. The candidate text is parsed by `purpose_audit.evidence_trace` before it
+    replaces the file, so this writer cannot emit a trace the audit would reject.
     """
     audit = _load_audit()
     status = "Status: LIVE — issue carried to a pull request"
+    run = (run or _run_url()).strip()
     kept = [
         line for line in evidence.read_text(encoding="utf-8").splitlines()
-        if not line.strip().startswith(("- issue:", "- pull_request:"))
+        if not line.strip().startswith(("- issue:", "- pull_request:", "- run:", "- workflow run:"))
     ]
     # Rebuild the header: drop the old status line and the blank line that followed it.
     if any(line.startswith("Status:") for line in kept):
@@ -189,6 +199,8 @@ def record_trace(evidence: Path, issue: str, pull_request: str) -> Path:
     at = 1 if kept and kept[0].startswith("# ") else 0
     kept[at:at] = [status, ""]
     fields = [f"- issue: {issue.strip()}", f"- pull_request: {pull_request.strip()}"]
+    if run:
+        fields.append(f"- run: {run}")
     note_at = next(
         (i for i, line in enumerate(kept) if line.strip().startswith("- note:")), len(kept)
     )
@@ -200,10 +212,12 @@ def record_trace(evidence: Path, issue: str, pull_request: str) -> Path:
         trace = audit.evidence_trace(probe_path)
     finally:
         probe_path.unlink()
-    if trace["issue"] != issue.strip() or trace["pull_request"] != pull_request.strip():
+    if (trace["issue"] != issue.strip() or trace["pull_request"] != pull_request.strip()
+            or not trace["run"] or (run and trace["run"] != run)):
         raise ValueError(
-            "the depth check would reject this trace: issue and pull_request must be "
-            "https://github.com/<owner>/<repo>/issues/<n> and /pull/<n> on the same repository"
+            "the depth check would reject this trace: it needs "
+            "https://github.com/<owner>/<repo>/issues/<n>, /pull/<n> and /actions/runs/<id> on "
+            "one repository — pass --run or set GITHUB_REPOSITORY and GITHUB_RUN_ID"
         )
     evidence.write_text(candidate, encoding="utf-8")
     return evidence
@@ -221,13 +235,19 @@ def main() -> int:
                     help="record the issue -> PR trace in an existing evidence file and exit")
     ap.add_argument("--issue", default="", help="the GitHub issue URL this run carried")
     ap.add_argument("--pull-request", default="", help="the GitHub pull request URL this run opened")
+    ap.add_argument("--run", default="",
+                    help="the actions run URL that produced it (defaults to this run)")
     a = ap.parse_args()
 
     if a.record:
         if not (a.issue and a.pull_request):
             print("--record needs --issue and --pull-request", file=sys.stderr)
             return 2
-        dest = record_trace(Path(a.record), a.issue, a.pull_request)
+        try:
+            dest = record_trace(Path(a.record), a.issue, a.pull_request, a.run)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         print(f"trace recorded: {dest}")
         return 0
 

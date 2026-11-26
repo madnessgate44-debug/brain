@@ -96,6 +96,7 @@ def test_started_but_not_ready_still_writes_evidence(starter, monkeypatch, tmp_p
 
 ISSUE = "https://github.com/o/r/issues/7"
 PULL = "https://github.com/o/r/pull/8"
+RUN = "https://github.com/o/r/actions/runs/9"
 
 
 def _loop_tree(tmp_path: Path) -> Path:
@@ -124,7 +125,7 @@ def test_record_trace_turns_the_depth_finding_ok(starter, tmp_path):
                                 "conv-1", "https://app.all-hands.dev/canvas/conversations/conv-1",
                                 dry=False)
     assert _live_finding(starter, root)["status"] == "PARTIAL"
-    starter.record_trace(ev, ISSUE, PULL)
+    starter.record_trace(ev, ISSUE, PULL, RUN)
     finding = _live_finding(starter, root)
     assert finding["status"] == "OK"
     assert any(ISSUE in e and PULL in e for e in finding["evidence"])
@@ -132,25 +133,46 @@ def test_record_trace_turns_the_depth_finding_ok(starter, tmp_path):
 
 def test_record_trace_keeps_the_run_links_and_marks_the_status(starter, tmp_path):
     ev = starter.write_evidence(tmp_path, "o/r", "main", "conv-1", "https://u/v", dry=False)
-    starter.record_trace(ev, ISSUE, PULL)
+    starter.record_trace(ev, ISSUE, PULL, RUN)
     text = ev.read_text(encoding="utf-8")
     assert "Status: LIVE — issue carried to a pull request" in text
     assert "- app_conversation_id: conv-1" in text
     assert "- link: https://u/v" in text
     assert text.count("- issue:") == 1 and text.count("- pull_request:") == 1
+    assert "- run: " + RUN in text
+
+
+def test_record_trace_takes_the_run_from_the_actions_environment(starter, monkeypatch, tmp_path):
+    """The writer must be able to satisfy its own check without a hand-typed run."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("GITHUB_RUN_ID", "9")
+    ev = starter.write_evidence(tmp_path, "o/r", "main", "conv-1", "https://u/v", dry=False)
+    starter.record_trace(ev, ISSUE, PULL)
+    assert "- run: " + RUN in ev.read_text(encoding="utf-8")
+
+
+def test_record_trace_refuses_a_trace_with_no_run(starter, monkeypatch, tmp_path):
+    """An issue -> PR pair alone is not proof that a run produced it (W3)."""
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    ev = starter.write_evidence(tmp_path, "o/r", "main", "conv-1", "https://u/v", dry=False)
+    original = ev.read_text(encoding="utf-8")
+    with pytest.raises(ValueError):
+        starter.record_trace(ev, ISSUE, PULL)
+    assert ev.read_text(encoding="utf-8") == original
 
 
 def test_record_trace_is_idempotent(starter, tmp_path):
     ev = starter.write_evidence(tmp_path, "o/r", "main", "conv-1", "https://u/v", dry=False)
-    starter.record_trace(ev, ISSUE, PULL)
+    starter.record_trace(ev, ISSUE, PULL, RUN)
     first = ev.read_text(encoding="utf-8")
-    starter.record_trace(ev, ISSUE, PULL)
+    starter.record_trace(ev, ISSUE, PULL, RUN)
     assert ev.read_text(encoding="utf-8") == first
 
 
 def test_record_trace_leaves_one_blank_line_under_the_status(starter, tmp_path):
     ev = starter.write_evidence(tmp_path, "o/r", "main", "conv-1", "https://u/v", dry=False)
-    starter.record_trace(ev, ISSUE, PULL)
+    starter.record_trace(ev, ISSUE, PULL, RUN)
     lines = ev.read_text(encoding="utf-8").splitlines()
     assert lines[0].startswith("# Session agent loop")
     assert lines[1].startswith("Status:")
@@ -184,7 +206,18 @@ def test_record_cli_requires_both_links(starter, monkeypatch, tmp_path):
 def test_record_cli_writes_the_trace(starter, monkeypatch, tmp_path, capsys):
     ev = starter.write_evidence(tmp_path, "o/r", "main", "conv-1", "https://u/v", dry=False)
     monkeypatch.setattr(sys, "argv", ["start_session_loop.py", "--record", str(ev),
-                                      "--issue", ISSUE, "--pull-request", PULL])
+                                      "--issue", ISSUE, "--pull-request", PULL, "--run", RUN])
     assert starter.main() == 0
     assert "trace recorded" in capsys.readouterr().out
     assert "- pull_request: " + PULL in ev.read_text(encoding="utf-8")
+    assert "- run: " + RUN in ev.read_text(encoding="utf-8")
+
+
+def test_record_cli_exits_2_when_the_trace_has_no_run(starter, monkeypatch, tmp_path, capsys):
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    ev = starter.write_evidence(tmp_path, "o/r", "main", "conv-1", "https://u/v", dry=False)
+    monkeypatch.setattr(sys, "argv", ["start_session_loop.py", "--record", str(ev),
+                                      "--issue", ISSUE, "--pull-request", PULL])
+    assert starter.main() == 2
+    assert "actions/runs" in capsys.readouterr().err

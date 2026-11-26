@@ -29,15 +29,18 @@ Do exactly this, in order, and stop when one item is genuinely closed:
 
 5. **Open a pull request** against `main` with: the gap, the root cause, the change, the exact
    command you ran, its output, and which weakness (W1-W6) it closes. Then **record the trace**:
-   the depth check does not accept a started conversation as proof (W3), so run
+   the depth check accepts neither a started conversation nor an issue -> PR pair it cannot tie
+   to a run (W3), so run
 
    ```
    python3 scripts/start_session_loop.py --record <this run's evidence file> \
      --issue <issue URL you filed or fixed> --pull-request <the PR URL you opened>
    ```
 
-   and push that commit. The writer validates with the audit's own `evidence_trace` and refuses
-   a trace the check would reject, so do not hand-type `- issue:` / `- pull_request:`.
+   and push that commit. The run link comes from `GITHUB_REPOSITORY`/`GITHUB_RUN_ID` inside
+   Actions, or from `--run`; the writer validates with the audit's own `evidence_trace` and
+   refuses a trace the check would reject, so do not hand-type `- issue:` / `- pull_request:` /
+   `- run:`.
 
 Rules:
 - Never push to `main`. Open a PR; CI and the Shadow audit gate the merge.

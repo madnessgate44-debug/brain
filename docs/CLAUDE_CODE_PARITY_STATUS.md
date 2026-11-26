@@ -50,9 +50,10 @@ The loops are real but **hemmed in**:
 - There is **no committed evidence of a real issue -> real PR produced by this engine path**. R2
   was proven by a single shell command through the SDK (`echo HELLO_AUDIT_123`), not a code
   change. The session-agent loop is a different path (a Cloud conversation, not this engine) and
-  it has landed one: issue #358 -> PR #359
-  (`watcher/knowledge/evidence/session-loop-20261123-154852.md`), checked against GitHub by
-  `purpose_audit.verify_trace`.
+  it has landed one: run 45209420890 filed issue #358 and opened PR #359 inside four minutes
+  (`watcher/knowledge/evidence/session-loop-20261123-154852.md`). `purpose_audit.verify_trace`
+  checks that ordering against GitHub; the 2026-11-24 record in the same directory is refuted by
+  it, because PR #359 predates both that run and the issue it names.
 - **Distance:** Claude Code's whole value is that it demonstrably does the work. Here the loop
   is built, wired, and unit-tested but **not proven to land a real change**. **~2/10**.
 
@@ -99,11 +100,14 @@ The Watcher's job is not to report this table. It is to **act on it**, in this o
 
 1. **Prove the loop once, for real.** Dispatch the company workflow on a trivial issue against
    a real repo and commit the resulting PR link as evidence. (Closes "the proof" gap.)
-   *Status 2026-11-24: the loop writes its own trace. `record_trace` in
-   `scripts/start_session_loop.py` records the issue and the pull request in the evidence file and
-   refuses a pair the audit would reject, so no run has to hand-type it. Evidence: issue #363 ->
-   PR #359 (`watcher/knowledge/evidence/session-loop-20261124-155001.md`). The `brain/company`
-   engine path below is still unproven.*
+   *Status 2026-11-26: the check now requires the run, not just the pair. Reading the issue and
+   the pull request proved both existed, not that a run produced them; PR #359's body mentions six
+   issue numbers, and the record that named issue #363 -> PR #359 is refuted by GitHub's
+   timestamps (PR opened 2026-11-23T15:53:36Z, issue filed 2026-11-24T15:48:47Z, named run
+   started 2026-11-24T15:40:03Z). `verify_trace` reads `- run:` and requires the run to be
+   completed, to precede the issue and the pull request, and to share the PR's author. Only the
+   2026-11-23 trace (run 45209420890 -> issue #358 -> PR #359) survives that test. The
+   `brain/company` engine path below is still unproven.*
 2. **Lift the patch contract.** Allow deletions and unplanned new files inside the sandbox,
    with the existing review gates as the guard. (Closes most of "the reach" gap.)
    *Done 2026-11-09 — see "Lifted the patch contract" above.*

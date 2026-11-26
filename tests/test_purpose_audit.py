@@ -245,17 +245,46 @@ def test_evidence_trace_is_empty_for_a_dry_run(pa, tmp_path):
     assert not any(pa.evidence_trace(p).values())
 
 
-def test_evidence_trace_reads_an_issue_and_the_pull_request_that_closes_it(pa, tmp_path):
+def test_evidence_trace_reads_an_issue_the_run_and_the_pull_request_it_opened(pa, tmp_path):
     p = tmp_path / "e.md"
     p.write_text(
         "# Session agent loop\n\nStatus: LIVE — issue carried to a pull request\n\n"
         "- issue: https://github.com/o/r/issues/7\n"
-        "- pull_request: https://github.com/o/r/pull/8\n",
+        "- pull_request: https://github.com/o/r/pull/8\n"
+        "- workflow run: https://github.com/o/r/actions/runs/9\n",
         encoding="utf-8",
     )
     trace = pa.evidence_trace(p)
     assert trace["issue"] == "https://github.com/o/r/issues/7"
     assert trace["pull_request"] == "https://github.com/o/r/pull/8"
+    assert trace["run"] == "https://github.com/o/r/actions/runs/9"
+
+
+def test_evidence_trace_drops_a_run_on_another_repository(pa, tmp_path):
+    """The trace keeps the issue and PR it records; a foreign run is not the one to check."""
+    p = tmp_path / "e.md"
+    p.write_text(
+        "- issue: https://github.com/o/r/issues/7\n"
+        "- pull_request: https://github.com/o/r/pull/8\n"
+        "- run: https://github.com/other/repo/actions/runs/9\n",
+        encoding="utf-8",
+    )
+    trace = pa.evidence_trace(p)
+    assert trace["issue"] == "https://github.com/o/r/issues/7"
+    assert trace["run"] == ""
+
+
+def test_evidence_trace_keeps_an_issue_and_pr_with_no_run(pa, tmp_path):
+    """No run line is a trace `verify_trace` refutes, not one this parser hides."""
+    p = tmp_path / "e.md"
+    p.write_text(
+        "- issue: https://github.com/o/r/issues/7\n"
+        "- pull_request: https://github.com/o/r/pull/8\n",
+        encoding="utf-8",
+    )
+    trace = pa.evidence_trace(p)
+    assert trace["issue"] and trace["pull_request"]
+    assert trace["run"] == ""
 
 
 def test_evidence_trace_rejects_an_issue_and_pr_on_different_repositories(pa, tmp_path):
@@ -299,7 +328,8 @@ def test_depth_passes_with_a_real_issue_to_pr_trace(pa, tmp_path):
               "- app_conversation_id: conv-9\n"
               "- link: https://app.all-hands.dev/canvas/conversations/conv-9\n"
               "- issue: https://github.com/o/r/issues/7\n"
-              "- pull_request: https://github.com/o/r/pull/8\n")
+              "- pull_request: https://github.com/o/r/pull/8\n"
+              "- run: https://github.com/o/r/actions/runs/9\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
     assert any("issues/7" in e and "pull/8" in e for e in f["evidence"])
@@ -308,47 +338,104 @@ def test_depth_passes_with_a_real_issue_to_pr_trace(pa, tmp_path):
 # --- the trace is checked against GitHub, not only matched as text (W3) ---------------
 
 TRACE = {"issue": "https://github.com/o/r/issues/7",
-         "pull_request": "https://github.com/o/r/pull/8"}
+         "pull_request": "https://github.com/o/r/pull/8",
+         "run": "https://github.com/o/r/actions/runs/9"}
+
+ISSUE_AT = "2026-11-24T15:48:47Z"
+RUN_AT = "2026-11-23T15:48:52Z"
+PULL_AT = "2026-11-23T15:53:36Z"
 
 
-def _gh(issue=None, pull=None):
+def _gh(issue=None, pull=None, run=None):
     """A fake GitHub: `None` for a path means HTTP 404."""
     def fetch(path: str):
+        if "/actions/runs/" in path:
+            return run if run is not None else {"__http__": 404}
         if "/issues/" in path:
             return issue if issue is not None else {"__http__": 404}
         return pull if pull is not None else {"__http__": 404}
     return fetch
 
 
-def test_verify_trace_accepts_an_issue_the_pull_request_references(pa):
-    state, why = pa.verify_trace(
-        TRACE, _gh({"number": 7, "title": "bug"}, {"number": 8, "body": "Closes #7"})
-    )
+def _proven_gh(**overrides):
+    """GitHub state where one run filed the issue and then opened the PR that names it."""
+    issue = {"number": 7, "title": "bug", "created_at": ISSUE_AT}
+    pull = {"number": 8, "body": "Closes #7", "user": {"login": "bot"},
+            "created_at": PULL_AT}
+    run = {"id": 9, "status": "completed", "conclusion": "success",
+           "actor": {"login": "bot"}, "created_at": RUN_AT}
+    for key, value in overrides.items():
+        {"issue": issue, "pull": pull, "run": run}[key].update(value)
+    return _gh(issue, pull, run)
+
+
+def test_verify_trace_accepts_a_run_that_filed_the_issue_and_opened_the_pr(pa):
+    state, why = pa.verify_trace(TRACE, _proven_gh())
     assert state == "verified"
-    assert "#7" in why and "#8" in why
+    assert "#7" in why and "#8" in why and "9" in why
+
+
+def test_verify_trace_rejects_a_trace_with_no_run_recorded(pa):
+    """W3: an issue -> PR pair GitHub can see is still not proof that a run produced it."""
+    state, why = pa.verify_trace(
+        {"issue": TRACE["issue"], "pull_request": TRACE["pull_request"]}, _proven_gh()
+    )
+    assert state == "missing"
+    assert "no workflow run recorded" in why
+
+
+def test_verify_trace_rejects_a_pull_request_that_predates_the_run(pa):
+    """The real 2026-11-24 record: PR #359 existed a day before the run it names (W3)."""
+    state, why = pa.verify_trace(TRACE, _proven_gh(pull={"created_at": "2026-11-22T00:00:00Z"}))
+    assert state == "missing"
+    assert "existed before run 9 started" in why
+
+
+def test_verify_trace_rejects_an_issue_that_predates_the_run(pa):
+    state, why = pa.verify_trace(TRACE, _proven_gh(issue={"created_at": "2026-11-01T00:00:00Z"}))
+    assert state == "missing"
+    assert "issue #7 existed before run 9 started" in why
+
+
+def test_verify_trace_rejects_a_pull_request_by_another_author(pa):
+    state, why = pa.verify_trace(TRACE, _proven_gh(pull={"user": {"login": "someone-else"}}))
+    assert state == "missing"
+    assert "was opened by someone-else" in why
+
+
+def test_verify_trace_is_unverified_while_the_run_is_still_going(pa):
+    state, why = pa.verify_trace(TRACE, _proven_gh(run={"status": "in_progress"}))
+    assert state == "unverified"
+    assert "not completed" in why
+
+
+def test_verify_trace_rejects_a_missing_run(pa):
+    state, why = pa.verify_trace(TRACE, _gh({"number": 7}, {"number": 8, "body": "Closes #7"}))
+    assert state == "missing"
+    assert "run 9 does not exist" in why
 
 
 def test_verify_trace_rejects_a_missing_issue(pa):
-    state, why = pa.verify_trace(TRACE, _gh(None, {"number": 8, "body": "Closes #7"}))
+    state, why = pa.verify_trace(TRACE, _gh(None, {"number": 8, "body": "Closes #7"}, {"id": 9}))
     assert state == "missing"
     assert "issue o/r#7 does not exist" in why
 
 
 def test_verify_trace_rejects_a_missing_pull_request(pa):
-    state, why = pa.verify_trace(TRACE, _gh({"number": 7}, None))
+    state, why = pa.verify_trace(TRACE, _gh({"number": 7}, None, {"id": 9}))
     assert state == "missing"
     assert "pull request o/r#8 does not exist" in why
 
 
 def test_verify_trace_rejects_a_pull_request_that_never_names_the_issue(pa):
-    state, why = pa.verify_trace(TRACE, _gh({"number": 7}, {"number": 8, "body": "unrelated"}))
+    state, why = pa.verify_trace(TRACE, _proven_gh(pull={"body": "unrelated"}))
     assert state == "missing"
     assert "does not reference issue #7" in why
 
 
 def test_verify_trace_rejects_a_pull_request_used_as_the_issue(pa):
     state, why = pa.verify_trace(
-        TRACE, _gh({"number": 7, "pull_request": {"url": "u"}}, {"number": 8, "body": "Closes #7"})
+        TRACE, _proven_gh(issue={"pull_request": {"url": "u"}})
     )
     assert state == "missing"
     assert "is a pull request, not an issue" in why
@@ -361,12 +448,13 @@ def test_verify_trace_is_unverified_when_github_is_not_read(pa):
 
 
 def test_depth_does_not_count_a_fabricated_trace(pa, tmp_path):
-    """W3: a well-formed pair of URLs is text. If GitHub has no such issue, it is not proof."""
+    """W3: a well-formed set of URLs is text. If GitHub has no such issue, it is not proof."""
     _company_tree(tmp_path)
     _evidence(tmp_path, "session-loop-4.md",
               "# Session agent loop\n\nStatus: LIVE — issue carried to a pull request\n\n"
               "- issue: https://github.com/o/r/issues/7\n"
-              "- pull_request: https://github.com/o/r/pull/8\n")
+              "- pull_request: https://github.com/o/r/pull/8\n"
+              "- run: https://github.com/o/r/actions/runs/9\n")
     found = pa.depth_findings(tmp_path / "brain", _gh())
     f = next(d for d in found if "live issue" in d["finding"])
     assert f["status"] == "PARTIAL"
@@ -378,20 +466,43 @@ def test_depth_counts_a_trace_github_confirms(pa, tmp_path):
     _evidence(tmp_path, "session-loop-5.md",
               "# Session agent loop\n\nStatus: LIVE — issue carried to a pull request\n\n"
               "- issue: https://github.com/o/r/issues/7\n"
-              "- pull_request: https://github.com/o/r/pull/8\n")
-    fetch = _gh({"number": 7, "title": "bug"}, {"number": 8, "body": "Closes #7"})
-    found = pa.depth_findings(tmp_path / "brain", fetch)
+              "- pull_request: https://github.com/o/r/pull/8\n"
+              "- run: https://github.com/o/r/actions/runs/9\n")
+    found = pa.depth_findings(tmp_path / "brain", _proven_gh())
     f = next(d for d in found if "live issue" in d["finding"])
     assert f["status"] == "OK"
-    assert any("references it" in e for e in f["evidence"])
+    assert any("opened pull request #8" in e for e in f["evidence"])
+
+
+def test_depth_lists_a_refuted_trace_beside_a_verified_one(pa, tmp_path):
+    """A false record must not disappear because a true one sits next to it."""
+    _company_tree(tmp_path)
+    _evidence(tmp_path, "session-loop-ok.md",
+              "- issue: https://github.com/o/r/issues/7\n"
+              "- pull_request: https://github.com/o/r/pull/8\n"
+              "- run: https://github.com/o/r/actions/runs/9\n")
+    _evidence(tmp_path, "session-loop-bad.md",
+              "- issue: https://github.com/o/r/issues/7\n"
+              "- pull_request: https://github.com/o/r/pull/10\n"
+              "- run: https://github.com/o/r/actions/runs/11\n")
+
+    def fetch(path: str):
+        if path.endswith("/actions/runs/11"):
+            return {"__http__": 404}
+        return _proven_gh()(path)
+
+    f = next(d for d in pa.depth_findings(tmp_path / "brain", fetch) if "live issue" in d["finding"])
+    assert f["status"] == "OK"
+    assert any(e.startswith("refuted: session-loop-bad.md") for e in f["evidence"])
 
 
 def test_depth_says_so_when_the_trace_is_not_checked(pa, tmp_path):
     """Offline (no fetcher) the finding still passes, but the evidence line admits it."""
     _company_tree(tmp_path)
     _evidence(tmp_path, "session-loop-6.md",
-              "# Session agent loop\n\n- issue: https://github.com/o/r/issues/7\n"
-              "- pull_request: https://github.com/o/r/pull/8\n")
+              "- issue: https://github.com/o/r/issues/7\n"
+              "- pull_request: https://github.com/o/r/pull/8\n"
+              "- run: https://github.com/o/r/actions/runs/9\n")
     f = next(d for d in pa.depth_findings(tmp_path / "brain") if "live issue" in d["finding"])
     assert f["status"] == "OK"
     assert any("not checked" in e for e in f["evidence"])

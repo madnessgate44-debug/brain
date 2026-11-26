@@ -98,29 +98,43 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
 
 GITHUB_ISSUE = re.compile(r"^https://github\.com/([^/\s]+/[^/\s]+)/issues/(\d+)$")
 GITHUB_PR = re.compile(r"^https://github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)$")
+GITHUB_RUN = re.compile(r"^https://github\.com/([^/\s]+/[^/\s]+)/actions/runs/(\d+)$")
+
+
+def _iso(value: str) -> datetime | None:
+    """Parse a GitHub timestamp, or None when it is absent or malformed."""
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
 
 
 def evidence_trace(path: Path) -> dict:
-    """Return the links an evidence file records: issue, pull_request, conversation.
+    """Return what an evidence file records: issue, pull_request, run, conversation.
 
     A DRY RUN records no conversation, so it is not proof the loop ran. Neither is a `- link:`
     to a started conversation: that proves the loop *started*, not that it carried a live issue
-    to a pull request (W3). Only an issue link plus a pull-request link on the same repository
-    count as the trace; anything less leaves both empty.
+    to a pull request (W3). Only an issue and a pull request on one repository count as a trace;
+    the run is kept when it names the same repository, and its absence is reported by
+    `verify_trace` rather than hidden here.
     """
-    trace = {"issue": "", "pull_request": "", "link": ""}
+    trace = {"issue": "", "pull_request": "", "run": "", "link": ""}
     for line in _read(path).splitlines():
         stripped = line.strip()
         for key in trace:
-            prefix = f"- {key}:"
-            if stripped.startswith(prefix):
-                value = stripped[len(prefix):].strip()
-                if value.startswith(("http://", "https://")):
-                    trace[key] = value
+            for prefix in (f"- {key}:", f"- workflow {key}:"):
+                if stripped.startswith(prefix):
+                    value = stripped[len(prefix):].strip()
+                    if value.startswith(("http://", "https://")):
+                        trace[key] = value
     issue = GITHUB_ISSUE.match(trace["issue"])
     pull = GITHUB_PR.match(trace["pull_request"])
-    if not (issue and pull and issue.group(1) == pull.group(1)):
-        trace["issue"] = trace["pull_request"] = ""
+    run = GITHUB_RUN.match(trace["run"])
+    repo = issue.group(1) if issue else ""
+    if not (issue and pull and repo == pull.group(1)):
+        trace["issue"] = trace["pull_request"] = trace["run"] = ""
+    elif not (run and run.group(1) == repo):
+        trace["run"] = ""
     return trace
 
 
@@ -147,41 +161,72 @@ def _gh_get(path: str, timeout: int = 20):
 
 
 def verify_trace(trace: dict, fetch) -> tuple[str, str]:
-    """Check the trace against GitHub: does the issue exist, and does the pull request name it?
+    """Check the trace against GitHub: did this run carry this issue to this pull request?
 
     A well-formed URL pair is still only text; a path typed into the file passes
-    `evidence_trace` without the loop ever producing it. This reads the real issue and pull
-    request, so the depth finding rests on GitHub state instead of a regex (W3).
+    `evidence_trace` without the loop ever producing it. And a pull request that merely
+    *mentions* an issue is not the same as one the run produced: it can predate the issue by a
+    day. This reads the real issue, pull request, and workflow run, so the depth finding rests
+    on GitHub state instead of a regex (W3).
 
     `fetch` reads one API path; it is injected so the check is testable without a network.
 
     Returns (state, reason), state in {"verified", "missing", "unverified"}:
-      verified    the issue exists and the pull request references it
-      missing     GitHub answered and the trace is not there (404, or the PR never names it)
-      unverified  no token or a transient failure, so the trace is neither proven nor refuted
+      verified    the run started before the issue, the issue exists, and the pull request the
+                  run's actor opened afterwards names it
+      missing     GitHub answered and the trace is not there (404, wrong order, wrong author,
+                  or the PR never names the issue)
+      unverified  no token, a transient failure, or an unfinished run: neither proven nor
+                  refuted
     """
     issue_m = GITHUB_ISSUE.match(trace.get("issue", ""))
     pull_m = GITHUB_PR.match(trace.get("pull_request", ""))
+    run_m = GITHUB_RUN.match(trace.get("run", ""))
     if not (issue_m and pull_m):
         return "missing", "no issue + pull request pair"
-    repo, num, pull_num = issue_m.group(1), issue_m.group(2), pull_m.group(2)
+    if not run_m:
+        return "missing", ("no workflow run recorded, so nothing ties this pull request to a run")
+    repo, num, pull_num, run_id = (
+        issue_m.group(1), issue_m.group(2), pull_m.group(2), run_m.group(2)
+    )
     issue = fetch(f"/repos/{repo}/issues/{num}")
     pull = fetch(f"/repos/{repo}/pulls/{pull_num}")
-    if issue is None or pull is None:
+    run = fetch(f"/repos/{repo}/actions/runs/{run_id}")
+    if issue is None or pull is None or run is None:
         return "unverified", "GitHub was not read (no GITHUB_TOKEN), so the trace is not checked"
     for payload, what in ((issue, f"issue {repo}#{num}"),
-                          (pull, f"pull request {repo}#{pull_num}")):
+                          (pull, f"pull request {repo}#{pull_num}"),
+                          (run, f"run {run_id}")):
         if payload.get("__http__") == 404:
             return "missing", f"{what} does not exist"
         if payload.get("__http__"):
             return "unverified", f"GitHub answered HTTP {payload['__http__']} for {what}"
-        if "number" not in payload:
+        if "number" not in payload and "id" not in payload:
             return "unverified", f"GitHub returned no record for {what}"
     if "pull_request" in issue:
         return "missing", f"{repo}#{num} is a pull request, not an issue"
     if f"#{num}" not in f"{pull.get('title', '')}\n{pull.get('body') or ''}":
         return "missing", f"pull request #{pull_num} does not reference issue #{num}"
-    return "verified", f"issue #{num} exists; pull request #{pull_num} references it"
+    if run.get("status") != "completed":
+        return "unverified", f"run {run_id} is {run.get('status') or 'unknown'}, not completed"
+    run_at = _iso(run.get("created_at", ""))
+    issue_at = _iso(issue.get("created_at", ""))
+    pull_at = _iso(pull.get("created_at", ""))
+    actor = (run.get("actor") or {}).get("login", "")
+    author = (pull.get("user") or {}).get("login", "")
+    if not (run_at and issue_at and pull_at and actor and author):
+        return "unverified", f"run {run_id} lacks the timestamps or actors needed to order it"
+    if issue_at < run_at:
+        return "missing", (f"issue #{num} existed before run {run_id} started, so the run did "
+                           "not file it")
+    if pull_at < run_at:
+        return "missing", (f"pull request #{pull_num} existed before run {run_id} started, so "
+                           "the run did not produce it")
+    if actor != author:
+        return "missing", (f"pull request #{pull_num} was opened by {author}, not by run "
+                           f"{run_id}'s actor {actor}")
+    return "verified", (f"run {run_id} started {run_at:%Y-%m-%dT%H:%M:%SZ}, filed issue #{num} "
+                        f"and opened pull request #{pull_num}")
 
 
 def depth_findings(root: Path, verify=None) -> list[dict]:
@@ -278,10 +323,12 @@ def depth_findings(root: Path, verify=None) -> list[dict]:
         {"verified": verified, "unverified": unverified}.get(state, absent).append(line)
     if verified or unverified:
         status = "OK"
-        ev = verified + unverified
+        # A refuted trace is listed even when another trace holds: a false record must not
+        # disappear just because a true one sits beside it.
+        ev = verified + unverified + [f"refuted: {line}" for line in absent]
     elif absent:
         status = "PARTIAL"
-        ev = absent + ["a well-formed link pair is not proof: GitHub has no such issue -> PR"]
+        ev = absent + ["a well-formed link pair is not proof: GitHub refutes it"]
     elif started:
         status = "PARTIAL"
         ev = [f"{name}: {t['link']} (conversation only — no issue -> pull request recorded)"

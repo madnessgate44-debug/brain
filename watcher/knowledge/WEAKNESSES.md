@@ -92,6 +92,19 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   trace is "not checked" instead of claiming proof. The gate job in `shadow-report.yml` now
   exports `GITHUB_TOKEN` so the authoritative check verifies. Evidence for this run: issue #363 ->
   PR #359, verified live: `issue #358 exists; pull request #359 references it`.
+- **Progress (2026-11-26): the trace must be the run's, not a mention.** Reading the issue and the
+  pull request proved both exist, not that *this run* produced the pair: PR #359's body mentions
+  six issue numbers, so any of them paired with it passed. The record this very PR committed —
+  issue #363 -> PR #359 — is refuted by GitHub's own timestamps: the PR was opened
+  2026-11-23T15:53:36Z, issue #363 was filed 2026-11-24T15:48:47Z, and the run the note names
+  (45428155591) started 2026-11-24T15:40:03Z, after the PR existed. `verify_trace` now also reads
+  the workflow run the evidence file records (`- run:`) and requires the run to be completed, to
+  have started before the issue, to have started before the pull request, and to share the pull
+  request's author. A missing run, a wrong order, or a different author are all refuted; only a
+  failed read (no token, transient HTTP) is "unverified". The finding now also lists a refuted
+  record beside a verified one instead of dropping it. Evidence:
+  `python3 watcher/knowledge/tools/purpose_audit.py` (run 45209420890 -> issue #358 -> PR #359
+  verified; the 2026-11-24 record refuted).
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
