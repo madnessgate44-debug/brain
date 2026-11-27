@@ -19,8 +19,13 @@ reports per claim:
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import os
 import re
+import tokenize
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -93,19 +98,347 @@ def imported_outside_tests(module_path: str, root: Path, tests_root: Path) -> bo
     return False
 
 
+# The live-run finding names an issue -> PR run, so its proof is three links: the issue that
+# triggered the run, the workflow run itself, and the pull request the run produced. Anything
+# less (a conversation link; an issue and a pull request with no run between them) shows only
+# part of the path.
+_ISSUE_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/\d+$")
+_PULL_REQUEST_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/\d+$")
+_RUN_RE = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/\d+$")
+_GITHUB_ITEM_RE = re.compile(
+    r"^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(?:issues|pull|actions/runs)/\d+$"
+)
+
+
+def _repo_of(url: str) -> str:
+    """The `owner/repo` slug of a GitHub issue or pull-request URL, or "" if it is not one."""
+    match = _GITHUB_ITEM_RE.match(url)
+    return match.group(1) if match else ""
+
+
+def _field_url(path: Path, field: str) -> str:
+    """Return the first `http(s)` URL recorded under `field` in an evidence file, or ""."""
+    for line in _read(path).splitlines():
+        stripped = line.strip()
+        if stripped.startswith(field):
+            value = stripped.split(":", 1)[1].strip()
+            if value.startswith(("http://", "https://")):
+                return value
+    return ""
+
+
+def _call_offsets(text: str) -> dict[str, list[int]]:
+    """Map each called name to the character offsets it is *called* at (`name(`), or {} if unparsable.
+
+    W3: a raw `"run_openhands_role" in text` match is satisfied by a comment or a docstring, so
+    the audit could report the loop "wired" while no role reaches it. Tokenizing drops comments
+    and strings, and requiring a following `(` distinguishes a call from a mere import or a
+    mention in a string, so the check reads code, not text. (Reachability inside dead code is
+    beyond a tokenizer; a call is credited wherever it textually appears as a call.)
+    """
+    calls: dict[str, list[int]] = {}
+    line_start = [0]
+    for line in text.splitlines(keepends=True):
+        line_start.append(line_start[-1] + len(line))
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return {}
+    for first, second in zip(tokens, tokens[1:]):
+        if first.type == tokenize.NAME and second.type == tokenize.OP and second.string == "(":
+            row, col = first.start
+            calls.setdefault(first.string, []).append(line_start[row - 1] + col)
+    return calls
+
+
 def evidence_link(path: Path) -> str:
     """Return the conversation link recorded in an evidence file, or "" if there is none.
 
     A DRY RUN records no conversation, so it is not proof the loop ran. Only a real URL under
     the writer's `- link:` field counts; the placeholder it writes when it has no link does not.
     """
-    for line in _read(path).splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- link:"):
-            value = stripped.split(":", 1)[1].strip()
-            if value.startswith(("http://", "https://")):
-                return value
-    return ""
+    return _field_url(path, "- link:")
+
+
+def pull_request_link(path: Path) -> str:
+    """Return the pull-request link recorded in an evidence file, or "" if there is none.
+
+    The live-run finding claims an issue -> PR run, so a conversation link alone is not proof:
+    the run must name the pull request it produced. Only a real
+    `https://github.com/<owner>/<repo>/pull/<n>` URL under the writer's `- pr:` field counts.
+    This is what stops the finding passing on a conversation-only file (W3: a check must fail
+    when the thing it names is absent).
+    """
+    value = _field_url(path, "- pr:")
+    return value if _PULL_REQUEST_RE.match(value) else ""
+
+
+def issue_link(path: Path) -> str:
+    """Return the issue link recorded in an evidence file, or "" if there is none.
+
+    The finding names an **issue** -> PR run, so the pull request alone is not the whole proof:
+    the record must also name the issue that triggered the run. Only a real
+    `https://github.com/<owner>/<repo>/issues/<n>` URL under the writer's `- issue:` field
+    counts. Without this, a bare PR link passes a claim about an issue -> PR run (the same W3
+    shape, one level deeper).
+    """
+    value = _field_url(path, "- issue:")
+    return value if _ISSUE_RE.match(value) else ""
+
+
+def run_link(path: Path) -> str:
+    """Return the workflow-run link recorded in an evidence file, or "" if there is none.
+
+    The finding names an issue -> PR **run**, so the issue and the pull request alone are not
+    the whole proof: the record must also name the run that connected them. Without it, two
+    URLs typed into one file pass a claim about a run that took the issue to the pull request.
+    Only a real `https://github.com/<owner>/<repo>/actions/runs/<n>` URL under the writer's
+    `- workflow run:` field counts.
+    """
+    value = _field_url(path, "- workflow run:")
+    return value if _RUN_RE.match(value) else ""
+
+
+def _run_proof(path: Path) -> dict[str, str]:
+    """The live-run links one evidence file records: issue, run, pull request, conversation.
+
+    One file is one run. The finding names *a* live issue -> PR run, so the links that prove it
+    must come from the same file; see `depth_findings`.
+    """
+    return {
+        "issue": issue_link(path),
+        "run": run_link(path),
+        "pr": pull_request_link(path),
+        "conversation": evidence_link(path),
+    }
+
+
+def _same_repository(r: dict[str, str]) -> bool:
+    """True when the file's issue, run, and pull request are all GitHub items in one repository.
+
+    A run triggers on an issue, runs in the repository that hosts it, and produces a pull
+    request in the repository it is allowed to write (the gateway allowlists one owner, and
+    `brain/company/tools.py:225` requires the run's reported target repository to match). So
+    the three links that prove one run must name the *same* `owner/repo`; links from different
+    repositories are unrelated items, not one run's issue -> PR path.
+    """
+    repos = [_repo_of(r[key]) for key in ("issue", "run", "pr")]
+    return "" not in repos and len({repo.casefold() for repo in repos}) == 1
+
+
+def _repo_owner(repo: str) -> str:
+    """The owner part of an `owner/repo` slug, or ""."""
+    return repo.split("/", 1)[0].casefold() if "/" in repo else ""
+
+
+def _owner_scope() -> str:
+    """The owner this repository is, so a proof from a foreign repository cannot pass.
+
+    The finding names the app's own live run: an issue dispatched through Brain's company
+    workflow that produced a pull request. Brain writes to one owner only — the gateway
+    allowlists it (`github_gateway.py:47`) and the task runner accepts issues "owned by the
+    Brain repository owner" (`brain-task-runner.yml:50`) — so a proof whose links name a
+    different owner is not this app's run, however well-formed it looks. The owner comes from
+    the environment the audit runs in (`GITHUB_REPOSITORY` under Actions); with none set (a
+    local run) the check stays lenient and only requires the three links to agree with each
+    other. Never guessed from the working tree, so a test tree cannot silence it.
+    """
+    slug = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if slug and "/" in slug:
+        return _repo_owner(slug)
+    owner = os.environ.get("BRAIN_GITHUB_OWNER", "").strip()
+    return owner.casefold()
+
+
+
+def _proof_owners(r: dict[str, str]) -> set[str]:
+    """The owners named by the links a proof file holds (only the fields it records)."""
+    return {_repo_owner(repo) for key in ("issue", "run", "pr") if (repo := _repo_of(r[key]))}
+
+
+def _proof_in_scope(r: dict[str, str], owner: str) -> bool:
+    """True when every link a proof holds names this repository's owner (or no scope is known).
+
+    With no `owner` (a local run) every repository is in scope; the three links still have to
+    agree with each other, so this is strictly narrower, never looser.
+    """
+    if not owner:
+        return True
+    owners = _proof_owners(r)
+    return bool(owners) and owners == {owner}
+
+
+_ITEM_FIELDS = (("issue", "issue"), ("run", "workflow run"), ("pr", "pull request"))
+
+
+def _gh_get(path: str) -> tuple[dict | list | None, int]:
+    """GET `https://api.github.com<path>`; return (parsed body, HTTP status).
+
+    Status is the HTTP code on a response (200, 404, …) and 0 when the request could not be
+    made at all (no network, a timeout, a DNS failure). The caller uses the distinction to tell
+    a *definitive* absence (404: the item does not exist) from an *inconclusive* read (0: cannot
+    verify), so a transient API gap never turns a real proof into a false negative. Never raises.
+    """
+    req = urllib.request.Request(f"https://api.github.com{path}", method="GET")
+    req.add_header("Accept", "application/vnd.github+json")
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.loads(r.read() or b"{}"), r.status
+    except urllib.error.HTTPError as e:
+        return None, e.code
+    except Exception:  # noqa: BLE001 - network failure: inconclusive, not absent
+        return None, 0
+
+
+def _verified_connection(issue: str, run: str, pr: str) -> bool:
+    """True when the GitHub API confirms the run connects this issue to this pull request.
+
+    The check requires the run to have executed the company workflow on an `issues` event and
+    to have posted the result comment that links that pull request — the same connection the
+    codebase's own verification makes (`brain/company/tools.py:239-244`: the run must have
+    `event == "issues"` and `status == "completed"` before its comment is trusted). A run that
+    never ran the company workflow, or whose result comment does not name this pull request,
+    is not the issue -> PR path this finding names.
+
+    A link that the API answers with 404 is a *definitive* absence and rejects the proof: a
+    fabricated `issues/1` + `runs/1` + `pull/1` triple names items that do not exist. A link
+    that could not be read at all (status 0: no network, a timeout) is *inconclusive* and does
+    not reject, so a transient gap never turns a real proof into a false negative — the finding
+    has already proved the links agree and are in scope; this only rejects a *proven* mismatch.
+    """
+    run_id = _last_int(run)
+    issue_id = _last_int(issue)
+    if not run_id or not issue_id:
+        return False
+    run_data, run_status = _gh_get(f"/repos/{_repo_of(run)}/actions/runs/{run_id}")
+    if run_status == 404:
+        return False  # the run the proof names does not exist
+    if isinstance(run_data, dict) and (
+        run_data.get("event") != "issues" or run_data.get("status") != "completed"
+    ):
+        return False  # the run did not execute the company workflow
+    comments, comments_status = _gh_get(
+        f"/repos/{_repo_of(issue)}/issues/{issue_id}/comments?per_page=100"
+    )
+    if comments_status == 404:
+        return False  # the issue the proof names does not exist
+    if not isinstance(comments, list):
+        return True  # cannot read the comments: inconclusive, do not reject a real proof
+    return any(pr in (c.get("body") or "") for c in comments if isinstance(c, dict))
+
+
+def _last_int(url: str) -> int:
+    """The trailing integer of a GitHub item URL, or 0."""
+    match = re.search(r"/(\d+)$", url)
+    return int(match.group(1)) if match else 0
+
+
+def _parse_iso(value: object) -> datetime | None:
+    """Parse a GitHub ISO-8601 timestamp, or None when it is absent or unparsable."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+# The scheduled session loop's workflow name; its runs are the ones that can produce a
+# conversation, so a run of any other workflow is not the run this finding names.
+_SESSION_WORKFLOW = "Session agent loop"
+
+
+def _conversation_id(url: str) -> str:
+    """The id of an OpenHands Cloud conversation URL, or "" if it is not one."""
+    match = re.search(r"/conversations/([0-9a-fA-F][0-9a-fA-F-]{30,40})/?$", url)
+    return match.group(1).replace("-", "").lower() if match else ""
+
+
+def _cloud_pull_requests(conversation_id: str) -> tuple[set[int] | None, bool]:
+    """(pull request numbers the Cloud API attributes to a conversation, conclusive?).
+
+    The Cloud API is the only authority on which pull request a conversation produced; the
+    evidence file's own `- pr:` line is a claim. A record whose `pr_number` omits the pull
+    request is a definitive mismatch, so it rejects. A missing key, or an API that cannot be
+    read, is inconclusive (None, False) and never rejects a real proof.
+    """
+    key = os.environ.get("OPENHANDS_API_KEY", "").strip()
+    if not key or not conversation_id:
+        return None, False
+    req = urllib.request.Request(
+        f"https://app.all-hands.dev/api/v1/app-conversations?ids={conversation_id}", method="GET"
+    )
+    req.add_header("Authorization", f"Bearer {key}")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            payload = json.loads(r.read() or b"{}")
+    except Exception:  # noqa: BLE001 - unreadable: inconclusive, never a false negative
+        return None, False
+    record = payload[0] if isinstance(payload, list) and payload else payload
+    if not isinstance(record, dict) or not record:
+        return None, False
+    numbers = record.get("pr_number") or []
+    if isinstance(numbers, int):
+        numbers = [numbers]
+    return {int(n) for n in numbers if str(n).isdigit()}, True
+
+
+def _session_run_produced_pr(r: dict[str, str], verify: bool) -> bool:
+    """True when the run is a completed session-loop run that could have produced this PR.
+
+    The evidence file's `- pr:` line is a claim, so three facts are checked: the pull request
+    exists in the run's repository, the run exists and is a *completed* run of the session
+    loop, and the pull request was created after the run started — a pull request older than
+    the run that "produced" it is not that run's output. When the Cloud API answers, its
+    `pr_number` for the conversation must also name the pull request, which is the only
+    authoritative record that this conversation produced it (and the only thing that rejects a
+    typed pair of unrelated links). Every unreadable source is inconclusive, never a rejection.
+    """
+    run_id, pr_id = _last_int(r["run"]), _last_int(r["pr"])
+    repo = _repo_of(r["pr"])
+    if not run_id or not pr_id or not repo:
+        return False
+    if verify:
+        pull, pull_status = _gh_get(f"/repos/{repo}/pulls/{pr_id}")
+        if pull_status == 404:
+            return False
+        run_data, run_status = _gh_get(f"/repos/{_repo_of(r['run'])}/actions/runs/{run_id}")
+        if run_status == 404:
+            return False
+        if isinstance(run_data, dict):
+            if run_data.get("name") != _SESSION_WORKFLOW or run_data.get("status") != "completed":
+                return False
+            started = _parse_iso(run_data.get("run_started_at"))
+            created = _parse_iso((pull or {}).get("created_at") if isinstance(pull, dict) else None)
+            if started and created and created < started:
+                return False
+    numbers, conclusive = _cloud_pull_requests(_conversation_id(r["conversation"]))
+    if conclusive and pr_id not in numbers:
+        return False
+    return True
+
+
+def _describe_fragment(name: str, r: dict[str, str], owner: str = "") -> str:
+    """Name which part of the issue -> run -> PR path a single evidence file holds."""
+    present = [(label, r[key]) for key, label in _ITEM_FIELDS if r[key]]
+    owners = _proof_owners(r)
+    # A foreign proof only reads as "foreign" when its links agree on one repository; a mixed
+    # file is reported as the incomplete path it is, below.
+    if owner and len(owners) == 1 and next(iter(owners)) != owner:
+        repo = next(repo for key in ("issue", "run", "pr") if (repo := _repo_of(r[key])))
+        return (f"{name} -> {repo} (not this repository's owner {owner!r}; a run this app did "
+                "not perform)")
+    if len(present) == 1:
+        label, url = present[0]
+        return f"{name} -> {url} ({label} only; no complete issue -> run -> PR path recorded)"
+    if present:
+        return (f"{name} -> " + "; ".join(f"{label} {url}" for label, url in present)
+                + " (incomplete issue -> run -> pull request path: links are in different "
+                  "repositories, or a step is missing)")
+    return f"{name} -> {r['conversation']} (conversation only; no pull request recorded)"
 
 
 def depth_findings(root: Path) -> list[dict]:
@@ -122,16 +455,21 @@ def depth_findings(root: Path) -> list[dict]:
 
     total_roles = len(re.findall(r"SpecialistRole\(", roles_txt))
     role_keys = re.findall(r'key="([a-z_]+)"', roles_txt)
-    # A role reaches the agentic loop if its branch wraps a call to an OpenHands SDK runner:
-    # the developer's file-editing loop, or the investigative loop every other role now uses.
+    # A role reaches the agentic loop only if the runner *calls* an OpenHands SDK runner on its
+    # branch. W3: match the tokenized call, not the bare name — a comment or a docstring mention
+    # satisfied a substring check and reported the loop wired when it was not.
+    calls = _call_offsets(runner_txt)
+    dev_calls = calls.get("run_openhands_developer", [])
     loop_roles = sorted({
         m.group(1)
         for m in re.finditer(r'role_key == "([a-z_]+)"', runner_txt)
-        if "run_openhands_developer" in runner_txt[m.start(): m.start() + 400]
+        if any(m.start() <= offset <= m.start() + 400 for offset in dev_calls)
     })
-    # If the runner wires the general investigative loop, every non-developer role is covered.
-    if "run_openhands_role" in runner_txt:
-        loop_roles = sorted(set(loop_roles) | set(role_keys))
+    # The general investigative loop (run_openhands_role) covers every non-developer role; the
+    # developer keeps its own file-editing loop above. A real call here must not be credited to
+    # the developer, or deleting the developer branch still reads as full coverage (W3).
+    if calls.get("run_openhands_role"):
+        loop_roles = sorted(set(loop_roles) | (set(role_keys) - {"developer"}))
     if total_roles:
         status = "OK" if len(loop_roles) >= total_roles else "PARTIAL"
         rest = total_roles - len(loop_roles)
@@ -181,14 +519,111 @@ def depth_findings(root: Path) -> list[dict]:
 
     evidence_dir = root.parent / "watcher" / "knowledge" / "evidence"
     proof = sorted(evidence_dir.glob("*.md")) if evidence_dir.is_dir() else []
-    links = {p.name: link for p in proof if (link := evidence_link(p))}
+    # W3: the finding names a live issue -> PR run, so a single evidence file — one run — must
+    # name all three steps: the issue that triggered the run, the workflow run, and the pull
+    # request the run produced. Aggregating the links across separate files, or accepting an
+    # issue and a pull request with no run between them, would pass on a path no single run
+    # took — exactly the false pass this check exists to catch. OK therefore requires all three
+    # links in the SAME file; any partial file keeps the finding below OK.
+    proofs = {p.name: _run_proof(p) for p in proof}
+    # OK needs all three links in one file AND in one repository: an issue in repo A with a
+    # run or pull request in repo B is not the issue -> PR path this finding names. It must
+    # also be THIS repository's owner: a well-formed proof from a foreign repository is a run
+    # this app did not perform (W3, one level deeper — "same repository" let a foreign repo
+    # through as long as its own three links agreed).
+    owner = _owner_scope()
+    # A proof that is well-formed and in scope is then *confirmed against GitHub*: the run must
+    # exist, have run the company workflow on an `issues` event, and its result comment must name
+    # the pull request. A fabricated triple (issues/1 + runs/1 + pull/1) is well-formed and in
+    # scope, so without this it reads as OK while nothing ran (W3, one level deeper). Verification
+    # is skipped when no token is available (a local run), so the check never fabricates a failure.
+    verify = bool(os.environ.get("GITHUB_TOKEN", "").strip())
+    well_formed = {name: r for name, r in proofs.items()
+                   if r["issue"] and r["run"] and r["pr"] and _same_repository(r)
+                   and _proof_in_scope(r, owner)}
+    complete = {name: r for name, r in well_formed.items()
+                if not verify or _verified_connection(r["issue"], r["run"], r["pr"])}
+    unverified = {name: r for name, r in well_formed.items() if name not in complete}
+    partial = {name: r for name, r in proofs.items() if name not in complete
+               and (r["issue"] or r["run"] or r["pr"] or r["conversation"])}
+    if complete:
+        live_status = "OK"
+        live_evidence = [f"{name} -> issue {r['issue']}; run {r['run']}; pull request {r['pr']}"
+                         for name, r in complete.items()]
+    elif partial:
+        live_status = "PARTIAL"
+        live_evidence = [
+            (f"{name} -> issue {r['issue']}; run {r['run']}; pull request {r['pr']} "
+             "(links agree, but the GitHub API does not confirm the run connects this issue to "
+             "this pull request — a run that did not execute the company workflow, or whose "
+             "result comment does not name the pull request)")
+            if name in unverified else _describe_fragment(name, r, owner)
+            for name, r in partial.items()
+        ]
+    else:
+        live_status = "MISSING"
+        live_evidence = ["no live-run evidence committed (a DRY RUN or an evidence file with no "
+                         "conversation link does not prove the loop ran)"]
     out.append({
         "id": "live-run-evidence",
         "finding": "Committed evidence of a live issue -> PR run",
-        "status": "OK" if links else "MISSING",
-        "evidence": [f"{name} -> {link}" for name, link in links.items()]
-                    or ["no live-run evidence committed (a DRY RUN or an evidence file with no "
-                        "conversation link does not prove the loop ran)"],
+        "status": live_status,
+        "evidence": live_evidence,
+    })
+
+    # The scheduled session loop is cron-triggered, so it has no issue to name and the finding
+    # above cannot cover it. Its proof is a conversation, the run that started it, and the pull
+    # request the run produced. Nothing read that file's `- pr:` line, so a typed or stale number
+    # passed silently — a field no check reads is presence, not proof (W3).
+    session_proofs: dict[str, dict[str, str]] = {}
+    for p in proof:
+        conversation = evidence_link(p)
+        if conversation:
+            session_proofs[p.name] = {
+                "conversation": conversation,
+                "run": run_link(p),
+                "pr": pull_request_link(p),
+            }
+    session_well_formed = {
+        name: r for name, r in session_proofs.items()
+        if r["run"] and r["pr"]
+        and _repo_of(r["run"]).casefold() == _repo_of(r["pr"]).casefold()
+        and _proof_in_scope({"issue": "", "run": r["run"], "pr": r["pr"]}, owner)
+    }
+    session_complete = {
+        name: r for name, r in session_well_formed.items()
+        if _session_run_produced_pr(r, verify)
+    }
+    if session_complete:
+        session_status = "OK"
+        session_evidence = [
+            f"{name} -> conversation {r['conversation']}; run {r['run']}; pull request {r['pr']}"
+            for name, r in session_complete.items()
+        ]
+    elif session_well_formed:
+        session_status = "PARTIAL"
+        session_evidence = [
+            (f"{name} -> conversation {r['conversation']}; run {r['run']}; pull request {r['pr']} "
+             "(links agree, but GitHub/the Cloud API do not confirm that this run produced this "
+             "pull request: it predates the run, the run is not a completed session-loop run, or "
+             "the conversation's own record names another pull request)")
+            for name, r in session_well_formed.items()
+        ]
+    elif session_proofs:
+        session_status = "PARTIAL"
+        session_evidence = [
+            f"{name} -> conversation {r['conversation']} (conversation only; no workflow run and "
+            "no pull request recorded, so the loop is not proven to have produced a change)"
+            for name, r in session_proofs.items()
+        ]
+    else:
+        session_status = "MISSING"
+        session_evidence = ["no session-loop evidence committed"]
+    out.append({
+        "id": "session-loop-proof",
+        "finding": "Committed evidence the scheduled session loop produced a pull request",
+        "status": session_status,
+        "evidence": session_evidence,
     })
 
     # W7: a role with no skill file runs on its bare contract. A missing skill is the Watcher's

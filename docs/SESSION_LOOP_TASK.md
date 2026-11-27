@@ -29,6 +29,11 @@ Do exactly this, in order, and stop when one item is genuinely closed:
 
 5. **Open a pull request** against `main` with: the gap, the root cause, the change, the exact
    command you ran, its output, and which weakness (W1-W6) it closes.
+   Then record the pull request in this run's evidence file, so the loop's proof is produced
+   instead of typed:
+   `python3 scripts/start_session_loop.py --record-pr <this run's evidence file> --pr <PR URL>`
+   (the audit's `session-loop-proof` finding reads that file, and rejects a pull request the
+   conversation did not produce).
 
 Rules:
 - Never push to `main`. Open a PR; CI and the Shadow audit gate the merge.

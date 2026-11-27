@@ -90,3 +90,82 @@ def test_started_but_not_ready_still_writes_evidence(starter, monkeypatch, tmp_p
     text = next(out.glob("*.md")).read_text(encoding="utf-8")
     assert "not yet resolved" in text
     assert "link: (none)" in text
+
+
+# --- the proof is produced, not typed (W3) -------------------------------------------
+
+_PR = "https://github.com/madnessgate44-debug/brain/pull/307"
+_RUN = "https://github.com/madnessgate44-debug/brain/actions/runs/42477372401"
+_CONV = "https://app.all-hands.dev/canvas/conversations/e166ab9ce3864fa89ded6f01dd480097"
+
+
+def _live_evidence(starter, tmp_path, *, run: str = "") -> Path:
+    dest = starter.write_evidence(tmp_path / "ev", "madnessgate44-debug/brain", "main",
+                                  "e166ab9ce3864fa89ded6f01dd480097", _CONV, dry=False)
+    if run:
+        dest.write_text(dest.read_text(encoding="utf-8") + f"- workflow run: {run}\n",
+                        encoding="utf-8")
+    return dest
+
+
+def test_run_url_from_env_derives_the_actions_run(starter):
+    env = {"GITHUB_REPOSITORY": "owner/repo", "GITHUB_RUN_ID": "42"}
+    assert starter.run_url_from_env(env) == "https://github.com/owner/repo/actions/runs/42"
+
+
+def test_run_url_from_env_is_empty_outside_actions(starter):
+    assert starter.run_url_from_env({}) == ""
+
+
+def test_record_pull_request_writes_links_the_checker_accepts(starter, tmp_path, monkeypatch):
+    """The producer and the check cannot drift: the checker reads back what this wrote."""
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    dest = _live_evidence(starter, tmp_path, run=_RUN)
+    starter.record_pull_request(dest, _PR)
+    checker = starter._checker()
+    assert checker.pull_request_link(dest) == _PR
+    assert checker.run_link(dest) == _RUN  # the run the workflow wrote is preserved
+    assert checker.evidence_link(dest) == _CONV
+
+
+def test_record_pull_request_replaces_a_previous_pull_request(starter, tmp_path, monkeypatch):
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    dest = _live_evidence(starter, tmp_path)
+    starter.record_pull_request(dest, _PR)
+    starter.record_pull_request(dest, "https://github.com/madnessgate44-debug/brain/pull/308")
+    text = dest.read_text(encoding="utf-8")
+    assert text.count("- pr:") == 1
+    assert "pull/307" not in text
+
+
+def test_record_pull_request_rejects_a_non_pull_request_url(starter, tmp_path, monkeypatch):
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    dest = _live_evidence(starter, tmp_path)
+    with pytest.raises(ValueError, match="not a GitHub pull request URL"):
+        starter.record_pull_request(dest, _CONV)
+
+
+def test_record_pull_request_rejects_a_file_with_no_conversation(starter, tmp_path):
+    dry = starter.write_evidence(tmp_path / "ev", "owner/repo", "main", "", "", dry=True)
+    with pytest.raises(ValueError, match="no conversation link"):
+        starter.record_pull_request(dry, _PR)
+
+
+def test_record_pr_cli_fails_loudly_on_a_bad_url(starter, tmp_path, monkeypatch):
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    dest = _live_evidence(starter, tmp_path)
+    monkeypatch.setattr(sys, "argv",
+                        ["start_session_loop.py", "--record-pr", str(dest), "--pr", "not-a-url"])
+    assert starter.main() == 1
+    assert "- pr:" not in dest.read_text(encoding="utf-8")
+
+
+def test_write_evidence_records_the_run_inside_actions(starter, tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("GITHUB_RUN_ID", "42477372401")
+    dest = starter.write_evidence(tmp_path, "owner/repo", "main", "conv-1", _CONV, dry=False)
+    assert starter._checker().run_link(dest) == "https://github.com/owner/repo/actions/runs/42477372401"

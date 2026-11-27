@@ -65,6 +65,131 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   conversation link (`evidence_link`), `start_session_loop.py` accepts the list response and
   writes evidence even when the poll fails, and the workflow sets `pipefail` so a crashed run
   is red. Evidence: `watcher/knowledge/evidence/session-loop-20261108-114844.md`.
+- **Progress (2026-11-11): the live-run check now requires a pull request, not a conversation.**
+  The finding is worded "live issue -> **PR** run", but `evidence_link` accepted *any* URL, and
+  the committed file named a **conversation** (`…/canvas/conversations/e166…`) with no pull
+  request — so the finding still reported OK on a file that did not prove a PR was produced: a
+  second false pass. `purpose_audit.py` now adds `pull_request_link`, which accepts only a
+  `https://github.com/<owner>/<repo>/pull/<n>` URL under a `- pr:` field; the finding is OK only
+  with such a link, PARTIAL with a conversation link alone, MISSING with neither. Committed the
+  real proof: `watcher/knowledge/evidence/company-loop-20261011-issue208-pr218.md` (issue #208
+  -> run 38148411690 -> PR #218, verified against the GitHub API), and backfilled the `- pr:`
+  link for the 2026-11-08 conversation. Tests: `tests/test_purpose_audit.py`.
+- **Correction (2026-11-12): the pull-request check was still half the claim.** The finding is
+  worded "live **issue** -> PR run", but the check above accepted a pull request with no issue —
+  a file holding only `- pr: …/pull/9` reported OK. So the finding passed while the *issue* half
+  of the path it names was absent: the same W3 shape, one level deeper. `purpose_audit.py` now
+  adds `issue_link` (only a `…/issues/<n>` URL under `- issue:`) and the finding is OK **only**
+  when both an issue link and a pull-request link are committed; a bare PR is PARTIAL. Verified
+  by the negative control below and `python3 -m pytest -q` (546 passed, 2 skipped).
+- **Correction (2026-11-13): the two links were summed across *different* files.** The check
+  above asked whether *any* file held an issue and *any* file held a pull request — so an issue
+  named by one evidence file and a pull request named by an unrelated file reported OK, though
+  no single run was proven to have gone issue -> PR: the same W3 shape, one level deeper again.
+  `purpose_audit.py` now groups each file's links with `_run_proof` and reports OK **only** when
+  one file (one run) holds both the issue and the pull request; partial files keep the finding
+  at PARTIAL. Negative control: `issue in A, PR in B` -> PARTIAL (was OK); `issue+PR, one file`
+  -> OK. Verified by `python3 -m pytest -q` (549 passed, 2 skipped) and the audit's live-run
+  finding, which now reads `company-loop-20261011-issue208-pr218.md -> issue …/issues/208;
+  pull request …/pull/218`.
+
+  ```
+  $ python3 -c "…depth_findings on a throwaway evidence dir…"
+  issue + PR, one file     -> OK
+  issue in A, PR in B      -> PARTIAL
+  PR only, no issue        -> PARTIAL
+  issue only, no PR        -> PARTIAL
+  conversation only        -> PARTIAL
+  neither                  -> MISSING
+  ```
+- **Correction (2026-11-14): the issue and the PR could be in *different* repositories.** The
+  check above required both links in one file, but not in one repository — so an issue in repo A
+  with a pull request in repo B reported OK, though no single run had gone issue -> PR. The
+  gateway allowlists one owner (`brain/company/github_gateway.py:33`) and the run reports one
+  target repository that must match (`brain/company/tools.py:225`), so a real run's issue and PR
+  always share an `owner/repo`. `purpose_audit.py` now adds `_repo_of` (line 106) and
+  `_same_repository` (line 171); the finding is OK **only** when one file holds both links in one
+  repository, and a cross-repository pair is named as such by `_describe_fragment` (line 184) and
+  kept at PARTIAL. Negative control: `issue A, PR B` -> PARTIAL (was OK); same-repo pair -> OK.
+  Verified by `python3 -m pytest -q` (552 passed, 2 skipped) and the audit's live-run finding.
+- **Correction (2026-11-15): the check never required the *run* the finding names.** The check
+  above required an issue and a pull request in one file and one repository — but not the
+  workflow run that connects them, though the finding is worded "live issue -> PR **run**". A
+  file holding only `- issue:` and `- pr:` (two URLs typed into one file, possibly unrelated)
+  reported OK, and so did a fabricated pair (`issues/99999` + `pull/99999`) for a run that never
+  happened. `purpose_audit.py` now adds `run_link` (only a `…/actions/runs/<n>` URL under
+  `- workflow run:`) and `_same_repository` requires all three links in one repository; the
+  finding is OK **only** when one file holds the issue, the run, and the pull request in one
+  repository. Negative control (throwaway evidence dir): `issue + pr, no run` -> PARTIAL (was
+  OK); `issue + run + pr` -> OK. The committed proof already carries the run link
+  (`company-loop-20261011-issue208-pr218.md`, line 7), so the real tree stays OK. Verified by
+  `python3 -m pytest -q` and the audit's live-run finding.
+- **Correction (2026-11-17): the check never required the proof to be *this* repository's run.**
+  The check above required an issue, a run, and a pull request in one file and one repository —
+  but not the repository Brain is allowed to write. So a well-formed proof naming a *foreign*
+  owner (`someone-else/other`) reported OK: three links that agree with each other, for a run this
+  app never performed. Brain writes to one owner only — the gateway allowlists it
+  (`brain/company/github_gateway.py:47`) and the task runner accepts issues "owned by the Brain
+  repository owner" (`.github/workflows/brain-task-runner.yml:50`) — so the proof must name that
+  owner. `purpose_audit.py` now reads the owner from the environment the audit runs in
+  (`_owner_scope`, `GITHUB_REPOSITORY` under Actions; `BRAIN_GITHUB_OWNER` as a fallback) and
+  `_proof_in_scope` requires every link in the file to name it; a foreign proof is named as such
+  by `_describe_fragment` and kept at PARTIAL. With no owner in the environment (a local run) the
+  check stays lenient and only requires the three links to agree, so this is strictly narrower.
+  Negative control: a crafted foreign proof -> OK before, PARTIAL after; the same proof naming
+  `madnessgate44-debug/brain` -> OK. Verified by `python3 -m pytest -q` (567 passed, 2 skipped)
+  and the audit's live-run finding.
+- **Correction (2026-11-18): the check never confirmed the proof against GitHub — a fabricated
+  triple passed.** Every check above read the evidence *file*: it proved the three links were
+  well-formed, in one file, in one repository, in this owner — but never that the run existed or
+  connected the issue to the pull request. So a hand-typed `- issue: …/issues/1`,
+  `- workflow run: …/actions/runs/1`, `- pr: …/pull/1` reported OK while nothing had run — the
+  W3 false-pass shape one level deeper, and the one the codebase's own verification already
+  guards against (`brain/company/tools.py:239-244` re-fetches the run and requires
+  `event == "issues"`, `status == "completed"` before trusting its comment).
+  `purpose_audit.py` now adds `_gh_get` (reads the API, returning the HTTP status so a 404 is a
+  *definitive* absence and an unreadable response is *inconclusive*) and `_verified_connection`
+  (the run must exist, have run the company workflow on an `issues` event, and have posted the
+  result comment that names the pull request). The finding is OK only when the proof is
+  confirmed; a proof the API rejects is PARTIAL. With no `GITHUB_TOKEN` (a local run) the check
+  skips verification rather than fabricating a failure, and `.github/workflows/shadow-report.yml`
+  now gives the gate the token and the `actions: read` scope so the check bites in production.
+  Negative control (throwaway evidence dir, live API): a fabricated `1/1/1` triple -> OK before,
+  PARTIAL after; the real `208/38148411690/218` proof -> OK. Verified by `python3 -m pytest -q`
+  (576 passed, 2 skipped).
+
+- **Progress (2026-11-19): the proof is now produced, not typed.** Every correction above made
+  the *check* stricter, and each time the only conforming file was written by hand — an
+  artifact, not a producer. The one script that wrote evidence,
+  `scripts/start_session_loop.py`, emits a conversation link
+  (`- link: …/canvas/conversations/<id>`), which the check rejects, so a real company run left
+  no committable proof. Measured: `write_evidence(...)` -> `issue_link=''`, `run_link=''`,
+  `pull_request_link=''`. New `scripts/write_loop_evidence.py` is the producer: it takes the
+  three links, validates them with the checker's own `_ISSUE_RE` / `_RUN_RE` /
+  `_PULL_REQUEST_RE` and `_same_repository`, re-reads the file with `_run_proof` before
+  returning, and deletes it rather than emit something the check would reject — so writer and
+  check cannot drift. `brain-chat-company-workflow.yml` calls it with the issue, its own
+  `run_id`, and `pull_request.url` from `brain-company-result.json`, then publishes the file on
+  a branch and opens a PR (never the default branch). Negative control: with the writer forced
+  back to the old conversation-only shape, the three substantive tests fail and the writer's own
+  guard raises `the written evidence file is not accepted by the check`.
+
+- **Correction (2026-11-22): the session loop's own proof was still typed, and read by nothing.**
+  The producer above serves the *company* workflow, which is triggered by an issue. The
+  scheduled session loop is cron-triggered, so it has no issue to name and the `live-run-evidence`
+  finding cannot cover it: its evidence file's `- pr:` line was added by hand (the 2026-11-08
+  file) and **no check read it**, so a wrong or stale number passed silently — a field no check
+  reads is presence, not proof (W3). `purpose_audit.py` now adds a `session-loop-proof` finding:
+  OK only when one evidence file records a conversation, a **completed `Session agent loop` run**
+  and a pull request in this repository's owner, the pull request was created *after* the run
+  started (a pull request older than the run that "produced" it is not its output), and — when
+  `OPENHANDS_API_KEY` answers — the Cloud API's own `pr_number` for the conversation names that
+  pull request. `scripts/start_session_loop.py` now writes the run link from
+  `GITHUB_REPOSITORY`/`GITHUB_RUN_ID` when it creates the file, and `--record-pr` writes the pull
+  request once the conversation has produced one, validating with the checker's own
+  `_PULL_REQUEST_RE`/`_RUN_RE` and re-reading the result with `_run_proof`. Negative control
+  (live API): the committed `42477372401` + `pull/307` proof -> OK; the same file with `pull/307`
+  rewritten to `pull/1` -> PARTIAL. Verified by `python3 -m pytest -q`.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
