@@ -24,6 +24,8 @@ One register: every blocker, dependency-ordered, with an owner and a safe verifi
 | B4 | SwarmChat is sandbox-local | live room is not durable; a Cloud automation cannot reach it | treat #292 as the durable record; or host SwarmChat | Owner | `[V]` |
 | B5 | Brain web-research capability unproven for the runtime | Phase-2 research must run via a workflow, not the document worker | test `brain-rd-discovery` on a live issue | OpenHands | `[U]` |
 | B6 | Watcher's Phase-1 checks are not in its daily cycle | readiness ran manually this phase | add a readiness section to `watcher-daily.yml` | OpenHands | `[V]` |
+| B8 | `BRAIN_GITHUB_TOKEN` is rejected `401 Bad credentials` — live run [46020431346](https://github.com/madnessgate44-debug/brain/actions/runs/46020431346), stage `credential_preflight` | the engine path cannot write a branch or open a pull request even with a working model | rotate the PAT and store it as `BRAIN_GITHUB_TOKEN` | Owner | `[V]` |
+| B9 | The engine's model route answered `HTTP 503` through all three attempts — same run, `brain/company/llm_provider.py:196` | the mission aborts at its first specialist call | confirm `BRAIN_AI_MODEL` (`gemini-3.5-flash-lite`) is still served on `BRAIN_AI_BASE_URL`, or set it to a served id | Owner | `[V]` |
 
 ## C. Archival blockers (Phase-1 §2 of the directive)
 

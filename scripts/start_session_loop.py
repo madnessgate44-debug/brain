@@ -15,13 +15,17 @@ be verified for free.
     python3 scripts/start_session_loop.py [--repo owner/name] [--branch main]
                                           [--task-file docs/SESSION_LOOP_TASK.md]
                                           [--out watcher/knowledge/evidence] [--dry-run]
+    python3 scripts/start_session_loop.py --record <evidence.md>
+                                          --issue <issue URL> --pull-request <PR URL>
 """
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -30,6 +34,7 @@ from pathlib import Path
 
 API = "https://app.all-hands.dev/api/v1"
 KEY_ENV = "OPENHANDS_API_KEY"
+AUDIT = Path(__file__).resolve().parents[1] / "watcher" / "knowledge" / "tools" / "purpose_audit.py"
 
 
 def build_payload(task: str, repo: str, branch: str, title: str) -> dict:
@@ -149,6 +154,75 @@ def write_evidence(out_dir: Path, repo: str, branch: str, conv_id: str, url: str
     return dest
 
 
+def _load_audit():
+    """Load the depth check so this writer validates with the checker's own rules."""
+    spec = importlib.util.spec_from_file_location("watcher_purpose_audit", AUDIT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _run_url() -> str:
+    """The workflow run this process is executing, when it is running inside Actions."""
+    repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    run_id = os.environ.get("GITHUB_RUN_ID", "").strip()
+    return f"https://github.com/{repo}/actions/runs/{run_id}" if repo and run_id else ""
+
+
+def record_trace(evidence: Path, issue: str, pull_request: str, run: str = "") -> Path:
+    """Record the issue -> pull request trace in an existing evidence file.
+
+    A `- link:` to a started conversation proves the loop started, not that it carried an issue
+    to a pull request (W3), and an issue plus a pull request proves both exist, not that *this
+    run* produced them. The trace therefore records the run too, taken from `--run` or from the
+    Actions environment. The candidate text is parsed by `purpose_audit.evidence_trace` before it
+    replaces the file, so this writer cannot emit a trace the audit would reject.
+    """
+    audit = _load_audit()
+    status = "Status: LIVE — issue carried to a pull request"
+    run = (run or _run_url()).strip()
+    kept = [
+        line for line in evidence.read_text(encoding="utf-8").splitlines()
+        if not line.strip().startswith(("- issue:", "- pull_request:", "- run:", "- workflow run:"))
+    ]
+    # Rebuild the header: drop the old status line and the blank line that followed it.
+    if any(line.startswith("Status:") for line in kept):
+        at = next(i for i, line in enumerate(kept) if line.startswith("Status:"))
+        del kept[at]
+        while at < len(kept) and not kept[at].strip():
+            del kept[at]
+        while at > 0 and not kept[at - 1].strip():
+            del kept[at - 1]
+            at -= 1
+    while kept and not kept[-1].strip():
+        kept.pop()
+    at = 1 if kept and kept[0].startswith("# ") else 0
+    kept[at:at] = [status, ""]
+    fields = [f"- issue: {issue.strip()}", f"- pull_request: {pull_request.strip()}"]
+    if run:
+        fields.append(f"- run: {run}")
+    note_at = next(
+        (i for i, line in enumerate(kept) if line.strip().startswith("- note:")), len(kept)
+    )
+    candidate = "\n".join(kept[:note_at] + fields + kept[note_at:]) + "\n"
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding="utf-8") as probe:
+        probe.write(candidate)
+        probe_path = Path(probe.name)
+    try:
+        trace = audit.evidence_trace(probe_path)
+    finally:
+        probe_path.unlink()
+    if (trace["issue"] != issue.strip() or trace["pull_request"] != pull_request.strip()
+            or not trace["run"] or (run and trace["run"] != run)):
+        raise ValueError(
+            "the depth check would reject this trace: it needs "
+            "https://github.com/<owner>/<repo>/issues/<n>, /pull/<n> and /actions/runs/<id> on "
+            "one repository — pass --run or set GITHUB_REPOSITORY and GITHUB_RUN_ID"
+        )
+    evidence.write_text(candidate, encoding="utf-8")
+    return evidence
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Start the session agent's scheduled loop")
     ap.add_argument("--repo", default="madnessgate44-debug/brain")
@@ -157,7 +231,25 @@ def main() -> int:
     ap.add_argument("--title", default="Session agent loop — find and fix a real defect")
     ap.add_argument("--out", default="watcher/knowledge/evidence")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--record", metavar="EVIDENCE", default="",
+                    help="record the issue -> PR trace in an existing evidence file and exit")
+    ap.add_argument("--issue", default="", help="the GitHub issue URL this run carried")
+    ap.add_argument("--pull-request", default="", help="the GitHub pull request URL this run opened")
+    ap.add_argument("--run", default="",
+                    help="the actions run URL that produced it (defaults to this run)")
     a = ap.parse_args()
+
+    if a.record:
+        if not (a.issue and a.pull_request):
+            print("--record needs --issue and --pull-request", file=sys.stderr)
+            return 2
+        try:
+            dest = record_trace(Path(a.record), a.issue, a.pull_request, a.run)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(f"trace recorded: {dest}")
+        return 0
 
     task = Path(a.task_file).read_text(encoding="utf-8").strip()
     payload = build_payload(task, a.repo, a.branch, a.title)

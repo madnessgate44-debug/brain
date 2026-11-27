@@ -65,6 +65,57 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   conversation link (`evidence_link`), `start_session_loop.py` accepts the list response and
   writes evidence even when the poll fails, and the workflow sets `pipefail` so a crashed run
   is red. Evidence: `watcher/knowledge/evidence/session-loop-20261108-114844.md`.
+- **Progress (2026-11-23): the check refuses a conversation link as proof.** A conversation link
+  is written before any work happens, so the 2026-11-08 rule still passed a run that produced
+  nothing. `purpose_audit.py` now reads `- issue:` and `- pull_request:` (`evidence_trace`) and
+  reports OK only for an issue plus the pull request that closes it, on the same repository; a
+  conversation-only file is PARTIAL, and a test fails if it is accepted. The trace for the
+  scheduled run of 2026-11-23 15:48 UTC is committed:
+  `watcher/knowledge/evidence/session-loop-20261123-154852.md` records issue #358 -> PR #359.
+  Still open under W3: the temp-dir vs repo checkout, and the `brain/company` engine path has no
+  issue -> PR proof of its own.
+- **Progress (2026-11-24): the loop's own writer produces the trace.** A stricter check that only
+  a hand-typed file can satisfy is the same defect one level deeper: `write_evidence` wrote a
+  conversation link and nothing else, so every run landed `PARTIAL`. `record_trace` in
+  `scripts/start_session_loop.py` now records `- issue:` / `- pull_request:` in an existing
+  evidence file and validates the result with `purpose_audit.evidence_trace` — it refuses (and
+  writes nothing) when the pair is on different repositories or is not a pull-request URL.
+  `docs/SESSION_LOOP_TASK.md` tells each run to record it. Evidence for this run: issue #363 ->
+  PR #359 in `watcher/knowledge/evidence/session-loop-20261124-155001.md`.
+- **Progress (2026-11-25): the trace is checked against GitHub, not matched as text.** After
+  2026-11-24 the only requirement on the trace was a URL shape: a path typed into the file passed
+  the check even if no such issue or pull request existed — presence read as depth, one level
+  further down. `purpose_audit.verify_trace` now reads the issue and the pull request
+  (`GET /repos/{repo}/issues/{n}`, `/pulls/{n}`) and the finding is OK only when the issue exists
+  and the pull request names it; a 404, a pull request used as the issue, or a pull request that
+  never references the issue all make it PARTIAL. Without a token (offline) the finding says the
+  trace is "not checked" instead of claiming proof. The gate job in `shadow-report.yml` now
+  exports `GITHUB_TOKEN` so the authoritative check verifies. Evidence for this run: issue #363 ->
+  PR #359, verified live: `issue #358 exists; pull request #359 references it`.
+- **Progress (2026-11-26): the trace must be the run's, not a mention.** Reading the issue and the
+  pull request proved both exist, not that *this run* produced the pair: PR #359's body mentions
+  six issue numbers, so any of them paired with it passed. The record this very PR committed —
+  issue #363 -> PR #359 — is refuted by GitHub's own timestamps: the PR was opened
+  2026-11-23T15:53:36Z, issue #363 was filed 2026-11-24T15:48:47Z, and the run the note names
+  (45428155591) started 2026-11-24T15:40:03Z, after the PR existed. `verify_trace` now also reads
+  the workflow run the evidence file records (`- run:`) and requires the run to be completed, to
+  have started before the issue, to have started before the pull request, and to share the pull
+  request's author. A missing run, a wrong order, or a different author are all refuted; only a
+  failed read (no token, transient HTTP) is "unverified". The finding now also lists a refuted
+  record beside a verified one instead of dropping it. Evidence:
+  `python3 watcher/knowledge/tools/purpose_audit.py` (run 45209420890 -> issue #358 -> PR #359
+  verified; the 2026-11-24 record refuted).
+
+- **Progress (2026-11-27): the live run was attempted again, and its failure was measured.**
+  Issue #375 -> run 46020431346. The run never reached a pull request, for three reasons read from
+  its log: `capability_planning` classified *"add exactly one regression test …"* as `read_only`
+  (*"No affirmative repository mutation action was requested"*), so the workflow audited instead of
+  changing anything; the model route answered `HTTP 503` through all three attempts; and
+  `BRAIN_GITHUB_TOKEN` was rejected `401 Bad credentials`. The first is ours and is fixed:
+  `brain/company/mission_capabilities.py:24` now admits "exactly", "only", "just", "single",
+  "another", "two", "three" and "that"/"this" as determiners between the verb and its object, and
+  `tests/test_mission_capabilities.py` pins the production objective. The other two are credentials
+  only the owner can load. The committed-proof gap stays open: no engine-path trace exists yet.
 
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps

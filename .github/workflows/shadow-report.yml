@@ -57,6 +57,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Run the fit-for-purpose gate
+        env:
+          # The live-run finding is checked against GitHub, not matched as text (W3), so the
+          # gate needs a token to read the issue and the pull request the trace names.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 shadow/report.py --gate
 
   sweep:
