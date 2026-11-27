@@ -41,21 +41,38 @@ The loops are real but **hemmed in**:
   works in a sandbox seeded from fetched files (still no full checkout). The change *kinds* are
   now unbounded, but the *reach* (a real checkout) is not. **~4/10** for "the agent can change a repo".
 
-### 3. The proof — the loop is not proven to run against a live model in CI
+### 3. The proof — the engine path has landed one real run, and today it cannot
 - The loop **is** wired into the running service: `brain/runtime/mission_runtime.py:94` builds
   `CompanyWorkflowEngine(SpecialistAgentRunner(OpenAICompatibleProvider()), tools)` for a
   mission whose `metadata.workflow_type == "software_company"`. So it is reachable, not dead.
 - But it only engages with a real provider; **tests inject fakes** (`agent_runner.py:403`
   comment). So the suite proves the *wiring*, not a live end-to-end coding run.
-- There is **no committed evidence of a real issue -> real PR produced by this engine path**. R2
-  was proven by a single shell command through the SDK (`echo HELLO_AUDIT_123`), not a code
-  change. The session-agent loop is a different path (a Cloud conversation, not this engine) and
+- **This engine path has landed one real issue -> PR run, on 2026-10-11.** PR #218 (branch
+  `brain/mission-523096880e41`, one test added to `tests/test_openhands_developer.py`) was opened by
+  run 38148411690 from an owner issue containing `/brain simulate`, and merged 2026-11-07.
+  Verified from that run's log (`- Mode: implementation`, `- Pull request: …/pull/218`). The earlier
+  sentence here said no such run existed; that was wrong about the run and right about the proof —
+  `watcher/knowledge/evidence/` still holds only session-loop traces, so no engine-path trace is
+  committed. The session-agent loop is a different path (a Cloud conversation, not this engine) and
   it has landed one: run 45209420890 filed issue #358 and opened PR #359 inside four minutes
   (`watcher/knowledge/evidence/session-loop-20261123-154852.md`). `purpose_audit.verify_trace`
   checks that ordering against GitHub; the 2026-11-24 record in the same directory is refuted by
   it, because PR #359 predates both that run and the issue it names.
-- **Distance:** Claude Code's whole value is that it demonstrably does the work. Here the loop
-  is built, wired, and unit-tested but **not proven to land a real change**. **~2/10**.
+- **Attempted live again on 2026-11-27** (issue #375, run 46020431346). It failed, and each cause is
+  read from that run's log rather than inferred:
+  1. `capability_planning` classified the objective *"add exactly one regression test …"* as
+     `read_only` — *"No affirmative repository mutation action was requested"* — so the workflow
+     audited the repository and could never open a pull request. The determiner list in
+     `brain/company/mission_capabilities.py:24` did not admit "exactly" or "only". Fixed on this
+     branch; `tests/test_mission_capabilities.py` pins the production objective.
+  2. The model route answered `HTTP 503` through all three attempts
+     (`brain/company/llm_provider.py:196`), which aborted the mission.
+  3. `BRAIN_GITHUB_TOKEN` was rejected `401 Bad credentials` at `credential_preflight`, so the write
+     path had no usable token either.
+- **Distance:** Claude Code's whole value is that it demonstrably does the work. Here the loop is
+  built, wired, unit-tested, and has landed a change once; today it is blocked by one code defect
+  (fixed here) and two credentials the owner controls. **~2/10** until a run *after* this fix
+  produces a pull request.
 
 ### Capability table (present / partial / absent), with evidence
 

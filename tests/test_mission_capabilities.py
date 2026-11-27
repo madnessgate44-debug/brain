@@ -95,6 +95,32 @@ def test_adding_a_regression_test_is_classified_as_mutating():
     assert "pull_request:create" in plan.required_capabilities
 
 
+def test_quantified_regression_test_request_is_mutating():
+    """The objective that ran read-only in production: issue #375, run 46020431346.
+
+    "add exactly one regression test" was classified read-only, so the company workflow
+    audited the repository instead of changing it and could never open the pull request.
+    """
+    objective = (
+        "add exactly one regression test to `tests/test_purpose_audit.py` that asserts the\n"
+        "purpose-audit severity ordering is OK < PARTIAL < MISSING, so that a future edit which\n"
+        "reorders severity fails the suite. Add only that test. Do not change production code.\n"
+    )
+    plan = plan_capabilities(objective)
+    assert plan.mode == "mutating"
+    assert "pull_request:create" in plan.required_capabilities
+
+
+def test_only_that_test_phrasing_is_mutating():
+    plan = plan_capabilities("Add only that test.")
+    assert plan.mode == "mutating"
+
+
+def test_negated_quantified_add_stays_read_only():
+    plan = plan_capabilities("Audit the suite. Do not add exactly one test or change files.")
+    assert plan.mode == "read_only"
+
+
 def test_read_only_audit_of_tests_does_not_become_mutating():
     plan = plan_capabilities("Audit the existing tests and report coverage gaps.")
     assert plan.mode == "read_only"

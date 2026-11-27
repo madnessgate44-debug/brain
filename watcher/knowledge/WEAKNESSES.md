@@ -106,6 +106,17 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
   `python3 watcher/knowledge/tools/purpose_audit.py` (run 45209420890 -> issue #358 -> PR #359
   verified; the 2026-11-24 record refuted).
 
+- **Progress (2026-11-27): the live run was attempted again, and its failure was measured.**
+  Issue #375 -> run 46020431346. The run never reached a pull request, for three reasons read from
+  its log: `capability_planning` classified *"add exactly one regression test …"* as `read_only`
+  (*"No affirmative repository mutation action was requested"*), so the workflow audited instead of
+  changing anything; the model route answered `HTTP 503` through all three attempts; and
+  `BRAIN_GITHUB_TOKEN` was rejected `401 Bad credentials`. The first is ours and is fixed:
+  `brain/company/mission_capabilities.py:24` now admits "exactly", "only", "just", "single",
+  "another", "two", "three" and "that"/"this" as determiners between the verb and its object, and
+  `tests/test_mission_capabilities.py` pins the production objective. The other two are credentials
+  only the owner can load. The committed-proof gap stays open: no engine-path trace exists yet.
+
 ## W4 — The loop is never scheduled, so it does not run
 - **Evidence:** Shadow G1 — *"Nothing invokes `shadow.py` on a schedule."* Watcher's cycle steps
   4.2-4.4 were **MISSING**. The session agent had no loop at all — no workflow ran it; the owner
