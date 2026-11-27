@@ -53,8 +53,15 @@ All three now have a scheduled loop. The session agent's was added 2026-11-03 (`
 - **Progress (2026-11-09): the patch contract is lifted.** The developer collects edits, new files,
   and deletions (`openhands_developer.py` `_collect_change_set`), the engine validator accepts
   deletion markers, and the write gateway commits a deletion as a `sha: null` tree entry. The
-  audit's patch-contract depth finding now reports OK. Still open under W3: the temp-dir vs repo
-  checkout.
+  audit's patch-contract depth finding now reports OK.
+- **Progress (2026-11-21): the developer works in a real checkout, and the check can now fail.**
+  The `repo-checkout` finding used to be hardcoded `PARTIAL` — a gap no code change could close and
+  no regression could reopen. It is now derived from the code: the developer clones the repository
+  (`_prepare_workspace` / `_clone_repository`), reads its change set from `git status`
+  (`_collect_git_change_set`), and falls back to the seeded snapshot only when a clone is
+  impossible. Tests prove the checkout has the whole tree and git history
+  (`tests/test_openhands_developer.py`) and that the audit distinguishes a checkout from a seeded
+  workspace (`tests/test_purpose_audit.py`). Baseline moved to OK with `--update-baseline`.
 - **Progress (2026-11-08): the live-run proof is real, and the check now refuses a false pass.**
   The scheduled run of 2026-11-08 05:00 UTC *did* start a conversation
   (`e166ab9ce3864fa89ded6f01dd480097`), then crashed inside `wait_for_ready` —

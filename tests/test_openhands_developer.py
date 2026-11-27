@@ -1,11 +1,15 @@
 """Regression tests for the OpenHands developer adapter's patch contract."""
 
+import subprocess
+
 import pytest
 
 from brain.company.agent_runner import AgentOutputError
 from brain.company.openhands_developer import (
     _collect_change_set,
+    _collect_git_change_set,
     _developer_tools,
+    _prepare_workspace,
     _safe_relative_path,
     _sdk_llm_kwargs,
     _sdk_model_name,
@@ -160,3 +164,128 @@ def test_generic_custom_endpoint_keeps_conservative_optional_fields():
         "supports_reasoning_effort": False,
         "supports_sampling_params": False,
     }
+
+
+def _git(path, *args):
+    return subprocess.run(
+        ["git", *args], cwd=str(path), capture_output=True, text=True, check=True
+    )
+
+
+def _repo_with_commit(path):
+    """A real git repository with one commit; returns its HEAD sha."""
+    path.mkdir(parents=True, exist_ok=True)
+    _git(path, "init", "-q", "-b", "main")
+    _git(path, "config", "user.email", "test@example.test")
+    _git(path, "config", "user.name", "Test")
+    (path / "pkg").mkdir(exist_ok=True)
+    (path / "pkg" / "mod.py").write_text("old\n", encoding="utf-8")
+    (path / "README.md").write_text("# repo\n", encoding="utf-8")
+    _git(path, "add", "-A")
+    _git(path, "commit", "-qm", "base")
+    return _git(path, "rev-parse", "HEAD").stdout.strip()
+
+
+def test_prepare_workspace_checks_out_the_whole_repository(tmp_path):
+    """W3: the developer sees the real tree, not only the files Brain happened to fetch."""
+    origin = tmp_path / "origin"
+    head = _repo_with_commit(origin)
+    root = tmp_path / "work"
+    root.mkdir()
+
+    mode, detail = _prepare_workspace(
+        root, "owner/repo", {"pkg/mod.py": "old\n"}, ref="main", clone_url=str(origin)
+    )
+
+    assert mode == "checkout"
+    assert detail.startswith(str(origin))
+    assert (root / ".git").is_dir()
+    assert _git(root, "rev-parse", "HEAD").stdout.strip() == head
+    assert (root / "README.md").is_file(), "a file outside the fetched snapshot must be present"
+
+
+def test_prepare_workspace_falls_back_to_the_fetched_snapshot(tmp_path):
+    root = tmp_path / "work"
+    root.mkdir()
+
+    mode, detail = _prepare_workspace(
+        root,
+        "owner/repo",
+        {"pkg/mod.py": "old\n"},
+        ref="main",
+        clone_url=str(tmp_path / "missing"),
+    )
+
+    assert mode == "seed"
+    assert "clone" in detail
+    assert (root / "pkg" / "mod.py").read_text(encoding="utf-8") == "old\n"
+    assert not (root / ".git").exists()
+
+
+def test_prepare_workspace_never_writes_the_token_into_git_config(tmp_path):
+    origin = tmp_path / "origin"
+    _repo_with_commit(origin)
+    root = tmp_path / "work"
+    root.mkdir()
+
+    mode, _ = _prepare_workspace(
+        root,
+        "owner/repo",
+        {},
+        token="ghs_example_token_value",
+        ref="main",
+        clone_url=str(origin),
+    )
+
+    assert mode == "checkout"
+    assert "ghs_example_token_value" not in (root / ".git" / "config").read_text(encoding="utf-8")
+
+
+def _checkout(tmp_path):
+    origin = tmp_path / "origin"
+    _repo_with_commit(origin)
+    root = tmp_path / "work"
+    root.mkdir()
+    mode, _ = _prepare_workspace(root, "owner/repo", {}, ref="main", clone_url=str(origin))
+    assert mode == "checkout"
+    return root
+
+
+def test_git_change_set_reports_edits_additions_and_deletions(tmp_path):
+    root = _checkout(tmp_path)
+    (root / "pkg" / "mod.py").write_text("new\n", encoding="utf-8")
+    (root / "README.md").unlink()
+    (root / "pkg" / "added.py").write_text("fresh\n", encoding="utf-8")
+
+    by_path = {item["path"]: item for item in _collect_git_change_set(root)}
+
+    assert by_path == {
+        "pkg/mod.py": {"path": "pkg/mod.py", "content": "new\n"},
+        "README.md": {"path": "README.md", "deleted": True},
+        "pkg/added.py": {"path": "pkg/added.py", "content": "fresh\n"},
+    }
+
+
+def test_git_change_set_ignores_agent_state_directories(tmp_path):
+    root = _checkout(tmp_path)
+    (root / "pkg" / "mod.py").write_text("new\n", encoding="utf-8")
+    (root / ".openhands").mkdir()
+    (root / ".openhands" / "state.json").write_text("{}\n", encoding="utf-8")
+
+    changed = _collect_git_change_set(root)
+
+    assert [item["path"] for item in changed] == ["pkg/mod.py"]
+
+
+def test_git_change_set_raises_when_nothing_changed(tmp_path):
+    root = _checkout(tmp_path)
+
+    with pytest.raises(AgentOutputError, match="without producing any repository file changes"):
+        _collect_git_change_set(root)
+
+
+def test_developer_task_prompt_describes_the_checkout():
+    prompt = _task_prompt(
+        "Do the work", {"repository_snapshot": {"source_contents": {}}}, "checkout"
+    )
+    assert "full git checkout" in prompt
