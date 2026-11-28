@@ -1,0 +1,149 @@
+{
+ "date": "2026-11-27",
+ "count": 13,
+ "conversations": [
+  {
+   "id": "780105bd52604ad7a0f85fa7abcc51f7",
+   "title": "Openhands loop \u2014 2026-11-27 00:07:28 UTC",
+   "events": 181,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "b584f7d5fa5cb3c021eec1540731c821bf4133cda959a0405105896374ec0d41"
+  },
+  {
+   "id": "49dfb6377e1b4323ae678311d6b7bb87",
+   "title": "Openhands loop \u2014 2026-11-27 02:01:36 UTC",
+   "events": 153,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "2279618ad4c244842a208e2c6609ab55c395e763339b09b7fe939d07f38c75cc"
+  },
+  {
+   "id": "683dff71d38c4c4fb74854f59761e1e7",
+   "title": "Openhands loop \u2014 2026-11-27 04:02:01 UTC",
+   "events": 123,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "642102a83a64fd2e0c250e44922a6190b7091852e9b83bc2ebc76d2d73e54839"
+  },
+  {
+   "id": "ad5a15aae6db4e4b87a0baff0f794d97",
+   "title": "Openhands loop \u2014 2026-11-27 06:02:41 UTC",
+   "events": 141,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "1e4b6b1600ee252496c3f4cad2f47295ce22989322c8c150c446f999cf2ee072"
+  },
+  {
+   "id": "71fcdbe8f1b54c82ad6c497d82d36924",
+   "title": "Openhands loop \u2014 2026-11-27 08:01:24 UTC",
+   "events": 153,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "93079aa789cc90e0f07a0d07ea71de95b57b1041d291cc68c4198c4c06f0162f"
+  },
+  {
+   "id": "15035263f0134d15ad5b53b083c54469",
+   "title": "Openhands loop \u2014 2026-11-27 10:01:43 UTC",
+   "events": 169,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "cab4986a808141e82dae3d6d3961fad95a75e0b5b1d530e4f45d0b0c57b65306"
+  },
+  {
+   "id": "283780af0774417b8a9e276b27d718a8",
+   "title": "Openhands loop \u2014 2026-11-27 12:02:46 UTC",
+   "events": 142,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "bc4d14a8315c2fb1b6828edd6e3052ed4e1322d148d7c60b64954b60b72d453a"
+  },
+  {
+   "id": "9887d6db516345b6988d97609e286930",
+   "title": "Openhands loop \u2014 2026-11-27 14:01:25 UTC",
+   "events": 111,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 0,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "c1ffd50cb390682be1d4b3fd429b95c153a4b003d8cb43334047ac4a80d0ce08"
+  },
+  {
+   "id": "d3856234f7e74bcda9eee5639d8bc206",
+   "title": "Session agent loop \u2014 find and fix a real defect",
+   "events": 758,
+   "pages": 8,
+   "owner_messages": 1,
+   "agent_messages": 1,
+   "automation": false,
+   "sandbox_status": "PAUSED",
+   "log_sha256": "12f5077a959124fdf2025aa6ca863165e097193e9350504a42fc42ae365496cd"
+  },
+  {
+   "id": "db594feaf5094d989cc081430fb9cb41",
+   "title": "Openhands loop \u2014 2026-11-27 16:02:14 UTC",
+   "events": 209,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "7df00613ae5cba3640922a579e3d508e7e150a6c03807839a0354844df1da631"
+  },
+  {
+   "id": "6beaac1d66934acebc1b7cc80dc9fa83",
+   "title": "Openhands loop \u2014 2026-11-27 18:01:52 UTC",
+   "events": 163,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "d8850b1084f19be06d7433ffb67395c9ea309bc46c8aa63856b17ee0135442fe"
+  },
+  {
+   "id": "f86de462df9f4a63b883fc1cdca87783",
+   "title": "Openhands loop \u2014 2026-11-27 20:02:30 UTC",
+   "events": 205,
+   "pages": 3,
+   "owner_messages": 0,
+   "agent_messages": 2,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "26059a47aa05697ec6acc0f86384f6bbbca6a907acbc8342b6795a96488589fa"
+  },
+  {
+   "id": "ba3140411d51411586e2360fda40bbc2",
+   "title": "Openhands loop \u2014 2026-11-27 22:01:13 UTC",
+   "events": 151,
+   "pages": 2,
+   "owner_messages": 0,
+   "agent_messages": 1,
+   "automation": true,
+   "sandbox_status": "MISSING",
+   "log_sha256": "0da5d464cef107f7d04b3fdf2c09e5b72444f87a2b5fc218f33f1aef071d983f"
+  }
+ ]
+}
